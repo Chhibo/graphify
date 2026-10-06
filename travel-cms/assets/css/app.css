@@ -1,0 +1,41 @@
+/* WanderLuxe Travel CMS - custom styles on top of Tailwind */
+.glass-panel {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.dark .glass-panel {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.hero-gradient {
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.85) 100%);
+}
+#mainHeader.scrolled .nav-link,
+#mainHeader.scrolled .brand-text,
+#mainHeader.scrolled #mobileMenuBtn { color: #0f172a; text-shadow: none; }
+#mainHeader.scrolled .nav-link:hover { color: #f97316; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #0d9488; border-radius: 4px; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Rich text content (blog posts, pages, tour descriptions) */
+.prose-content { font-size: .95rem; line-height: 1.8; color: #475569; }
+.prose-content p { margin-bottom: 1rem; }
+.prose-content h2 { font-family: "Playfair Display", serif; font-size: 1.6rem; font-weight: 700; color: #0f172a; margin: 1.8rem 0 .8rem; }
+.prose-content h3 { font-size: 1.2rem; font-weight: 700; color: #0f172a; margin: 1.5rem 0 .6rem; }
+.prose-content ul { list-style: disc; padding-left: 1.4rem; margin-bottom: 1rem; }
+.prose-content ol { list-style: decimal; padding-left: 1.4rem; margin-bottom: 1rem; }
+.prose-content a { color: #0d9488; text-decoration: underline; }
+.prose-content blockquote { border-left: 4px solid #14b8a6; padding: .4rem 1rem; font-style: italic; background: #f0fdfa; border-radius: .5rem; margin-bottom: 1rem; }
+.prose-content img { border-radius: 1rem; margin: 1rem 0; max-width: 100%; height: auto; }
+
+@media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+    .no-print { display: none !important; }
+}
