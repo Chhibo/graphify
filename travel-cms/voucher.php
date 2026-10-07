@@ -61,8 +61,8 @@ page_banner($justBooked ? 'Booking Confirmed!' : 'Your Reservation', $justBooked
             <div class="grid grid-cols-2 gap-3 text-xs">
                 <div><span class="text-slate-400 block">Lead Guest</span><span class="font-semibold"><?= e($booking['customer_name']) ?></span></div>
                 <div><span class="text-slate-400 block">Travel Date</span><span class="font-semibold"><?= e(format_date($booking['travel_date'], 'D, M j, Y')) ?></span></div>
-                <div><span class="text-slate-400 block">Guests</span><span class="font-semibold"><?= (int) $booking['guests'] ?> × <?= e(money($booking['unit_price'])) ?></span></div>
-                <div><span class="text-slate-400 block">Amount Due (On Arrival)</span><span class="font-bold text-emerald-600"><?= e(money($booking['total'])) ?></span></div>
+                <div><span class="text-slate-400 block">Guests</span><span class="font-semibold"><?= (int) $booking['guests'] ?><?= $booking['price_on_request'] ? '' : ' × ' . e(money($booking['unit_price'])) ?></span></div>
+                <div><span class="text-slate-400 block">Amount Due (On Arrival)</span><span class="font-bold text-emerald-600"><?= e(booking_total($booking)) ?></span></div>
                 <div><span class="text-slate-400 block">Phone</span><span class="font-semibold"><?= e($booking['customer_phone']) ?></span></div>
                 <div><span class="text-slate-400 block">Booked On</span><span class="font-semibold"><?= e(format_date($booking['created_at'])) ?></span></div>
             </div>

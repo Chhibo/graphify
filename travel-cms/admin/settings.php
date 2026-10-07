@@ -69,6 +69,7 @@ $groups = [
         'cancel_min_days' => ['number', 'Online cancellation allowed until (days before travel)', '1'],
         'terms_page' => ['select', 'Booking terms page (checkbox in booking form)', '', '', $pageOptions],
         'booking_modal_text' => ['text', 'Booking form subtitle', 'Reserve your spot now & pay cash or card directly to your guide on arrival.'],
+        'price_hidden_text' => ['text', 'Text shown instead of a hidden price', 'Price on request'],
         'voucher_note' => ['textarea', 'Voucher note', 'Please present this voucher to your guide on arrival.'],
         'reviews_auto_approve' => ['bool', 'Publish visitor reviews without moderation', '0'],
     ]],

@@ -9,7 +9,7 @@ if ($id && !$tour) {
 }
 $type = $tour['type'] ?? (($_GET['type'] ?? 'trip') === 'activity' ? 'activity' : 'trip');
 $t = $tour ?: [
-    'type' => $type, 'title' => '', 'slug' => '', 'category_id' => null, 'destination' => '', 'price' => '', 'duration' => '',
+    'type' => $type, 'title' => '', 'slug' => '', 'category_id' => null, 'destination' => '', 'price' => '', 'hide_price' => 0, 'duration' => '',
     'max_guests' => $type === 'trip' ? 12 : 10, 'icon' => $type === 'trip' ? 'fa-plane' : 'fa-compass', 'image' => '',
     'short_description' => '', 'description' => '', 'inclusions' => '', 'itinerary' => '', 'rating' => '5.0', 'reviews_count' => 0,
     'is_featured' => 1, 'status' => 'active', 'sort_order' => 0,
@@ -24,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'category_id' => (int) post('category_id') ?: null,
         'destination' => mb_substr(post('destination'), 0, 150),
         'price' => max(0, (float) post('price')),
+        'hide_price' => post('hide_price') === '1' ? 1 : 0,
         'duration' => mb_substr(post('duration'), 0, 80),
         'max_guests' => max(1, (int) post('max_guests', 12)),
         'icon' => preg_replace('/[^a-z0-9\- ]/', '', strtolower(post('icon'))) ?: 'fa-compass',
@@ -40,6 +41,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ];
     if ($data['title'] === '') {
         flash('error', 'Title is required.');
+        redirect($self);
+    }
+    if (!$data['hide_price'] && post('price') === '') {
+        flash('error', 'Enter a price, or tick "Hide price" to show "' . setting('price_hidden_text', 'Price on request') . '" instead.');
         redirect($self);
     }
     $data['slug'] = unique_slug('tours', post('slug') !== '' ? post('slug') : $data['title'], $id);
@@ -75,7 +80,10 @@ admin_header($tour ? 'Edit: ' . $tour['title'] : 'New ' . ($type === 'trip' ? 't
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <?php f_input('Destination / location', 'destination', $t['destination'], 'text', 'placeholder="e.g., Bali, Indonesia"'); ?>
                 <?php f_input('Duration', 'duration', $t['duration'], 'text', 'placeholder="' . ($type === 'trip' ? '7 Days / 6 Nights' : '5 Hours') . '"'); ?>
-                <?php f_input('Price per guest (' . setting('currency_symbol', '$') . ')', 'price', $t['price'], 'number', 'step="0.01" min="0" required'); ?>
+                <div class="space-y-2">
+                    <?php f_input('Price per guest (' . setting('currency_symbol', '$') . ')', 'price', $t['price'], 'number', 'step="0.01" min="0"' . ($t['hide_price'] ? '' : ' required')); ?>
+                    <?php f_check('Hide price', 'hide_price', (bool) $t['hide_price'], 'Shows "' . setting('price_hidden_text', 'Price on request') . '" and the price is not required. You confirm the price with the guest after booking.'); ?>
+                </div>
                 <?php f_input('Max guests per booking', 'max_guests', $t['max_guests'], 'number', 'min="1"'); ?>
             </div>
             <?php f_textarea('Short description (shown on cards)', 'short_description', $t['short_description'], 2, 'Max 500 characters.', 'maxlength="500"'); ?>
@@ -109,4 +117,16 @@ admin_header($tour ? 'Edit: ' . $tour['title'] : 'New ' . ($type === 'trip' ? 't
         </div>
     </div>
 </form>
+<script>
+(function () {
+    var box = document.querySelector('input[type=checkbox][name=hide_price]');
+    var price = document.getElementById('f_price');
+    function sync() {
+        price.required = !box.checked;
+        price.closest('div').style.opacity = box.checked ? '.5' : '1';
+    }
+    box.addEventListener('change', sync);
+    sync();
+})();
+</script>
 <?php admin_footer(); ?>

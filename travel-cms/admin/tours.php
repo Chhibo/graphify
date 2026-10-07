@@ -76,7 +76,7 @@ admin_header($label, $type === 'trip' ? 'trips' : 'activities');
                     </div>
                 </td>
                 <td><?= e($t['category_name'] ?? '—') ?></td>
-                <td class="font-semibold whitespace-nowrap"><?= e(money($t['price'])) ?></td>
+                <td class="font-semibold whitespace-nowrap"><?= e(money($t['price'])) ?><?= $t['hide_price'] ? '<div class="text-[10px] font-bold text-amber-600 uppercase">Hidden: on request</div>' : '' ?></td>
                 <td class="whitespace-nowrap"><?= e($t['duration']) ?></td>
                 <td><a href="<?= e(url('admin/bookings.php?tour=' . $t['id'])) ?>" class="text-brand-600 font-bold"><?= (int) $t['bookings'] ?></a></td>
                 <td>

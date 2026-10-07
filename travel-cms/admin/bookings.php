@@ -74,7 +74,7 @@ if (($_GET['export'] ?? '') === 'csv') {
     fwrite($out, "\xEF\xBB\xBF");
     fputcsv($out, ['Reference', 'Status', 'Experience', 'Travel date', 'Guests', 'Unit price', 'Total', 'Name', 'Email', 'Phone', 'Notes', 'Admin notes', 'Booked at']);
     foreach ($rows as $r) {
-        $cells = [$r['reference'], $r['status'], $r['tour_title'], $r['travel_date'], $r['guests'], $r['unit_price'], $r['total'], $r['customer_name'], $r['customer_email'], $r['customer_phone'], $r['notes'], $r['admin_notes'], $r['created_at']];
+        $cells = [$r['reference'], $r['status'], $r['tour_title'], $r['travel_date'], $r['guests'], $r['price_on_request'] ? 'On request' : $r['unit_price'], $r['price_on_request'] ? 'On request' : $r['total'], $r['customer_name'], $r['customer_email'], $r['customer_phone'], $r['notes'], $r['admin_notes'], $r['created_at']];
         // Neutralise spreadsheet formulas in user-provided values.
         $cells = array_map(fn ($c) => preg_match('/^[=@\t\r]|^[+\-](?![\d\s().\-]+$)/', (string) $c) ? "'" . $c : $c, $cells);
         fputcsv($out, $cells);
@@ -148,7 +148,7 @@ admin_header('Bookings', 'bookings');
                     <td class="max-w-[220px] truncate"><?= e($r['tour_title']) ?></td>
                     <td class="whitespace-nowrap"><?= e(format_date($r['travel_date'])) ?></td>
                     <td><?= (int) $r['guests'] ?></td>
-                    <td class="whitespace-nowrap font-semibold"><?= e(money($r['total'])) ?></td>
+                    <td class="whitespace-nowrap font-semibold"><?= e(booking_total($r)) ?></td>
                     <td><?= status_badge($r['status']) ?></td>
                     <td class="text-xs text-slate-400 whitespace-nowrap"><?= e(time_ago($r['created_at'])) ?></td>
                     <td><a href="<?= e(url('admin/booking.php?id=' . $r['id'])) ?>" class="btn btn-light !py-1.5 !px-3">Open</a></td>

@@ -9,7 +9,7 @@ if ($id && !$booking) {
 }
 $isNew = !$booking;
 $statuses = booking_statuses();
-$tours = db_all('SELECT id, type, title, price, status FROM ' . tbl('tours') . ' ORDER BY type DESC, title');
+$tours = db_all('SELECT id, type, title, price, hide_price, status FROM ' . tbl('tours') . ' ORDER BY type DESC, title');
 $self = 'admin/booking.php' . ($id ? '?id=' . $id : '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -48,14 +48,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect($self);
     }
 
-    $unit = post('unit_price') !== '' ? (float) post('unit_price') : (float) $tour['price'];
-    if ($booking && (int) $booking['tour_id'] !== (int) $tour['id'] && post('unit_price') === (string) (float) $booking['unit_price']) {
-        $unit = (float) $tour['price']; // experience changed: take the new price
+    $priceInput = post('unit_price');
+    if ($booking && (int) $booking['tour_id'] !== (int) $tour['id'] && $priceInput === booking_price_field($booking)) {
+        $priceInput = ''; // experience changed: take the new experience's price
     }
+    // An empty price on a "price on request" experience keeps the booking on request.
+    $onRequest = $priceInput === '' && $tour['hide_price'];
+    $unit = $priceInput !== '' ? (float) $priceInput : ($onRequest ? 0.0 : (float) $tour['price']);
     $data['tour_id'] = $tour['id'];
     $data['tour_title'] = $tour['title'];
     $data['unit_price'] = $unit;
     $data['total'] = round($unit * $data['guests'], 2);
+    $data['price_on_request'] = $onRequest ? 1 : 0;
 
     if ($isNew) {
         $data += [
@@ -89,8 +93,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('admin/booking.php?id=' . $id);
 }
 
+/** Value of the price field: empty while the price is still on request. */
+function booking_price_field(array $b): string
+{
+    return ($b['unit_price'] === '' || !empty($b['price_on_request'])) ? '' : (string) (float) $b['unit_price'];
+}
+
 $b = $booking ?: [
-    'tour_id' => (int) ($_GET['tour'] ?? 0), 'travel_date' => date('Y-m-d', strtotime('+1 day')), 'guests' => 2, 'unit_price' => '',
+    'tour_id' => (int) ($_GET['tour'] ?? 0), 'travel_date' => date('Y-m-d', strtotime('+1 day')), 'guests' => 2, 'unit_price' => '', 'price_on_request' => 0,
     'customer_name' => '', 'customer_email' => '', 'customer_phone' => '', 'notes' => '', 'status' => 'confirmed', 'admin_notes' => '',
 ];
 
@@ -111,13 +121,13 @@ admin_header($isNew ? 'New booking' : 'Booking ' . $booking['reference'], 'booki
                 <select class="inp" name="tour_id" required>
                     <option value="">— Choose —</option>
                     <?php foreach ($tours as $t): ?>
-                        <option value="<?= (int) $t['id'] ?>" <?= (int) $b['tour_id'] === (int) $t['id'] ? 'selected' : '' ?>><?= e(($t['type'] === 'trip' ? 'Trip: ' : 'Activity: ') . $t['title'] . ' (' . money($t['price']) . ')' . ($t['status'] !== 'active' ? ' [hidden]' : '')) ?></option>
+                        <option value="<?= (int) $t['id'] ?>" <?= (int) $b['tour_id'] === (int) $t['id'] ? 'selected' : '' ?>><?= e(($t['type'] === 'trip' ? 'Trip: ' : 'Activity: ') . $t['title'] . ' (' . tour_price($t) . ')' . ($t['status'] !== 'active' ? ' [hidden]' : '')) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <?php f_input('Travel date', 'travel_date', $b['travel_date'], 'date', 'required'); ?>
             <?php f_input('Guests', 'guests', $b['guests'], 'number', 'min="1" required'); ?>
-            <?php f_input('Price per guest', 'unit_price', $b['unit_price'] === '' ? '' : (string) (float) $b['unit_price'], 'number', 'step="0.01" min="0"', 'Leave empty to use the experience price.'); ?>
+            <?php f_input('Price per guest', 'unit_price', booking_price_field($b), 'number', 'step="0.01" min="0"', !empty($b['price_on_request']) ? 'Price is on request: enter the agreed price to confirm it to the guest.' : 'Leave empty to use the experience price.'); ?>
             <?php f_select('Status', 'status', array_map(fn ($s) => $s[0], $statuses), $b['status']); ?>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -139,8 +149,8 @@ admin_header($isNew ? 'New booking' : 'Booking ' . $booking['reference'], 'booki
         <div class="card p-6 space-y-3 text-sm">
             <h2 class="font-bold">Summary</h2>
             <div class="flex justify-between"><span class="text-slate-500">Reference</span><b class="font-mono"><?= e($booking['reference']) ?></b></div>
-            <div class="flex justify-between"><span class="text-slate-500">Guests × price</span><span><?= (int) $booking['guests'] ?> × <?= e(money($booking['unit_price'])) ?></span></div>
-            <div class="flex justify-between text-base"><span class="text-slate-500">Due on arrival</span><b class="text-emerald-600"><?= e(money($booking['total'])) ?></b></div>
+            <div class="flex justify-between"><span class="text-slate-500">Guests × price</span><span><?= (int) $booking['guests'] ?><?= $booking['price_on_request'] ? '' : ' × ' . e(money($booking['unit_price'])) ?></span></div>
+            <div class="flex justify-between text-base"><span class="text-slate-500">Due on arrival</span><b class="text-emerald-600"><?= e(booking_total($booking)) ?></b></div>
             <div class="flex justify-between"><span class="text-slate-500">Booked</span><span><?= e(format_date($booking['created_at'], 'M j, Y H:i')) ?></span></div>
             <div class="flex justify-between"><span class="text-slate-500">Last update</span><span><?= e(time_ago($booking['updated_at'])) ?></span></div>
             <?php if ($booking['ip_address']): ?><div class="flex justify-between"><span class="text-slate-500">IP</span><span class="text-xs"><?= e($booking['ip_address']) ?></span></div><?php endif; ?>

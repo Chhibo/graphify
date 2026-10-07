@@ -41,6 +41,10 @@
         var max = parseInt(opt.getAttribute('data-max') || '50', 10);
         guests.max = max;
         var n = Math.max(1, Math.min(max, parseInt(guests.value || '1', 10)));
+        if (opt.getAttribute('data-price') === '') {
+            estimate.textContent = estimate.getAttribute('data-hidden-text');
+            return;
+        }
         var total = parseFloat(opt.getAttribute('data-price') || '0') * n;
         var formatted = total.toLocaleString(undefined, { maximumFractionDigits: 2 });
         var sym = estimate.getAttribute('data-symbol');

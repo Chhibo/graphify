@@ -84,7 +84,7 @@ $socials = ['facebook' => 'fa-facebook-f', 'instagram' => 'fa-instagram', 'twitt
                     <?php foreach (['trip' => 'Multi-Day Trips', 'activity' => 'Day Activities'] as $type => $label): ?>
                         <optgroup label="<?= e($label) ?>">
                             <?php foreach ($bookOptions as $o): if ($o['type'] !== $type) continue; ?>
-                                <option value="<?= (int) $o['id'] ?>" data-price="<?= e($o['price']) ?>" data-max="<?= (int) $o['max_guests'] ?>"><?= e($o['title']) ?> (<?= e(money($o['price'])) ?>/person)</option>
+                                <option value="<?= (int) $o['id'] ?>" data-price="<?= $o['hide_price'] ? '' : e($o['price']) ?>" data-max="<?= (int) $o['max_guests'] ?>"><?= e($o['title']) ?><?= $o['hide_price'] ? '' : ' (' . e(money($o['price'])) . '/person)' ?></option>
                             <?php endforeach; ?>
                         </optgroup>
                     <?php endforeach; ?>
@@ -125,7 +125,7 @@ $socials = ['facebook' => 'fa-facebook-f', 'instagram' => 'fa-instagram', 'twitt
 
             <div class="flex items-center justify-between bg-brand-50 rounded-xl px-4 py-3 text-sm">
                 <span class="text-slate-600">Estimated total <span class="text-xs text-slate-400">(pay on arrival)</span></span>
-                <span class="font-extrabold text-brand-700" id="bookEstimate" data-symbol="<?= e(setting('currency_symbol', '$')) ?>" data-position="<?= e(setting('currency_position', 'before')) ?>">—</span>
+                <span class="font-extrabold text-brand-700" id="bookEstimate" data-symbol="<?= e(setting('currency_symbol', '$')) ?>" data-position="<?= e(setting('currency_position', 'before')) ?>" data-hidden-text="<?= e(setting('price_hidden_text', 'Price on request')) ?>">—</span>
             </div>
 
             <?php if (setting('terms_page')): ?>

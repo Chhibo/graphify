@@ -97,8 +97,14 @@ require APP_ROOT . '/includes/header.php';
     <aside>
         <div class="lg:sticky lg:top-28 bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
             <div class="bg-gradient-to-r from-brand-700 to-brand-500 p-6 text-white">
-                <span class="text-xs uppercase tracking-wider text-brand-100 block">Price per guest</span>
-                <span class="text-4xl font-extrabold"><?= e(money($tour['price'])) ?></span>
+                <?php if ($tour['hide_price']): ?>
+                    <span class="text-xs uppercase tracking-wider text-brand-100 block">Price</span>
+                    <span class="text-3xl font-extrabold"><?= e(tour_price($tour)) ?></span>
+                    <span class="block text-xs text-brand-100 mt-1">Book now &mdash; we will confirm the price with you.</span>
+                <?php else: ?>
+                    <span class="text-xs uppercase tracking-wider text-brand-100 block">Price per guest</span>
+                    <span class="text-4xl font-extrabold"><?= e(money($tour['price'])) ?></span>
+                <?php endif; ?>
             </div>
             <div class="p-6 space-y-4 text-sm">
                 <p class="flex items-center"><i class="fa-solid fa-shield-halved text-brand-600 w-6"></i> No online payment required</p>

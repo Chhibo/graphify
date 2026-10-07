@@ -425,7 +425,37 @@ function categories(): array
 
 function bookable_tours(): array
 {
-    return db_all('SELECT id, type, title, price, max_guests FROM ' . tbl('tours') . " WHERE status = 'active' ORDER BY type DESC, sort_order, title");
+    return db_all('SELECT id, type, title, price, hide_price, max_guests FROM ' . tbl('tours') . " WHERE status = 'active' ORDER BY type DESC, sort_order, title");
+}
+
+/** Price shown for a trip/activity: the amount, or "Price on request" when hidden. */
+function tour_price(array $tour): string
+{
+    return !empty($tour['hide_price']) ? setting('price_hidden_text', 'Price on request') : money($tour['price']);
+}
+
+/** Amount of a booking: the total, or "To be confirmed" when the price is on request. */
+function booking_total(array $booking): string
+{
+    return !empty($booking['price_on_request']) ? 'To be confirmed' : money($booking['total']);
+}
+
+/** Small database upgrades for sites installed with an older version. */
+function run_migrations(): void
+{
+    if ((int) setting('db_version', '1') >= 2) {
+        return;
+    }
+    $cols = array_column(db_all('SHOW COLUMNS FROM ' . tbl('tours')), 'Field');
+    if (!in_array('hide_price', $cols, true)) {
+        db()->exec('ALTER TABLE ' . tbl('tours') . ' ADD COLUMN `hide_price` TINYINT(1) NOT NULL DEFAULT 0 AFTER `price`');
+    }
+    $cols = array_column(db_all('SHOW COLUMNS FROM ' . tbl('bookings')), 'Field');
+    if (!in_array('price_on_request', $cols, true)) {
+        db()->exec('ALTER TABLE ' . tbl('bookings') . ' ADD COLUMN `price_on_request` TINYINT(1) NOT NULL DEFAULT 0 AFTER `total`');
+    }
+    save_setting('db_version', '2');
+    settings_all(true);
 }
 
 function stars(int $rating): string
@@ -535,7 +565,7 @@ function booking_email_table(array $b): string
         'Experience' => $b['tour_title'],
         'Travel date' => format_date($b['travel_date']),
         'Guests' => $b['guests'],
-        'Amount due on arrival' => money($b['total']),
+        'Amount due on arrival' => booking_total($b),
         'Status' => ucfirst($b['status']),
     ];
     $html = '<table style="width:100%;border-collapse:collapse;margin:16px 0">';

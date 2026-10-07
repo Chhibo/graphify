@@ -21,7 +21,11 @@ function trip_card(array $trip): void
                 <i class="fa-solid fa-location-dot text-brand-500 mr-1"></i> <?= e($trip['destination']) ?>
             </div>
             <div class="absolute bottom-4 right-4 bg-accent-500 text-white font-extrabold text-sm px-3 py-1.5 rounded-xl shadow-lg">
-                <?= e(money($trip['price'])) ?> <span class="text-[10px] font-normal opacity-90">/ person</span>
+                <?php if (!empty($trip['hide_price'])): ?>
+                    <?= e(tour_price($trip)) ?>
+                <?php else: ?>
+                    <?= e(money($trip['price'])) ?> <span class="text-[10px] font-normal opacity-90">/ person</span>
+                <?php endif; ?>
             </div>
         </a>
         <div class="p-6 flex-1 flex flex-col justify-between">
@@ -55,7 +59,7 @@ function activity_card(array $act): void
         <div>
             <a href="<?= e(tour_link($act)) ?>" class="relative h-36 rounded-xl overflow-hidden mb-4 block">
                 <img src="<?= e(img_url($act['image'])) ?>" alt="<?= e($act['title']) ?>" loading="lazy" class="w-full h-full object-cover">
-                <span class="absolute top-2 right-2 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-lg"><?= e(money($act['price'])) ?></span>
+                <span class="absolute top-2 right-2 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-lg"><?= e(tour_price($act)) ?></span>
             </a>
             <span class="text-[10px] font-bold text-accent-500 uppercase tracking-widest block mb-1">
                 <i class="fa-solid <?= e($act['icon'] ?: 'fa-compass') ?> mr-1"></i> <?= e($act['duration']) ?>

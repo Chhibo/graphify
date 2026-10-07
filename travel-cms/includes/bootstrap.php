@@ -44,6 +44,7 @@ require APP_ROOT . '/includes/functions.php';
 
 try {
     db();
+    run_migrations();
     $tz = setting('timezone', '');
     if ($tz && in_array($tz, timezone_identifiers_list(), true)) {
         date_default_timezone_set($tz);

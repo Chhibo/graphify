@@ -26,7 +26,7 @@ if ($category !== '') {
     $params[] = $category;
 }
 if ($max > 0) {
-    $where[] = 't.price <= ?';
+    $where[] = 't.hide_price = 0 AND t.price <= ?';
     $params[] = $max;
 }
 $orders = [

@@ -47,6 +47,8 @@ function seed_default_settings(PDO $pdo, string $prefix, array $site): void
         'home_trips_count' => '6',
         'home_activities_count' => '4',
         'budget_options' => '1000,2000,3500',
+        'price_hidden_text' => 'Price on request',
+        'db_version' => '2',
     ];
     $st = $pdo->prepare('INSERT INTO `' . $prefix . 'settings` (name, value) VALUES (?, ?)');
     foreach ($settings as $k => $v) {

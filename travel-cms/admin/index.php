@@ -90,7 +90,7 @@ admin_header('Dashboard', 'dashboard');
                         <td><?= e($r['customer_name']) ?></td>
                         <td class="max-w-[220px] truncate"><?= e($r['tour_title']) ?></td>
                         <td class="whitespace-nowrap"><?= e(format_date($r['travel_date'])) ?></td>
-                        <td><?= e(money($r['total'])) ?></td>
+                        <td><?= e(booking_total($r)) ?></td>
                         <td><?= status_badge($r['status']) ?></td>
                     </tr>
                 <?php endforeach; ?>
