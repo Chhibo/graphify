@@ -1,0 +1,9 @@
+# Created on the server at install time; never commit them.
+data/*.sqlite
+data/*.sqlite-*
+data/config.php
+data/files/*
+!data/files/.gitkeep
+uploads/*
+!uploads/.gitkeep
+!uploads/.htaccess
