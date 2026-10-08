@@ -6,7 +6,10 @@ Visitors get a product **for free** by completing **one offer** from your CPA ne
 
 - No database to set up (uses a single SQLite file)
 - Works on normal shared hosting (cPanel, Hostinger, Namecheap…)
-- Admin panel: products, CPA networks (on/off, priority or random), postback log, earnings
+- Admin panel: products, categories, pages, contact messages, appearance, CPA networks (on/off, priority or random), postback log, earnings
+- Home page with **Featured Items**, a section per category, and **Latest Items**
+- Your own logo (with adjustable height), colors, light/dark theme and header menu
+- Editable pages (Privacy Policy, Terms, About…) and a **Contact us** page
 - Downloads unlock only when the network confirms the lead (server-to-server postback), so the offers can't be skipped
 - The real file location is never shown; download links expire (24h by default)
 
@@ -78,7 +81,38 @@ Use the network's **"Test postback"** button, then open **Admin → Postback log
 - **Upload a file** (limited by your hosting's upload size, often 2–128 MB), or
 - **File link**: a Google Drive / Dropbox / MediaFire link for big files. Visitors are sent to it only after unlocking.
 
-## 6. Test the whole flow
+## 6. Customize your store
+
+### Appearance (Admin → Appearance)
+- **Logo**: upload a PNG/JPG/WEBP and drag the **height** slider (16–200 px). Tick "Show the store name next to the logo" if you want both.
+- **Colors**: choose Automatic / Always light / Always dark, and pick your **main color** for buttons and links.
+  Tick "Use my own background and text colors" to set the page, card and text colors yourself. **Reset colors** goes back to the default.
+- **Header menu**: show or hide categories and the Contact link.
+- **Home page**: welcome title and text, the titles of the Featured and Latest sections, how many products each shows, and products per page.
+- **Custom CSS** for advanced tweaks.
+
+### Home page layout
+1. Welcome title
+2. **Featured Items**: tick **Featured** when editing a product, or click the ☆ in the Products list. The newest 3 featured products are shown (change the number in Appearance).
+3. **One section per category** that has **Home** switched on, with a "View all →" link.
+4. **Latest Items**: every product, newest first, with page numbers.
+
+### Categories (Admin → Categories)
+Add, rename, reorder (lower number = first) or delete categories. For each one choose:
+- **Home**: show a section for it on the home page
+- **Header**: show it in the top menu
+
+Pick a product's category when you add or edit it. Deleting a category keeps its products; they just have no category.
+
+### Pages (Admin → Pages)
+Privacy Policy and Terms of Use are created for you. Add pages like About or FAQ, edit them, or delete them, and choose whether each shows in the **header** or the **footer**.
+Write plain text (an empty line starts a new paragraph) or HTML.
+
+### Contact us
+The **Contact us** page (`contact.php`) has a form with spam protection. Messages appear in **Admin → Messages**, and the menu shows how many are unread.
+To also get them by email, open **Settings → Contact us page**, enter your email and tick "Email me a copy".
+
+## 7. Test the whole flow
 
 1. While logged in as admin, open a product and click **Download for free**.
 2. The locker shows the offers. Under them there's an **Admin only: Simulate completed offer** button.
@@ -97,7 +131,8 @@ Real visitors see the same thing after they finish an offer and the network send
 
 | Path | What it is |
 |---|---|
-| `index.php`, `product.php` | Store front |
+| `index.php`, `product.php`, `category.php` | Store front |
+| `page.php`, `contact.php` | Custom pages and the contact form |
 | `assets/locker.js` | The offer popup (loads offers, waits for unlock) |
 | `api/offers.php` | Gets offers from the active network |
 | `postback.php` | Receives lead confirmations from the networks |
@@ -105,3 +140,9 @@ Real visitors see the same thing after they finish an offer and the network send
 | `admin/` | Admin panel |
 | `inc/networks.php` | OGAds and AdBlueMedia connectors. Add new networks here. |
 | `data/` | Database and uploaded product files (protected, never public) |
+
+## Updating to a new version
+
+1. Back up your `data/` and `uploads/` folders (they hold your database, files and images).
+2. Upload the new files over the old ones. **Don't upload `install.php`**, and don't delete `data/` or `uploads/`.
+3. Open your store. The database upgrades itself on the first visit; your products, settings and keys are kept.

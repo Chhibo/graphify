@@ -6,7 +6,7 @@ require_admin();
 
 $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
 $p = ['id' => 0, 'title' => '', 'description' => '', 'image' => '', 'file_name' => '',
-      'file_label' => '', 'file_url' => '', 'active' => 1];
+      'file_label' => '', 'file_url' => '', 'active' => 1, 'category_id' => null, 'featured' => 0];
 if ($id) {
     $q = db()->prepare('SELECT * FROM products WHERE id = ?');
     $q->execute([$id]);
@@ -18,21 +18,14 @@ if ($id) {
 
 $errors = [];
 
-function upload_error(array $f): ?string
-{
-    if ($f['error'] === UPLOAD_ERR_INI_SIZE || $f['error'] === UPLOAD_ERR_FORM_SIZE) {
-        return 'The file is bigger than your hosting allows (' . ini_get('upload_max_filesize')
-            . '). Upload it to Google Drive/Dropbox/MediaFire and use the "File link" field instead.';
-    }
-    return $f['error'] === UPLOAD_ERR_OK ? null : 'Upload failed (error code ' . $f['error'] . ').';
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
     $p['title'] = trim($_POST['title'] ?? '');
     $p['description'] = trim($_POST['description'] ?? '');
     $p['file_url'] = trim($_POST['file_url'] ?? '');
     $p['active'] = isset($_POST['active']) ? 1 : 0;
+    $p['featured'] = isset($_POST['featured']) ? 1 : 0;
+    $p['category_id'] = (int)($_POST['category_id'] ?? 0) ?: null;
 
     if ($p['title'] === '') {
         $errors[] = 'Title is required.';
@@ -41,24 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'The file link must start with http:// or https://';
     }
 
-    $img = $_FILES['image'] ?? null;
-    if (!$errors && $img && $img['error'] !== UPLOAD_ERR_NO_FILE) {
-        if ($err = upload_error($img)) {
-            $errors[] = $err;
-        } else {
-            $info = @getimagesize($img['tmp_name']);
-            $ext = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_GIF => 'gif', IMAGETYPE_WEBP => 'webp'][$info[2] ?? 0] ?? null;
-            if (!$ext) {
-                $errors[] = 'The image must be JPG, PNG, GIF or WEBP.';
-            } else {
-                $name = random_token(8) . '.' . $ext;
-                if (move_uploaded_file($img['tmp_name'], UPLOADS_DIR . '/' . $name)) {
-                    if ($p['image']) @unlink(UPLOADS_DIR . '/' . basename($p['image']));
-                    $p['image'] = $name;
-                } else {
-                    $errors[] = 'Could not save the image. Check that uploads/ is writable.';
-                }
-            }
+    if (!$errors) {
+        $newImage = save_uploaded_image($_FILES['image'] ?? null, $errors);
+        if ($newImage) {
+            if ($p['image']) @unlink(UPLOADS_DIR . '/' . basename($p['image']));
+            $p['image'] = $newImage;
         }
     }
 
@@ -85,16 +65,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors) {
         if ($p['id']) {
-            db()->prepare('UPDATE products SET title=?, description=?, image=?, file_name=?, file_label=?, file_url=?, active=? WHERE id=?')
-                ->execute([$p['title'], $p['description'], $p['image'], $p['file_name'], $p['file_label'], $p['file_url'], $p['active'], $p['id']]);
+            db()->prepare('UPDATE products SET title=?, description=?, image=?, file_name=?, file_label=?, file_url=?, active=?, category_id=?, featured=? WHERE id=?')
+                ->execute([$p['title'], $p['description'], $p['image'], $p['file_name'], $p['file_label'], $p['file_url'], $p['active'], $p['category_id'], $p['featured'], $p['id']]);
         } else {
-            db()->prepare('INSERT INTO products (title, description, image, file_name, file_label, file_url, active, created_at) VALUES (?,?,?,?,?,?,?,?)')
-                ->execute([$p['title'], $p['description'], $p['image'], $p['file_name'], $p['file_label'], $p['file_url'], $p['active'], time()]);
+            db()->prepare('INSERT INTO products (title, description, image, file_name, file_label, file_url, active, category_id, featured, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+                ->execute([$p['title'], $p['description'], $p['image'], $p['file_name'], $p['file_label'], $p['file_url'], $p['active'], $p['category_id'], $p['featured'], time()]);
         }
         flash('Product saved.');
         redirect('admin/products.php');
     }
 }
+
+$categories = db()->query('SELECT id, name FROM categories ORDER BY sort_order, name')->fetchAll();
+$featuredCount = (int)db()->query('SELECT COUNT(*) FROM products WHERE featured = 1 AND active = 1')->fetchColumn();
 
 admin_header($p['id'] ? 'Edit product' : 'Add product');
 ?>
@@ -103,6 +86,15 @@ admin_header($p['id'] ? 'Edit product' : 'Add product');
   <?= csrf_field() ?>
   <input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
   <label>Title <input name="title" required value="<?= e($p['title']) ?>"></label>
+  <label>Category
+    <select name="category_id">
+      <option value="">No category</option>
+      <?php foreach ($categories as $c): ?>
+        <option value="<?= (int)$c['id'] ?>" <?= (int)$p['category_id'] === (int)$c['id'] ? 'selected' : '' ?>><?= e($c['name']) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <small><a href="categories.php">Manage categories</a></small>
+  </label>
   <label>Description <textarea name="description" rows="6"><?= e($p['description']) ?></textarea></label>
   <label>Cover image (JPG/PNG/WEBP)
     <?php if ($p['image']): ?><img class="preview" src="../uploads/<?= e($p['image']) ?>" alt=""><?php endif; ?>
@@ -120,6 +112,9 @@ admin_header($p['id'] ? 'Edit product' : 'Add product');
     </label>
   </fieldset>
   <label class="check"><input type="checkbox" name="active" <?= $p['active'] ? 'checked' : '' ?>> Visible in the store</label>
+  <label class="check"><input type="checkbox" name="featured" <?= $p['featured'] ? 'checked' : '' ?>>
+    <span>★ Featured: show in the "Featured Items" section on the home page
+    <small>The home page shows the <?= (int)setting('featured_count', '3') ?> newest featured products. <?= $featuredCount ?> product(s) are featured now.</small></span></label>
   <button class="btn">Save product</button>
   <a href="products.php">Cancel</a>
 </form>

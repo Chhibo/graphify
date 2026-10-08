@@ -24,6 +24,9 @@ admin_header('Dashboard');
 <?php if (is_file(dirname(__DIR__) . '/install.php')): ?>
   <p class="warn">Delete <code>install.php</code> from your hosting. It is locked, but it is safer gone.</p>
 <?php endif; ?>
+<?php if ($unread = unread_messages()): ?>
+  <p class="warn">You have <?= $unread ?> unread message<?= $unread === 1 ? '' : 's' ?>. <a href="messages.php">Read them</a>.</p>
+<?php endif; ?>
 <?php if (!$enabled): ?>
   <p class="warn">No CPA network is switched on, so visitors will not see any offers. <a href="networks.php">Set up your networks</a>.</p>
 <?php endif; ?>

@@ -7,6 +7,7 @@ $checks = [
     'PHP 7.4 or newer' => version_compare(PHP_VERSION, '7.4.0', '>='),
     'PDO SQLite extension' => extension_loaded('pdo_sqlite'),
     'cURL extension' => extension_loaded('curl'),
+    'mbstring extension' => extension_loaded('mbstring'),
     'data/ folder is writable' => is_writable(DATA_DIR),
     'data/files/ folder is writable' => is_writable(FILES_DIR),
     'uploads/ folder is writable' => is_writable(UPLOADS_DIR),
@@ -26,7 +27,7 @@ if (is_installed()) {
     } else {
         $dbFile = 'store-' . random_token(12) . '.sqlite';
         $GLOBALS['installDb'] = new PDO('sqlite:' . DATA_DIR . '/' . $dbFile);
-        create_schema();
+        db(); // creates the tables
         save_setting('store_name', $store);
         save_setting('admin_user', $user);
         save_setting('admin_pass', password_hash($pass, PASSWORD_DEFAULT));

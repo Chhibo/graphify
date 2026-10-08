@@ -6,6 +6,10 @@ function admin_header(string $title): void
     $nav = [
         'index.php' => 'Dashboard',
         'products.php' => 'Products',
+        'categories.php' => 'Categories',
+        'pages.php' => 'Pages',
+        'messages.php' => 'Messages' . (($n = unread_messages()) ? " ($n)" : ''),
+        'appearance.php' => 'Appearance',
         'networks.php' => 'CPA Networks',
         'postbacks.php' => 'Postback log',
         'settings.php' => 'Settings',
@@ -36,6 +40,11 @@ function admin_header(string $title): void
   <?php if ($m = flash()): ?><p class="flash"><?= e($m) ?></p><?php endif; ?>
   <h1><?= e($title) ?></h1>
 <?php
+}
+
+function unread_messages(): int
+{
+    return (int)db()->query('SELECT COUNT(*) FROM messages WHERE is_read = 0')->fetchColumn();
 }
 
 function admin_footer(): void

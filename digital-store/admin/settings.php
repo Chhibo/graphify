@@ -9,11 +9,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
     $action = $_POST['action'] ?? '';
     if ($action === 'save') {
-        foreach (['store_name', 'store_tagline', 'locker_title', 'contact_email', 'postback_ips', 'privacy_text'] as $k) {
+        foreach (['store_name', 'locker_title', 'contact_email', 'contact_title', 'contact_intro', 'postback_ips'] as $k) {
             save_setting($k, trim((string)($_POST[$k] ?? '')));
         }
         save_setting('offers_count', (string)max(1, min(10, (int)($_POST['offers_count'] ?? 4))));
         save_setting('download_hours', (string)max(1, (int)($_POST['download_hours'] ?? 24)));
+        save_setting('contact_notify', isset($_POST['contact_notify']) ? '1' : '0');
         save_setting('trust_cloudflare', isset($_POST['trust_cloudflare']) ? '1' : '0');
         flash('Settings saved.');
         redirect('admin/settings.php');
@@ -43,8 +44,15 @@ admin_header('Settings');
   <?= csrf_field() ?>
   <h2>Store</h2>
   <label>Store name <input name="store_name" value="<?= e(setting('store_name')) ?>"></label>
-  <label>Tagline <input name="store_tagline" value="<?= e(setting('store_tagline', 'Free digital downloads. Pick one and unlock it in minutes.')) ?>"></label>
-  <label>Contact email (shown on the privacy page) <input type="email" name="contact_email" value="<?= e(setting('contact_email')) ?>"></label>
+  <p class="muted">Logo, colors and home page sections are in <a href="appearance.php">Appearance</a>.</p>
+  <h2 id="contact">Contact us page</h2>
+  <label>Page title <input name="contact_title" value="<?= e(setting('contact_title', 'Contact us')) ?>"></label>
+  <label>Text above the form (optional)
+    <textarea name="contact_intro" rows="3" placeholder="Questions about a download? Send us a message and we'll reply within 24 hours."><?= e(setting('contact_intro')) ?></textarea></label>
+  <label>Your email <input type="email" name="contact_email" value="<?= e(setting('contact_email')) ?>">
+    <small>Not shown to visitors. Used for email copies of messages.</small></label>
+  <label class="check"><input type="checkbox" name="contact_notify" <?= setting('contact_notify') === '1' ? 'checked' : '' ?>>
+    <span>Email me a copy of every new message <small>Messages are always saved in Admin → Messages. Emails sent by shared hosting sometimes land in spam.</small></span></label>
   <h2>Locker</h2>
   <label>Locker heading <input name="locker_title" value="<?= e(setting('locker_title')) ?>"></label>
   <label>Offers to show (1–10) <input type="number" min="1" max="10" name="offers_count" value="<?= e(setting('offers_count', '4')) ?>" class="short"></label>
@@ -56,9 +64,7 @@ admin_header('Settings');
   </label>
   <label class="check"><input type="checkbox" name="trust_cloudflare" <?= setting('trust_cloudflare') === '1' ? 'checked' : '' ?>>
     My site is behind Cloudflare (use the real visitor IP so offers match their country)</label>
-  <h2>Privacy page</h2>
-  <label>Custom privacy text (leave empty to use the built-in one)
-    <textarea name="privacy_text" rows="6"><?= e(setting('privacy_text')) ?></textarea></label>
+  <p class="muted">Privacy Policy, Terms and other pages are edited in <a href="pages.php">Pages</a>.</p>
   <button class="btn" name="action" value="save">Save settings</button>
 </form>
 
