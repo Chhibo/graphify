@@ -1,0 +1,4 @@
+# Example nginx rules (Apache users don't need this - .htaccess files are included)
+location ~ ^/(includes|data)/ { deny all; }
+location ~ ^/config\.php$ { deny all; }
+location ~ ^/uploads/.*\.(php|phtml|phar)$ { deny all; }
