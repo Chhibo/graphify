@@ -1,0 +1,7 @@
+# created by the installer / at runtime
+/config.php
+/data/*
+!/data/.htaccess
+!/data/index.html
+/uploads/*/*
+!/uploads/*/index.html
