@@ -121,19 +121,18 @@
       });
     };
     $$('input[name=size]', vform).forEach(function (i) { i.addEventListener('change', update); });
-    $$('input[name=color]', vform).forEach(function (i) {
-      i.addEventListener('change', function () {
-        // Keep the chosen size if it exists in the new color, otherwise pick the first size that does
-        var color = val('color');
-        var hasSize = function (s) { return variants.some(function (v) { return v.color === color && v.size === s; }); };
-        if (!hasSize(val('size'))) {
-          var first = $$('input[name=size]', vform).filter(function (x) { return hasSize(x.value); })[0];
-          if (first) first.checked = true;
-        }
-        update();
-      });
-    });
-    update();
+    // Keep the chosen size if it exists in the selected color, otherwise pick the first size that does
+    var fixSize = function () {
+      var color = val('color');
+      var hasSize = function (s) { return variants.some(function (v) { return v.color === color && v.size === s; }); };
+      if (!hasSize(val('size'))) {
+        var first = $$('input[name=size]', vform).filter(function (x) { return hasSize(x.value); })[0];
+        if (first) first.checked = true;
+      }
+      update();
+    };
+    $$('input[name=color]', vform).forEach(function (i) { i.addEventListener('change', fixSize); });
+    fixSize();
   }
 
   // Prevent double submit on checkout
