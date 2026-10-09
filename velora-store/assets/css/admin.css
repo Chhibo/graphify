@@ -126,3 +126,8 @@ code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; }
 .color-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
 .color-row input[type=color] { width: 56px; height: 40px; padding: 2px; margin: 0; cursor: pointer; }
 .swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; }
+.progress { height: 10px; background: var(--bg); border-radius: 999px; overflow: hidden; margin-top: 12px; }
+.progress span { display: block; height: 100%; background: var(--primary); transition: width .3s; }
+.steps-list { padding-left: 18px; margin: 0 0 12px; line-height: 1.6; }
+.steps-list li { margin-bottom: 8px; }
+.edit-address { margin: -4px 0 14px; } .edit-address summary { cursor: pointer; color: var(--primary); font-weight: 600; margin-bottom: 10px; }

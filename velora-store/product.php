@@ -16,6 +16,12 @@ $sizes = str_list($p['sizes']);
 $colors = str_list($p['colors']);
 $off = discount_pct($p);
 $soldOut = (int) $p['stock'] === 0;
+$variantData = array_map(fn($v) => [
+    'size' => $v['size'],
+    'color' => $v['color'],
+    'price' => money($v['price']),
+    'image' => $v['image'] !== '' ? img_url($v['image']) : '',
+], product_variants((int) $p['id']));
 $related = find_products(['category_id' => (int) $p['category_id'], 'exclude' => (int) $p['id'], 'limit' => 4]);
 
 $pageTitle = $p['name'];
@@ -46,12 +52,12 @@ include __DIR__ . '/includes/header.php';
       <h1><?= e($p['name']) ?></h1>
       <div class="pc-rating"><?= stars((float) $p['rating']) ?> <span><?= e(number_format((float) $p['rating'], 1)) ?>/5 · <?= (int) $p['reviews_count'] ?> reviews</span></div>
       <div class="price big">
-        <strong><?= money($p['price']) ?></strong>
+        <strong data-price><?= money($p['price']) ?></strong>
         <?php if ($off > 0): ?><del><?= money($p['old_price']) ?></del><span class="off">-<?= $off ?>%</span><?php endif; ?>
       </div>
       <div class="pd-desc"><?= nl2br(e((string) $p['description'])) ?></div>
 
-      <form action="<?= url('cart.php') ?>" method="post" class="add-form">
+      <form action="<?= url('cart.php') ?>" method="post" class="add-form"<?= $variantData ? " data-variants='" . e(json_encode($variantData)) . "'" : '' ?>>
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="add">
         <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
@@ -87,11 +93,12 @@ include __DIR__ . '/includes/header.php';
           <?php if ($soldOut): ?>
             <button class="btn btn-primary grow" type="button" disabled>Sold out</button>
           <?php else: ?>
-            <button class="btn btn-primary grow" type="submit">Add to Cart</button>
+            <button class="btn btn-primary grow" type="submit" data-add-btn>Add to Cart</button>
           <?php endif; ?>
         </div>
+        <p class="variant-msg" data-variant-msg hidden>This combination is not available.</p>
         <?php if (!$soldOut): ?>
-          <button class="btn btn-outline btn-block" type="submit" name="buy_now" value="1">Buy it now</button>
+          <button class="btn btn-outline btn-block" type="submit" name="buy_now" value="1" data-add-btn>Buy it now</button>
         <?php endif; ?>
       </form>
 

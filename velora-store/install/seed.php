@@ -39,6 +39,7 @@ function default_settings(array $store): array
         // Home sections
         'theme_color' => '#e03a3e',
         'theme_mode' => 'light',
+        'db_version' => (string) DB_VERSION,
         'promo_text' => 'Get 30% Discount Now',
         'promo_badge' => 'SALE',
         'promo_link' => 'shop.php?sale=1',
@@ -77,6 +78,16 @@ function default_settings(array $store): array
         'pay_stripe_title' => 'Credit / Debit Card',
         'stripe_publishable_key' => '',
         'stripe_secret_key' => '',
+
+        // Printful
+        'printful_enabled' => '0',
+        'printful_token' => '',
+        'printful_store_id' => '',
+        'printful_auto_paid' => '1',
+        'printful_auto_cod' => '0',
+        'printful_confirm' => '0',
+        'printful_category_id' => '',
+        'printful_webhook_key' => bin2hex(random_bytes(16)),
 
         // WhatsApp
         'whatsapp_number' => $store['whatsapp'],

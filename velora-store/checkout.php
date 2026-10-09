@@ -6,10 +6,12 @@ require __DIR__ . '/includes/whatsapp.php';
 $items = cart_items();
 $totals = cart_totals($items);
 $methods = enabled_payment_methods();
+// Printful needs a complete postal address (ZIP code) to ship.
+$hasPrintful = (bool) array_filter($items, fn($it) => !empty($it['variant']['printful_variant_id']));
 $errors = [];
 $form = [
-    'customer_name' => '', 'phone' => '', 'email' => '', 'address' => '', 'city' => '',
-    'country' => setting('country_default'), 'notes' => '', 'payment_method' => array_key_first($methods) ?? '',
+    'customer_name' => '', 'phone' => '', 'email' => '', 'address' => '', 'city' => '', 'state' => '', 'zip' => '',
+    'country' => country_code(setting('country_default')), 'notes' => '', 'payment_method' => array_key_first($methods) ?? '',
 ];
 
 if (is_post() && $items) {
@@ -28,6 +30,13 @@ if (is_post() && $items) {
     }
     if ($form['address'] === '' || $form['city'] === '') {
         $errors[] = 'Please enter your delivery address and city.';
+    }
+    $form['country'] = country_code($form['country']);
+    if ($form['country'] === '') {
+        $errors[] = 'Please choose your country.';
+    }
+    if ($hasPrintful && $form['zip'] === '' && !in_array($form['country'], ['AE', 'HK', 'QA', 'IE'], true)) {
+        $errors[] = 'Please enter your postal / ZIP code.';
     }
     if (!isset($methods[$form['payment_method']])) {
         $errors[] = 'Please choose a payment method.';
@@ -51,7 +60,10 @@ if (is_post() && $items) {
                 'phone' => mb_substr($form['phone'], 0, 40),
                 'address' => mb_substr($form['address'], 0, 255),
                 'city' => mb_substr($form['city'], 0, 120),
-                'country' => mb_substr($form['country'], 0, 120),
+                'state' => mb_substr($form['state'], 0, 120),
+                'zip' => mb_substr($form['zip'], 0, 30),
+                'country' => countries()[$form['country']],
+                'country_code' => $form['country'],
                 'notes' => mb_substr($form['notes'], 0, 2000),
                 'subtotal' => $totals['subtotal'],
                 'shipping' => $totals['shipping'],
@@ -70,11 +82,13 @@ if (is_post() && $items) {
                     'order_id' => $orderId,
                     'product_id' => (int) $it['product']['id'],
                     'name' => $it['product']['name'],
-                    'image' => $it['product']['image'],
+                    'image' => ($it['variant']['image'] ?? '') !== '' ? $it['variant']['image'] : $it['product']['image'],
                     'size' => $it['size'],
                     'color' => $it['color'],
                     'price' => $it['price'],
                     'qty' => $it['qty'],
+                    'variant_id' => $it['variant'] ? (int) $it['variant']['id'] : null,
+                    'printful_variant_id' => (string) ($it['variant']['printful_variant_id'] ?? ''),
                 ]);
             }
             $pdo->commit();
@@ -88,6 +102,7 @@ if (is_post() && $items) {
 
         if ($order['payment_method'] === 'cod') {
             order_reduce_stock($orderId);
+            printful_auto_send($orderId);
             $_SESSION['wa_link'][$orderNumber] = whatsapp_notify_order($order);
             cart_clear();
             redirect('order-success.php?order=' . rawurlencode($orderNumber));
@@ -130,7 +145,16 @@ include __DIR__ . '/includes/header.php';
           <label>Address *<input name="address" value="<?= e($form['address']) ?>" required autocomplete="street-address" placeholder="Street, building, apartment"></label>
           <div class="grid-2">
             <label>City *<input name="city" value="<?= e($form['city']) ?>" required autocomplete="address-level2"></label>
-            <label>Country<input name="country" value="<?= e($form['country']) ?>" autocomplete="country-name"></label>
+            <label>State / Region<input name="state" value="<?= e($form['state']) ?>" autocomplete="address-level1" placeholder="e.g. CA, NY"></label>
+          </div>
+          <div class="grid-2">
+            <label>Postal / ZIP code<?= $hasPrintful ? ' *' : '' ?><input name="zip" value="<?= e($form['zip']) ?>" autocomplete="postal-code"<?= $hasPrintful ? ' required' : '' ?>></label>
+            <label>Country *
+              <select name="country" required autocomplete="country">
+                <option value="">Choose your country</option>
+                <?php foreach (countries() as $code => $name): ?><option value="<?= e($code) ?>" <?= $form['country'] === $code ? 'selected' : '' ?>><?= e($name) ?></option><?php endforeach; ?>
+              </select>
+            </label>
           </div>
           <label>Order notes <small class="muted">(optional)</small><textarea name="notes" rows="3" placeholder="Anything we should know about your delivery?"><?= e($form['notes']) ?></textarea></label>
         </div>

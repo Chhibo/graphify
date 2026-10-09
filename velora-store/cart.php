@@ -35,7 +35,16 @@ if (is_post()) {
         if ((int) $p['stock'] > 0) {
             $qty = min($qty, (int) $p['stock']);
         }
-        cart_add((int) $p['id'], $qty, $size, $color);
+        $variantId = 0;
+        if (product_variants((int) $p['id'])) {
+            $variant = find_variant((int) $p['id'], $size, $color);
+            if (!$variant) {
+                flash('error', 'Sorry, ' . trim($color . ' / ' . $size, ' /') . ' is not available. Please choose another option.');
+                redirect(product_url($p));
+            }
+            $variantId = (int) $variant['id'];
+        }
+        cart_add((int) $p['id'], $qty, $size, $color, $variantId);
 
         if (!empty($_POST['ajax'])) {
             header('Content-Type: application/json');

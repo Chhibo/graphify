@@ -46,6 +46,22 @@ Enter your number with the country code, digits only (for example `212612345678`
 
 Every order is also saved in **Admin → Orders**, so nothing is lost even if a WhatsApp message isn't sent. Use **Send test message** to check your setup. You can also send PayPal and Stripe orders to WhatsApp.
 
+## Printful (print on demand)
+
+You can sell Printful products in the store. Printful prints and ships each order to your customer, so you don't keep any stock.
+
+1. In Printful, create a store of type **Manual order platform / API**. Design your products there and give every product a **retail price**. Set that store's currency to the same currency as this store.
+2. In Printful, go to **Settings → Developers (API) → Create token**. Allow *Orders*, *Sync products*, *Webhooks* and *Stores*.
+3. In this store, go to **Admin → Printful**, paste the token, tick **Enable Printful** and click **Save & test connection**.
+4. Click **Sync products now**. Your Printful products appear in the store with their mockup images, sizes, colors and prices. Each size/color option keeps its own price (for example, 2XL can cost more). Click sync again any time you change products in Printful.
+5. Click **Turn on automatic shipping updates** (your site needs https). When Printful ships an order, the order is marked **Shipped** and the tracking link appears for the customer on the Track Order page.
+
+**Orders.** By default, paid PayPal/Stripe orders are sent to Printful automatically. Cash on delivery orders are sent with the **Send to Printful** button on the order page once you've confirmed them with the customer. You can change both in Admin → Printful. Orders arrive in Printful as **drafts** unless you tick *Submit orders for production immediately*. Printful charges your Printful billing method for each order it produces.
+
+**Products.** Imported products keep your own edits to description, category, home page sections and old price. Name, images, sizes, colors and prices always come from Printful. Products you delete in Printful are hidden in the store on the next sync.
+
+When the cart contains a Printful product, checkout asks for a postal / ZIP code, because Printful needs a full address to ship.
+
 ## What you can manage in the admin
 
 - **Orders:** view, change status (pending → processing → shipped → delivered), mark as paid, message the customer on WhatsApp

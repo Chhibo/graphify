@@ -37,3 +37,7 @@ require APP_ROOT . '/includes/db.php';
 require APP_ROOT . '/includes/functions.php';
 require APP_ROOT . '/includes/cart.php';
 require APP_ROOT . '/includes/icons.php';
+require APP_ROOT . '/includes/countries.php';
+require APP_ROOT . '/includes/printful.php';
+require APP_ROOT . '/includes/migrate.php';
+run_migrations();

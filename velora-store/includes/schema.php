@@ -40,7 +40,7 @@ function schema_statements(string $driver): array
             description TEXT,
             price DECIMAL(10,2) NOT NULL DEFAULT 0,
             old_price DECIMAL(10,2) NOT NULL DEFAULT 0,
-            image VARCHAR(255) NOT NULL DEFAULT '',
+            image VARCHAR(500) NOT NULL DEFAULT '',
             gallery TEXT,
             sizes VARCHAR(255) NOT NULL DEFAULT '',
             colors VARCHAR(255) NOT NULL DEFAULT '',
@@ -52,9 +52,12 @@ function schema_statements(string $driver): array
             is_flash TINYINT NOT NULL DEFAULT 0,
             active TINYINT NOT NULL DEFAULT 1,
             sort_order INT NOT NULL DEFAULT 0,
+            printful_id VARCHAR(40) NOT NULL DEFAULT '',
             created_at DATETIME NOT NULL,
             FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
         )$tail",
+
+        product_variants_sql($pk, $fk, $tail),
 
         "CREATE TABLE IF NOT EXISTS orders (
             id $pk,
@@ -64,7 +67,10 @@ function schema_statements(string $driver): array
             phone VARCHAR(40) NOT NULL,
             address VARCHAR(255) NOT NULL,
             city VARCHAR(120) NOT NULL,
+            state VARCHAR(120) NOT NULL DEFAULT '',
+            zip VARCHAR(30) NOT NULL DEFAULT '',
             country VARCHAR(120) NOT NULL DEFAULT '',
+            country_code VARCHAR(2) NOT NULL DEFAULT '',
             notes TEXT,
             subtotal DECIMAL(10,2) NOT NULL DEFAULT 0,
             shipping DECIMAL(10,2) NOT NULL DEFAULT 0,
@@ -75,6 +81,9 @@ function schema_statements(string $driver): array
             status VARCHAR(20) NOT NULL DEFAULT 'pending',
             whatsapp_sent TINYINT NOT NULL DEFAULT 0,
             stock_reduced TINYINT NOT NULL DEFAULT 0,
+            printful_order_id VARCHAR(40) NOT NULL DEFAULT '',
+            printful_status VARCHAR(40) NOT NULL DEFAULT '',
+            tracking_url VARCHAR(255) NOT NULL DEFAULT '',
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL
         )$tail",
@@ -89,6 +98,8 @@ function schema_statements(string $driver): array
             color VARCHAR(60) NOT NULL DEFAULT '',
             price DECIMAL(10,2) NOT NULL DEFAULT 0,
             qty INT NOT NULL DEFAULT 1,
+            variant_id $fk NULL,
+            printful_variant_id VARCHAR(40) NOT NULL DEFAULT '',
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
         )$tail",
@@ -108,7 +119,7 @@ function schema_statements(string $driver): array
             title VARCHAR(200) NOT NULL,
             slug VARCHAR(220) NOT NULL UNIQUE,
             content TEXT,
-            image VARCHAR(255) NOT NULL DEFAULT '',
+            image VARCHAR(500) NOT NULL DEFAULT '',
             active TINYINT NOT NULL DEFAULT 1,
             created_at DATETIME NOT NULL
         )$tail",
@@ -120,3 +131,23 @@ function schema_statements(string $driver): array
         )$tail",
     ];
 }
+
+/** Size/color combinations of a product (used by Printful products). */
+function product_variants_sql(string $pk, string $fk, string $tail): string
+{
+    return "CREATE TABLE IF NOT EXISTS product_variants (
+        id $pk,
+        product_id $fk NOT NULL,
+        printful_variant_id VARCHAR(40) NOT NULL DEFAULT '',
+        size VARCHAR(60) NOT NULL DEFAULT '',
+        color VARCHAR(60) NOT NULL DEFAULT '',
+        price DECIMAL(10,2) NOT NULL DEFAULT 0,
+        sku VARCHAR(120) NOT NULL DEFAULT '',
+        image VARCHAR(500) NOT NULL DEFAULT '',
+        active TINYINT NOT NULL DEFAULT 1,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    )$tail";
+}
+
+/** Current database version. Bump it and add a step to run_migrations() when the schema changes. */
+const DB_VERSION = 2;

@@ -332,6 +332,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 .opt input { position: absolute; opacity: 0; pointer-events: none; }
 .opt span { display: inline-block; padding: 10px 22px; border-radius: 999px; background: var(--bg-soft); font-weight: 500; color: var(--muted); transition: .15s; }
 .opt input:checked + span { background: var(--text); color: var(--bg); }
+.opt.unavailable span { opacity: .45; text-decoration: line-through; }
+.variant-msg { color: var(--primary); font-size: 14px; margin: 10px 0 0; }
 .opt input:focus-visible + span { outline: 2px solid var(--primary); }
 .buy-row { display: flex; gap: 14px; }
 .grow { flex: 1; }

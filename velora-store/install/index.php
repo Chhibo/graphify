@@ -122,7 +122,7 @@ if ($step === '3' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         $db = $_SESSION['install']['db'];
         try {
-            require __DIR__ . '/schema.php';
+            require dirname(__DIR__) . '/includes/schema.php';
             require __DIR__ . '/seed.php';
             date_default_timezone_set($timezone);
 
@@ -138,7 +138,7 @@ if ($step === '3' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->exec($sql);
             }
             // Fresh install: clear tables in case a previous attempt stopped half way.
-            foreach (['order_items', 'orders', 'products', 'categories', 'testimonials', 'pages', 'subscribers', 'admins', 'settings'] as $t) {
+            foreach (['order_items', 'orders', 'product_variants', 'products', 'categories', 'testimonials', 'pages', 'subscribers', 'admins', 'settings'] as $t) {
                 $pdo->exec('DELETE FROM ' . $t);
             }
 

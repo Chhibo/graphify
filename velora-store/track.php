@@ -43,6 +43,9 @@ include __DIR__ . '/includes/header.php';
           <?php endforeach; ?>
         </ol>
       <?php endif; ?>
+      <?php if ($order['tracking_url'] !== ''): ?>
+        <a class="btn btn-primary btn-block" href="<?= e($order['tracking_url']) ?>" target="_blank" rel="noopener"><?= icon('truck', 18) ?> Track your package</a>
+      <?php endif; ?>
       <div class="sum-row"><span>Placed on</span><b><?= e(date('M j, Y', strtotime($order['created_at']))) ?></b></div>
       <div class="sum-row"><span>Total</span><b><?= money($order['total']) ?></b></div>
       <div class="sum-row"><span>Payment</span><b><?= e(payment_method_label($order['payment_method'])) ?> · <?= e(ucfirst($order['payment_status'] === 'cod' ? 'pay on delivery' : $order['payment_status'])) ?></b></div>

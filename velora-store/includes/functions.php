@@ -43,7 +43,8 @@ function img_url(?string $path, string $fallback = 'assets/img/demo/placeholder.
 
 function redirect(string $path): void
 {
-    if (!preg_match('#^https?://#i', $path)) {
+    // Paths starting with "/" already include the store folder (e.g. from url() or product_url()).
+    if (!preg_match('#^(https?://|/)#i', $path)) {
         $path = url($path);
     }
     header('Location: ' . $path);
@@ -454,7 +455,7 @@ function order_text(array $order): string
     if ($order['email'] !== '') {
         $lines[] = '✉️ *Email:* ' . $order['email'];
     }
-    $lines[] = '📍 *Address:* ' . $order['address'] . ', ' . $order['city'] . ($order['country'] !== '' ? ', ' . $order['country'] : '');
+    $lines[] = '📍 *Address:* ' . implode(', ', array_filter([$order['address'], $order['city'], $order['state'] ?? '', $order['zip'] ?? '', $order['country']], 'strlen'));
     $lines[] = '';
     $lines[] = '📦 *Items:*';
     foreach (order_items((int) $order['id']) as $it) {

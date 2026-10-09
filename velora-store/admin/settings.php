@@ -26,7 +26,7 @@ $tabs = [
         ['currency_position', 'Symbol position', 'select', '', ['before' => 'Before price ($120)', 'after' => 'After price (120 DH)']],
         ['shipping_fee', 'Delivery fee', 'number', 'Flat fee added to every order. 0 = free delivery.'],
         ['free_shipping_over', 'Free delivery for orders over', 'number', '0 = disabled'],
-        ['country_default', 'Default country at checkout', 'text'],
+        ['country_default', 'Default country at checkout', 'select', '', ['' => '- Let the customer choose -'] + countries()],
         ['order_prefix', 'Order number prefix', 'text'],
         ['', 'Header promo box (red box at the end of the menu bar)', 'heading'],
         ['promo_text', 'Promo text (empty = hide box)', 'text'],

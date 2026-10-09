@@ -45,6 +45,7 @@ if (!$paid) {
 
 q("UPDATE orders SET payment_status = 'paid', status = 'processing', updated_at = ? WHERE id = ?", [now(), $order['id']]);
 order_reduce_stock((int) $order['id']);
+printful_auto_send((int) $order['id']);
 cart_clear();
 $_SESSION['my_orders'][] = $number;
 

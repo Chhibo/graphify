@@ -11,6 +11,7 @@ $menu = [
     'testimonials.php' => ['Reviews', 'check'],
     'pages.php' => ['Pages & Blog', 'mail'],
     'subscribers.php' => ['Subscribers', 'user'],
+    'printful.php' => ['Printful', 'package'],
     'settings.php' => ['Settings', 'refresh'],
 ];
 $active = ['order.php' => 'orders.php', 'product-edit.php' => 'products.php', 'page-edit.php' => 'pages.php'][$self] ?? $self;

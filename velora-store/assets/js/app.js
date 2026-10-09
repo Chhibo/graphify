@@ -101,6 +101,41 @@
     });
   });
 
+  // Products with variants (e.g. Printful): update price/image and block unavailable size+color combinations
+  var vform = $('[data-variants]');
+  if (vform) {
+    var variants = JSON.parse(vform.getAttribute('data-variants'));
+    var val = function (name) { var c = $('input[name=' + name + ']:checked', vform); return c ? c.value : ''; };
+    var update = function () {
+      var size = val('size'), color = val('color');
+      var match = variants.filter(function (v) { return v.size === size && v.color === color; })[0];
+      var priceEl = $('[data-price]');
+      if (match && priceEl) priceEl.textContent = match.price;
+      if (match && match.image && main) main.src = match.image;
+      $$('[data-add-btn]', vform).forEach(function (b) { b.disabled = !match; });
+      $('[data-variant-msg]', vform).hidden = !!match;
+      // Grey out sizes that do not exist in the selected color
+      $$('input[name=size]', vform).forEach(function (i) {
+        var ok = variants.some(function (v) { return v.size === i.value && (color === '' || v.color === color); });
+        i.parentNode.classList.toggle('unavailable', !ok);
+      });
+    };
+    $$('input[name=size]', vform).forEach(function (i) { i.addEventListener('change', update); });
+    $$('input[name=color]', vform).forEach(function (i) {
+      i.addEventListener('change', function () {
+        // Keep the chosen size if it exists in the new color, otherwise pick the first size that does
+        var color = val('color');
+        var hasSize = function (s) { return variants.some(function (v) { return v.color === color && v.size === s; }); };
+        if (!hasSize(val('size'))) {
+          var first = $$('input[name=size]', vform).filter(function (x) { return hasSize(x.value); })[0];
+          if (first) first.checked = true;
+        }
+        update();
+      });
+    });
+    update();
+  }
+
   // Prevent double submit on checkout
   var co = $('#checkout-form');
   if (co) co.addEventListener('submit', function () {

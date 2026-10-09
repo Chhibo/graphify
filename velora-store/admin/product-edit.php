@@ -82,6 +82,9 @@ include __DIR__ . '/includes/header.php';
 ?>
 <p><a href="products.php">← All products</a><?php if ($p['id']): ?> · <a href="<?= e(product_url($p)) ?>" target="_blank">View in store</a><?php endif; ?></p>
 <?php foreach ($errors as $err): ?><div class="alert alert-error"><?= e($err) ?></div><?php endforeach; ?>
+<?php if (!empty($p['printful_id'])): ?>
+  <div class="alert alert-info"><b>Printful product.</b> Name, images, sizes, colors and prices come from Printful and are refreshed on every sync (<?= count(product_variants((int) $p['id'])) ?> size/color options). Change them in Printful, then click <a href="printful.php">Sync products</a>. Your description, category, home page sections and old price are kept.</div>
+<?php endif; ?>
 <form method="post" enctype="multipart/form-data" class="grid-main">
   <?= csrf_field() ?>
   <div>
