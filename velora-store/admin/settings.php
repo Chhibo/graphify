@@ -12,6 +12,7 @@ $tabs = [
         ['', 'Store', 'heading'],
         ['store_name', 'Store name', 'text'],
         ['logo', 'Logo (optional - the store name is shown when empty)', 'image'],
+        ['theme_color', 'Main color of the website', 'color', 'Buttons, links, badges, top bar and promo box use this color.'],
         ['store_tagline', 'Footer text', 'textarea'],
         ['store_email', 'Store email', 'text'],
         ['', 'Currency & shipping', 'heading'],
@@ -22,10 +23,14 @@ $tabs = [
         ['free_shipping_over', 'Free delivery for orders over', 'number', '0 = disabled'],
         ['country_default', 'Default country at checkout', 'text'],
         ['order_prefix', 'Order number prefix', 'text'],
+        ['', 'Header promo box (red box at the end of the menu bar)', 'heading'],
+        ['promo_text', 'Promo text (empty = hide box)', 'text'],
+        ['promo_badge', 'Badge text', 'text'],
+        ['promo_link', 'Link', 'text', 'Example: shop.php?sale=1 or a full https:// address'],
         ['', 'Top announcement bar', 'heading'],
         ['announcement_enabled', 'Show announcement bar', 'checkbox'],
         ['announcement_text', 'Announcement text', 'text'],
-        ['announcement_link_text', 'Link text (scrolls to newsletter)', 'text'],
+        ['announcement_link_text', 'Link text (opens the On Sale page)', 'text'],
         ['', 'Social links (leave empty to hide)', 'heading'],
         ['social_facebook', 'Facebook URL', 'text'],
         ['social_instagram', 'Instagram URL', 'text'],
@@ -34,6 +39,7 @@ $tabs = [
     ]],
     'home' => ['Home page', [
         ['', 'Hero', 'heading'],
+        ['hero_subtitle', 'Small text above the title', 'text'],
         ['hero_title', 'Title', 'text'],
         ['hero_text', 'Text', 'textarea'],
         ['hero_button', 'Button text', 'text'],
@@ -41,14 +47,17 @@ $tabs = [
         ['stat1_value', 'Stat 1 number', 'text'], ['stat1_label', 'Stat 1 label', 'text'],
         ['stat2_value', 'Stat 2 number', 'text'], ['stat2_label', 'Stat 2 label', 'text'],
         ['stat3_value', 'Stat 3 number', 'text'], ['stat3_label', 'Stat 3 label', 'text'],
-        ['', 'Flash sale (products ticked “Flash Sale”)', 'heading'],
-        ['flash_enabled', 'Show flash sale', 'checkbox'],
-        ['flash_badge', 'Badge', 'text'],
-        ['flash_title', 'Title', 'text'],
-        ['flash_text', 'Text', 'textarea'],
-        ['flash_ends_at', 'Sale ends at', 'datetime'],
+        ['', 'Best For Your Categories', 'heading'],
+        ['categories_enabled', 'Show categories slider', 'checkbox'],
+        ['categories_title', 'Title', 'text'],
+        ['', 'Deal of the Days (products ticked “Deal of the Days”, 2 shown)', 'heading'],
+        ['flash_enabled', 'Show Deal of the Days', 'checkbox'],
+        ['deal_title', 'Title', 'text'],
+        ['deal_text', 'Text', 'textarea'],
+        ['flash_ends_at', 'Deal expires at', 'datetime'],
+        ['deal_button', 'Button text', 'text'],
         ['', 'Wide banner', 'heading'],
-        ['banner_enabled', 'Show banner', 'checkbox'],
+        ['banner_enabled', 'Show banner (hidden by default)', 'checkbox'],
         ['banner_badge', 'Badge', 'text'],
         ['banner_title', 'Title', 'text'],
         ['banner_text', 'Text', 'textarea'],
@@ -57,6 +66,7 @@ $tabs = [
         ['', 'Instagram & newsletter', 'heading'],
         ['instagram_handle', 'Instagram handle (empty = hide section)', 'text'],
         ['instagram_url', 'Instagram profile URL', 'text'],
+        ['newsletter_enabled', 'Show newsletter box above the footer', 'checkbox'],
         ['newsletter_title', 'Newsletter title', 'text'],
     ]],
     'payments' => ['Payments', [
@@ -147,6 +157,12 @@ if (is_post()) {
                     set_setting($key, $v);
                 }
                 break;
+            case 'color':
+                $v = (string) ($_POST[$key] ?? '');
+                if (preg_match('/^#[0-9a-fA-F]{6}$/', $v)) {
+                    set_setting($key, strtolower($v));
+                }
+                break;
             case 'number':
                 set_setting($key, (string) max(0, round((float) ($_POST[$key] ?? 0), 2)));
                 break;
@@ -209,6 +225,11 @@ include __DIR__ . '/includes/header.php';
           <input type="file" name="<?= e($key) ?>" accept="image/*">
         <?php elseif ($type === 'datetime'): ?>
           <input type="datetime-local" name="<?= e($key) ?>" value="<?= e($val) ?>">
+        <?php elseif ($type === 'color'): ?>
+          <span class="color-row"><input type="color" name="<?= e($key) ?>" value="<?= e($val !== '' ? $val : '#e03a3e') ?>">
+            <?php foreach (['#e03a3e', '#111111', '#2f5d46', '#1d4ed8', '#7c3aed', '#db2777', '#ea580c'] as $sw): ?>
+              <button type="button" class="swatch" style="background:<?= $sw ?>" onclick="this.parentNode.querySelector('input').value='<?= $sw ?>'" aria-label="<?= $sw ?>"></button>
+            <?php endforeach; ?></span>
         <?php elseif ($type === 'number'): ?>
           <input type="number" step="0.01" min="0" name="<?= e($key) ?>" value="<?= e($val) ?>">
         <?php else: ?>

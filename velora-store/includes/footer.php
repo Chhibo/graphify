@@ -4,6 +4,7 @@ $pageLink = fn(string $slug) => url('page.php?slug=' . $slug);
 ?>
 </main>
 
+<?php if (setting_on('newsletter_enabled')): ?>
 <section class="newsletter-wrap" id="newsletter">
   <div class="container">
     <div class="newsletter">
@@ -16,6 +17,7 @@ $pageLink = fn(string $slug) => url('page.php?slug=' . $slug);
     </div>
   </div>
 </section>
+<?php endif; ?>
 
 <footer class="site-footer">
   <div class="container footer-grid">

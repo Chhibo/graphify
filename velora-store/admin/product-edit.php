@@ -133,7 +133,7 @@ include __DIR__ . '/includes/header.php';
       <h3 class="sub">Show on home page</h3>
       <label class="inline"><input type="checkbox" name="is_new" value="1" <?= $p['is_new'] ? 'checked' : '' ?>> New Arrivals</label>
       <label class="inline"><input type="checkbox" name="is_trending" value="1" <?= $p['is_trending'] ? 'checked' : '' ?>> Trending Now</label>
-      <label class="inline"><input type="checkbox" name="is_flash" value="1" <?= $p['is_flash'] ? 'checked' : '' ?>> Flash Sale</label>
+      <label class="inline"><input type="checkbox" name="is_flash" value="1" <?= $p['is_flash'] ? 'checked' : '' ?>> Deal of the Days</label>
       <div class="grid-2">
         <label>Rating (0-5)<input name="rating" type="number" step="0.5" min="0" max="5" value="<?= e($p['rating']) ?>"></label>
         <label>Reviews<input name="reviews_count" type="number" min="0" value="<?= (int) $p['reviews_count'] ?>"></label>

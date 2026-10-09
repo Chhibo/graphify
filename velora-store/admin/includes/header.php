@@ -22,6 +22,7 @@ $active = ['order.php' => 'orders.php', 'product-edit.php' => 'products.php', 'p
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e(($adminTitle ?? 'Admin') . ' · ' . setting('store_name', 'Store')) ?></title>
 <link rel="stylesheet" href="<?= asset('css/admin.css') ?>?v=<?= APP_VERSION ?>">
+<?php if (preg_match('/^#[0-9a-fA-F]{6}$/', setting('theme_color'))): ?><style>:root{--primary:<?= e(setting('theme_color')) ?>}</style><?php endif; ?>
 </head>
 <body>
 <div class="admin">

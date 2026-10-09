@@ -3,10 +3,11 @@ require __DIR__ . '/includes/bootstrap.php';
 
 $newArrivals = find_products(['flag' => 'is_new', 'sort' => 'manual', 'limit' => 4]);
 $trending = find_products(['flag' => 'is_trending', 'sort' => 'manual', 'limit' => 12]);
-$flash = find_products(['flag' => 'is_flash', 'sort' => 'manual', 'limit' => 4]);
+$deals = find_products(['flag' => 'is_flash', 'sort' => 'manual', 'limit' => 2]);
+$totalProducts = find_products([], true);
 $testimonials = q_all('SELECT * FROM testimonials WHERE active = 1 ORDER BY sort_order, id');
 $instagram = find_products(['sort' => 'new', 'limit' => 6]);
-$cats = array_slice(categories(), 0, 4);
+$cats = categories();
 
 include __DIR__ . '/includes/header.php';
 ?>
@@ -15,6 +16,7 @@ include __DIR__ . '/includes/header.php';
 <section class="hero">
   <div class="container hero-grid">
     <div class="hero-text">
+      <?php if (setting('hero_subtitle') !== ''): ?><span class="hero-sub"><?= e(setting('hero_subtitle')) ?></span><?php endif; ?>
       <h1><?= e(setting('hero_title')) ?></h1>
       <p><?= e(setting('hero_text')) ?></p>
       <a class="btn btn-primary" href="<?= url('shop.php') ?>"><?= e(setting('hero_button', 'Shop Now')) ?></a>
@@ -32,22 +34,25 @@ include __DIR__ . '/includes/header.php';
   </div>
 </section>
 
-<!-- BROWSE BY DRESS STYLE -->
-<?php if ($cats): ?>
+<!-- BEST FOR YOUR CATEGORIES -->
+<?php if (setting_on('categories_enabled') && $cats): ?>
 <section class="section">
   <div class="container">
-    <div class="section-head left">
+    <div class="section-head left with-line">
       <div>
-        <h2>Browse by Dress Style</h2>
-        <p>Discover collections curated for every occasion</p>
+        <h2><?= e(setting('categories_title', 'Best For Your Categories')) ?></h2>
+        <p><?= count($cats) ?> categories belonging to a total <?= number_format($totalProducts) ?> products</p>
       </div>
-      <a class="link-more" href="<?= url('shop.php') ?>">View All <?= icon('arrow-right', 14) ?></a>
+      <div class="slider-nav round" data-slider-nav="#cat-slider">
+        <button type="button" data-dir="-1" aria-label="Previous"><?= icon('chevron-left', 18) ?></button>
+        <button type="button" data-dir="1" aria-label="Next"><?= icon('chevron-right', 18) ?></button>
+      </div>
     </div>
-    <div class="style-grid">
+    <div class="slider cat-slider" id="cat-slider" style="--cols: <?= max(4, min(6, count($cats))) ?>">
       <?php foreach ($cats as $c): ?>
-        <a class="style-card" href="<?= url('shop.php?category=' . (int) $c['id']) ?>">
-          <img src="<?= e(img_url($c['image'])) ?>" alt="<?= e($c['name']) ?>" loading="lazy">
-          <div class="style-info"><strong><?= e($c['name']) ?></strong><span><?= (int) $c['product_count'] ?> Products</span></div>
+        <a class="cat-card" href="<?= url('shop.php?category=' . (int) $c['id']) ?>">
+          <span class="cat-img"><img src="<?= e(img_url($c['image'])) ?>" alt="<?= e($c['name']) ?>" loading="lazy"></span>
+          <strong><?= e($c['name']) ?></strong>
         </a>
       <?php endforeach; ?>
     </div>
@@ -55,28 +60,38 @@ include __DIR__ . '/includes/header.php';
 </section>
 <?php endif; ?>
 
-<!-- FLASH SALE -->
-<?php if (setting_on('flash_enabled') && $flash): ?>
+<!-- DEAL OF THE DAYS -->
+<?php if (setting_on('flash_enabled') && $deals): ?>
 <section class="section pt-0">
   <div class="container">
-    <div class="flash">
-      <div class="flash-text">
-        <span class="chip-red"><?= e(setting('flash_badge', 'Flash Sale')) ?></span>
-        <h2><?= e(setting('flash_title')) ?></h2>
-        <p><?= e(setting('flash_text')) ?></p>
-        <div class="countdown" data-countdown="<?= e(setting('flash_ends_at')) ?>">
-          <div><b data-d>00</b><span>Days</span></div>
-          <div><b data-h>00</b><span>Hours</span></div>
-          <div><b data-m>00</b><span>Mins</span></div>
-          <div><b data-s>00</b><span>Secs</span></div>
-        </div>
+    <div class="deal">
+      <svg class="deal-curve" viewBox="0 0 600 500" preserveAspectRatio="none" aria-hidden="true"><path d="M-20 140 C 200 160, 260 260, 230 520 M -20 520 C 200 420, 420 380, 640 300" fill="none" stroke="currentColor" stroke-width="34"/></svg>
+      <div class="deal-text">
+        <h2><?= e(setting('deal_title', 'Deal of the Days')) ?></h2>
+        <p><?= e(setting('deal_text')) ?></p>
+        <?php $dealEnd = strtotime(setting('flash_ends_at')); ?>
+        <?php if ($dealEnd): ?>
+          <div class="deal-expire">
+            <span class="deal-icon"><?= icon('package', 22) ?></span>
+            <span>Limited time offer. The deal will expire on <b><?= e(date('F j, Y', $dealEnd)) ?></b>
+              <span class="deal-countdown" data-countdown="<?= e(setting('flash_ends_at')) ?>"><b data-d>00</b>d <b data-h>00</b>h <b data-m>00</b>m <b data-s>00</b>s</span></span>
+          </div>
+        <?php endif; ?>
+        <a class="btn btn-outline-primary" href="<?= url('shop.php?sale=1') ?>"><?= e(setting('deal_button', 'View All Collections')) ?></a>
       </div>
-      <div class="flash-products">
-        <?php foreach ($flash as $p): ?>
-          <a class="flash-item" href="<?= e(product_url($p)) ?>">
-            <img src="<?= e(img_url($p['image'])) ?>" alt="<?= e($p['name']) ?>" loading="lazy">
-            <span class="fi-name"><?= e($p['name']) ?></span>
-            <span class="fi-price"><?= money($p['price']) ?></span>
+      <div class="deal-products">
+        <?php foreach ($deals as $p): $off = discount_pct($p); ?>
+          <a class="deal-card" href="<?= e(product_url($p)) ?>">
+            <span class="deal-media">
+              <img src="<?= e(img_url($p['image'])) ?>" alt="<?= e($p['name']) ?>" loading="lazy">
+              <span class="tag-square"><?= $off > 0 ? '-' . $off . '%' : 'New' ?></span>
+            </span>
+            <span class="deal-body">
+              <?php if ($p['brand']): ?><small><?= e($p['brand']) ?></small><?php endif; ?>
+              <strong><?= e($p['name']) ?></strong>
+              <span class="pc-rating red"><?= stars((float) $p['rating']) ?> <span>(<?= (int) $p['reviews_count'] ?> Reviews)</span></span>
+              <span class="deal-price"><?php if ($off > 0): ?><del><?= money($p['old_price']) ?></del><?php endif; ?> <b><?= money($p['price']) ?></b></span>
+            </span>
           </a>
         <?php endforeach; ?>
       </div>

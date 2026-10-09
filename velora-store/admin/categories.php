@@ -42,7 +42,7 @@ include __DIR__ . '/includes/header.php';
 ?>
 <div class="grid-main">
   <div class="card">
-    <p class="muted">The first 4 categories are shown in “Browse by Dress Style” on the home page.</p>
+    <p class="muted">Categories are shown in the “Best For Your Categories” slider on the home page and in the Shop menu.</p>
     <div class="table-wrap"><table>
       <thead><tr><th></th><th>Name</th><th>Products</th><th>Order</th><th></th></tr></thead>
       <tbody>

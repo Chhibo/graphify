@@ -49,7 +49,7 @@ include __DIR__ . '/includes/header.php';
         <td class="tags">
           <?php if ($p['is_new']): ?><span class="tag">New</span><?php endif; ?>
           <?php if ($p['is_trending']): ?><span class="tag">Trending</span><?php endif; ?>
-          <?php if ($p['is_flash']): ?><span class="tag red">Flash</span><?php endif; ?>
+          <?php if ($p['is_flash']): ?><span class="tag red">Deal</span><?php endif; ?>
         </td>
         <td>
           <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= (int) $p['id'] ?>">

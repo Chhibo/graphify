@@ -46,7 +46,10 @@ include __DIR__ . '/includes/header.php';
     <aside class="filters" id="filters">
       <form method="get">
         <div class="filters-head"><h3>Filters</h3><button class="icon-btn close-filters" type="button" data-close="#filters"><?= icon('close', 18) ?></button></div>
-        <?php if ($filters['search'] !== ''): ?><input type="hidden" name="q" value="<?= e($filters['search']) ?>"><?php endif; ?>
+        <div class="filter-group">
+          <h4>Search</h4>
+          <input type="search" name="q" value="<?= e($filters['search']) ?>" placeholder="Search for products...">
+        </div>
         <div class="filter-group">
           <h4>Dress Style</h4>
           <label class="radio"><input type="radio" name="category" value="" <?= $filters['category_id'] === 0 ? 'checked' : '' ?>> All</label>

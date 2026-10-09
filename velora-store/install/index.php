@@ -186,7 +186,7 @@ $progress = ['1' => 1, '2' => 2, '3' => 3, 'done' => 4, 'done-already' => 4][$st
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Install Velora Store</title>
 <style>
-:root{--g:#2f5d46;--g2:#3d7a5c;--bg:#f2f5f3;--line:#e3e8e5;--text:#1b1f1d;--muted:#66706b;--red:#c0392b}
+:root{--g:#e03a3e;--g2:#c22f33;--bg:#f8f1ee;--line:#ebe3e1;--text:#1b1f1d;--muted:#66706b;--red:#c0392b}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
 .wrap{max-width:640px;margin:40px auto;padding:0 16px}
 .logo{font-weight:900;font-size:28px;letter-spacing:-.5px;text-align:center;margin-bottom:6px}.logo span{color:var(--g)}

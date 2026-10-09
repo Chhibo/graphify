@@ -49,12 +49,12 @@ Every order is also saved in **Admin → Orders**, so nothing is lost even if a 
 ## What you can manage in the admin
 
 - **Orders:** view, change status (pending → processing → shipped → delivered), mark as paid, message the customer on WhatsApp
-- **Products:** price, old price (shows a discount badge), sizes, colors, stock (empty = unlimited), main image and gallery. You also choose which home sections a product appears in: *New Arrivals*, *Trending Now* or *Flash Sale*.
-- **Categories:** the "Browse by Dress Style" blocks
+- **Products:** price, old price (shows a discount badge), sizes, colors, stock (empty = unlimited), main image and gallery. You also choose which home sections a product appears in: *New Arrivals*, *Trending Now* or *Deal of the Days* (the first 2 are shown).
+- **Categories:** the "Best For Your Categories" slider and the Shop menu
 - **Reviews:** the "Our Happy Customers" section
 - **Pages & Blog:** About, FAQ, Terms, Privacy… and blog posts
 - **Subscribers:** newsletter emails (CSV export)
-- **Settings:** logo, currency, delivery fee, free delivery limit, announcement bar, hero texts and image, flash sale end date, banner, Instagram, social links
+- **Settings:** logo, **main color of the website** (red by default, any color with one click), currency, delivery fee, free delivery limit, announcement bar, header promo box ("Get 30% Discount Now · SALE"), hero texts and image, categories slider, Deal of the Days (title, text, expiry date), Instagram, social links. The "Elevate Your Wardrobe" banner and the newsletter box are hidden by default, and you can switch them back on in Settings → Home page.
 
 ## Customers can
 

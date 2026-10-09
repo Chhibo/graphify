@@ -1,5 +1,5 @@
 /* Velora Store - admin panel */
-:root { --primary: #2f5d46; --primary-2: #3e7a5d; --bg: #f3f5f4; --card: #fff; --text: #141816; --muted: #6b7470; --line: #e4e9e6; --red: #d92d20; color-scheme: light; }
+:root { --primary: #e03a3e; --primary-2: color-mix(in srgb, var(--primary) 82%, #000); --bg: #f3f5f4; --card: #fff; --text: #141816; --muted: #6b7470; --line: #e4e9e6; --red: #d92d20; color-scheme: light; }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
 a { color: var(--primary); text-decoration: none; }
@@ -8,12 +8,12 @@ img { max-width: 100%; }
 h1, h2, h3 { margin: 0; }
 
 .admin { display: flex; min-height: 100vh; }
-.sidebar { width: 240px; flex-shrink: 0; background: #12201a; color: #cfe0d7; display: flex; flex-direction: column; padding: 20px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.sidebar { width: 240px; flex-shrink: 0; background: #161616; color: #d6d6d6; display: flex; flex-direction: column; padding: 20px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .brand { display: block; font-weight: 900; font-size: 22px; letter-spacing: -.5px; color: #fff; padding: 4px 10px 22px; }
-.brand span { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; margin-left: 6px; color: #7fb59a; }
+.brand span { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; margin-left: 6px; color: var(--primary); }
 .brand.dark { color: var(--text); padding: 0 0 6px; }
 .sidebar nav { display: flex; flex-direction: column; gap: 2px; }
-.sidebar a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: #cfe0d7; }
+.sidebar a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: #d6d6d6; }
 .sidebar a:hover { background: rgba(255,255,255,.06); color: #fff; }
 .sidebar a.active { background: var(--primary); color: #fff; }
 .pill { margin-left: auto; background: #e5484d; color: #fff; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
@@ -73,7 +73,7 @@ tr.clickable { cursor: pointer; } tr.clickable:hover td { background: #f8faf9; }
 .preview { width: 120px; height: 120px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); display: block; margin: 6px 0; background: var(--bg); }
 .actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
 .actions form { margin: 0; }
-.tags .tag, .tag { display: inline-block; background: #eaf3ee; color: var(--primary); border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 600; margin: 1px; }
+.tags .tag, .tag { display: inline-block; background: color-mix(in srgb, var(--primary) 10%, #fff); color: var(--primary); border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 600; margin: 1px; }
 .tag.red { background: #fdecea; color: var(--red); }
 .status { display: inline-block; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .st-pending { background: #fff3d6; color: #8a5a00; } .st-processing { background: #e3eefc; color: #1f4b7a; }
@@ -108,7 +108,7 @@ tr.clickable { cursor: pointer; } tr.clickable:hover td { background: #f8faf9; }
 .pagination a.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; }
 
-.login-page { display: grid; place-items: center; min-height: 100vh; padding: 16px; background: linear-gradient(135deg, #e7ece9, #cfdcd5); }
+.login-page { display: grid; place-items: center; min-height: 100vh; padding: 16px; background: linear-gradient(135deg, #f8f1ee, #f1dcd8); }
 .login-card { width: 100%; max-width: 380px; background: #fff; padding: 32px; border-radius: 18px; box-shadow: 0 20px 50px rgba(0,0,0,.08); }
 .login-card .btn { margin: 6px 0 14px; padding: 12px; }
 
@@ -123,3 +123,6 @@ code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; }
   .who { display: none; }
   .toolbar input, .toolbar select { min-width: 0; width: 100%; }
 }
+.color-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.color-row input[type=color] { width: 56px; height: 40px; padding: 2px; margin: 0; cursor: pointer; }
+.swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; }
