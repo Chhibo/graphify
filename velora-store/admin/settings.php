@@ -13,6 +13,11 @@ $tabs = [
         ['store_name', 'Store name', 'text'],
         ['logo', 'Logo (optional - the store name is shown when empty)', 'image'],
         ['theme_color', 'Main color of the website', 'color', 'Buttons, links, badges, top bar and promo box use this color.'],
+        ['theme_mode', 'Light / dark mode', 'select', 'Light is recommended. “Automatic” shows dark mode to visitors whose phone or computer is set to dark mode.', [
+            'light' => 'Light (white background)',
+            'dark' => 'Dark (black background)',
+            'auto' => 'Automatic (follow the visitor\'s device)',
+        ]],
         ['store_tagline', 'Footer text', 'textarea'],
         ['store_email', 'Store email', 'text'],
         ['', 'Currency & shipping', 'heading'],

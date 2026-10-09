@@ -38,6 +38,7 @@ function default_settings(array $store): array
 
         // Home sections
         'theme_color' => '#e03a3e',
+        'theme_mode' => 'light',
         'promo_text' => 'Get 30% Discount Now',
         'promo_badge' => 'SALE',
         'promo_link' => 'shop.php?sale=1',

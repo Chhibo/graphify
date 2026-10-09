@@ -14,7 +14,11 @@ $promoLink = setting('promo_link', 'shop.php?sale=1');
 $promoHref = preg_match('#^https?://#i', $promoLink) ? $promoLink : url($promoLink);
 ?>
 <!doctype html>
-<html lang="en">
+<?php
+// Color mode: 'light' (default), 'dark', or 'auto' (follow the visitor's device setting).
+$themeMode = setting('theme_mode', 'light');
+?>
+<html lang="en"<?= $themeMode === 'auto' ? '' : ' data-theme="' . ($themeMode === 'dark' ? 'dark' : 'light') . '"' ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -26,7 +30,6 @@ $promoHref = preg_match('#^https?://#i', $promoLink) ? $promoLink : url($promoLi
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="<?= asset('css/style.css') ?>?v=<?= APP_VERSION ?>">
 <style>:root{--primary:<?= e($themeColor) ?>}</style>
-<script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 </head>
 <body class="page-<?= e(basename($current, '.php')) ?>">
 
