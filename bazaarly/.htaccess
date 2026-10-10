@@ -1,25 +1,22 @@
-# Bazaarly – Apache settings
-Options -Indexes
-DirectoryIndex index.php
-
-# Clean URLs (turn on in Admin → Settings → SEO & URLs)
+# BEGIN Bazaarly (managed automatically — edit outside these lines)
+# Clean URLs: send anything that is not a real file or folder to router.php
 <IfModule mod_rewrite.c>
   RewriteEngine On
+  RewriteRule ^router\.php$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule ^ router.php [L,QSA]
-</IfModule>
-
-<IfModule mod_php.c>
-  php_value upload_max_filesize 16M
-  php_value post_max_size 64M
+  RewriteRule . router.php [L,QSA]
 </IfModule>
 
 # Never serve configuration or internal files
 <FilesMatch "^(config\.php|.*\.sqlite.*|.*\.md|\.git.*)$">
-  <IfModule mod_authz_core.c>Require all denied</IfModule>
-  <IfModule !mod_authz_core.c>Order allow,deny
-  Deny from all</IfModule>
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
 </FilesMatch>
 
 <IfModule mod_expires.c>
@@ -33,5 +30,6 @@ DirectoryIndex index.php
 </IfModule>
 
 <IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/css application/javascript image/svg+xml
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
 </IfModule>
+# END Bazaarly

@@ -17,10 +17,14 @@ require APP_ROOT . '/includes/functions.php';
 require APP_ROOT . '/includes/icons.php';
 require APP_ROOT . '/includes/mailer.php';
 require APP_ROOT . '/includes/features.php';
+require APP_ROOT . '/includes/htaccess.php';
 require APP_ROOT . '/includes/schema.php';
 require APP_ROOT . '/includes/demo.php';
 
 define('BASE_PATH', detect_base_path());
+if (htaccess_missing()) {
+    ensure_htaccess(); // protect data/ and uploads/ right away
+}
 date_default_timezone_set(@date_default_timezone_get() ?: 'UTC');
 ini_set('display_errors', '0');
 
@@ -146,6 +150,7 @@ if (!$installed && $_SERVER['REQUEST_METHOD'] === 'POST' && $canInstall) {
             } else {
                 @chmod(APP_ROOT . '/config.php', 0640);
             }
+            ensure_htaccess(true);
             $done = true;
         } catch (Throwable $ex) {
             $msg = $ex->getMessage();

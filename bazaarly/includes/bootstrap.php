@@ -11,6 +11,7 @@ require APP_ROOT . '/includes/functions.php';
 require APP_ROOT . '/includes/icons.php';
 require APP_ROOT . '/includes/mailer.php';
 require APP_ROOT . '/includes/features.php';
+require APP_ROOT . '/includes/htaccess.php';
 
 $configFile = APP_ROOT . '/config.php';
 $GLOBALS['config'] = is_file($configFile) ? require $configFile : null;
@@ -27,6 +28,11 @@ if (!empty($GLOBALS['config']['debug'])) {
     error_reporting(E_ALL);
 } else {
     ini_set('display_errors', '0');
+}
+
+// .htaccess files are hidden and often not uploaded: recreate them when missing
+if (htaccess_missing()) {
+    ensure_htaccess();
 }
 
 // Upgrade the database automatically after the files are updated.

@@ -69,7 +69,8 @@ $groups = [
         ['banned_words_action', 'When an ad contains a banned word', 'select', '', ['review' => 'Send it to admin review (pending)', 'block' => 'Block it and ask the seller to edit']],
     ]],
     'seo' => ['SEO, URLs & app', 'globe', [
-        ['clean_urls', 'Clean URLs (e.g. /ad/12-iphone-15 instead of listing.php?id=12)', 'toggle', 'Needs Apache/LiteSpeed with mod_rewrite (most hosts) — we test it before switching on. On Nginx add the rule from README.'],
+        ['clean_urls', 'Clean URLs (e.g. /ad/12-iphone-15 instead of listing.php?id=12)', 'toggle', 'Works on Apache and LiteSpeed (most hosts). When you switch it on we create the .htaccess file for you and test it first. On Nginx add the rule from README.'],
+        ['_htaccess_status', '', 'htaccess', ''],
         ['share_cards', 'Generate share images for ads (WhatsApp, Facebook, X previews)', 'toggle'],
         ['pwa_enabled', 'Installable app (PWA) — “Add to home screen” and offline page', 'toggle'],
         ['pwa_short_name', 'App name on the home screen', 'text', 'Short, up to 12 characters. Defaults to the site name.'],
@@ -101,12 +102,26 @@ $groups = [
     ]],
 ];
 
+// AJAX: create / repair the .htaccess files (used by the Clean URLs switch and the repair button)
+if (is_post() && input('action') === 'htaccess') {
+    $report = ensure_htaccess(true);
+    log_activity('settings.htaccess', 'Repaired .htaccess files: ' . json_encode($report));
+    header('Content-Type: application/json');
+    echo json_encode([
+        'ok' => !in_array('failed', $report, true),
+        'report' => $report,
+        'server' => server_software(),
+        'apache' => server_uses_htaccess(),
+    ]);
+    exit;
+}
+
 if (is_post()) {
     $values = [];
     foreach ($groups as [, , $fields]) {
         foreach ($fields as $f) {
             [$key, , $type] = $f;
-            if ($type === 'info') {
+            if ($type === 'info' || $type === 'htaccess') {
                 continue;
             }
             if ($type === 'secret') {
@@ -178,7 +193,19 @@ require APP_ROOT . '/includes/admin-top.php';
         <h2><?= e($label) ?></h2>
         <?php if ($gk === 'advanced'): ?><span id="maintenance"></span><?php endif; ?>
         <?php foreach ($fields as $f): [$key, $flabel, $type] = $f; $help = $f[3] ?? ''; $val = setting($key); ?>
-          <?php if ($type === 'info'): ?>
+          <?php if ($type === 'htaccess'): ?>
+            <div class="htaccess-box" data-htaccess-box>
+              <div class="htaccess-head"><strong><?= icon('file') ?>.htaccess files</strong><span class="muted small">Server: <?= e(server_software()) ?></span></div>
+              <ul class="htaccess-list">
+                <?php foreach (array_keys(htaccess_targets()) as $rel): $exists = is_file(APP_ROOT . '/' . $rel); ?>
+                  <li data-ht-file="<?= e($rel) ?>"><?= icon($exists ? 'check-circle' : 'alert', $exists ? 'text-success' : 'text-warning') ?><code><?= e($rel) ?></code><span class="muted small"><?= $exists ? 'present' : 'missing' ?></span></li>
+                <?php endforeach; ?>
+              </ul>
+              <p class="ht-result" data-ht-result hidden></p>
+              <button class="btn btn-ghost btn-sm" type="button" data-fix-htaccess data-endpoint="<?= e(url('admin/settings.php')) ?>" data-test="<?= e(url('rewrite-test')) ?>"><?= icon('wrench') ?>Create / repair .htaccess files</button>
+              <small class="help block">These hidden files switch on URL rewriting and keep the <code>data/</code> and <code>uploads/</code> folders safe. Use this button if you moved the site to another folder or domain.</small>
+            </div>
+          <?php elseif ($type === 'info'): ?>
             <p class="setting-note"><?= icon('info') ?><span><?= e($help) ?></span></p>
           <?php elseif ($type === 'secret'): ?>
             <div class="field">

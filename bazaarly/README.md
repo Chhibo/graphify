@@ -125,9 +125,17 @@ The buttons appear on the sign-in and sign-up pages only when social login is en
 Get free keys from google.com/recaptcha (choose **reCAPTCHA v2 – “I'm not a robot” checkbox**) or Cloudflare
 Turnstile, paste them in Admin → Settings → Spam protection, and choose which forms use it.
 
-### Clean URLs
-Turn on in Admin → Settings → SEO, URLs & app. The switch tests your server first. Works out of the box on Apache and
-LiteSpeed thanks to the included `.htaccess`. Submit `https://your-domain.com/sitemap.xml` to Google Search Console.
+### Clean URLs and the .htaccess files
+Turn on in Admin → Settings → SEO, URLs & app. Works on Apache and LiteSpeed (almost all shared hosting).
+
+The `.htaccess` files are **hidden files** (their name starts with a dot), so many computers and file managers don't
+show them and they often don't get uploaded. **You don't need to worry about it:** the site creates any missing
+`.htaccess` file automatically (with the right settings for the folder it is installed in), and the Clean URLs switch
+repairs and re-tests it for you. You can also click **Create / repair .htaccess files** in the same settings tab
+— useful after moving the site to another folder or domain. Anything your host put in `.htaccess`
+(e.g. cPanel's PHP version lines) is kept.
+
+Submit `https://your-domain.com/sitemap.xml` to Google Search Console.
 
 ### Bigger photo uploads
 If photo uploads fail, raise `upload_max_filesize` and `post_max_size` in your hosting PHP settings
@@ -158,6 +166,9 @@ optional captcha, banned-words filter, ads-per-day limit, member blocking and an
 Icons based on Lucide (ISC). Share-image font: DejaVu Sans (see `assets/fonts/LICENSE-DejaVu.txt`).
 
 ## Troubleshooting
+- **“500 Internal Server Error” on every page after uploading version 1.0's `.htaccess`**: that old file used a format some
+  Apache servers reject. Delete the `.htaccess` file in the main folder (and in `uploads/`) — version 1.1 recreates
+  correct ones automatically on the next visit.
 - **White page / error 500**: set `'debug' => true` in `config.php` to see the error, then set it back to `false`.
 - **“Session expired”** when submitting a form: reload the page and try again (the form was open too long).
 - **Forgot admin password**: use “Forgot password?” on the sign-in page, or ask another admin to set a new one in Admin → Users.

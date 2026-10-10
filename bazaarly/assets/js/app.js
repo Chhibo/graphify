@@ -378,18 +378,69 @@
     installEvt.userChoice.finally(function () { installEvt = null; $$('[data-install-app]').forEach(function (el) { el.hidden = true; }); });
   });
 
-  /* admin: check that URL rewriting works before enabling clean URLs */
+  /* admin: .htaccess repair + check that URL rewriting works before enabling clean URLs */
+  function testRewrite(url) {
+    return fetch(url + '?t=' + Date.now(), { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (t) { return t.trim() === 'ok'; })
+      .catch(function () { return false; });
+  }
+  function fixHtaccess(endpoint) {
+    var body = new FormData();
+    body.append('action', 'htaccess'); body.append('_token', cfg.csrf);
+    return fetch(endpoint, { method: 'POST', body: body, credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        Object.keys(d.report || {}).forEach(function (file) {
+          var li = $('[data-ht-file="' + file + '"]');
+          if (!li) return;
+          var st = d.report[file], good = st !== 'failed';
+          li.querySelector('span').textContent = st === 'ok' ? 'present' : st;
+          li.querySelector('svg use').setAttribute('href', good ? '#i-check-circle' : '#i-alert');
+          li.querySelector('svg').setAttribute('class', 'ic ' + (good ? 'text-success' : 'text-warning'));
+        });
+        return d;
+      });
+  }
+  function showHtResult(ok, d, msg) {
+    var p = $('[data-ht-result]');
+    if (!p) return;
+    p.hidden = false;
+    p.className = 'ht-result ' + (ok ? 'good' : 'bad');
+    p.textContent = msg;
+  }
+  var failMsg = function (d) {
+    if (d && !d.ok) return 'We could not write the .htaccess file (the main folder is not writable). Set the main folder permission to 755 in your File Manager, or create the file by hand — see README.';
+    if (d && !d.apache) return 'Your server (' + d.server + ') does not read .htaccess files. On Nginx add the rule from the README, then try again.';
+    return 'The .htaccess file is in place, but the server is not applying it yet. Ask your host to allow “AllowOverride All” (or FileInfo) for your site, then try again. On LiteSpeed it can take a minute to notice a new .htaccess.';
+  };
   $$('[data-rewrite-test]').forEach(function (cb) {
     on(cb, 'change', function () {
       if (!cb.checked) return;
-      fetch(cb.dataset.rewriteTest, { credentials: 'same-origin', cache: 'no-store' })
-        .then(function (r) { return r.ok ? r.text() : ''; })
-        .then(function (t) {
-          if (t.trim() !== 'ok') {
+      var url = cb.dataset.rewriteTest, btn = $('[data-fix-htaccess]');
+      testRewrite(url).then(function (ok) {
+        if (ok) return;
+        // not working yet: create / repair .htaccess, then test again
+        return fixHtaccess(btn ? btn.dataset.endpoint : location.pathname).then(function (d) {
+          return testRewrite(url).then(function (ok2) {
+            if (ok2) { showHtResult(true, d, 'Created the .htaccess file — clean URLs work. Click “Save settings” to switch them on.'); return; }
             cb.checked = false;
-            alert('Clean URLs are not supported by your server yet (URL rewriting is off). On Apache/LiteSpeed make sure the .htaccess file was uploaded; on Nginx add the rule from the README.');
-          }
-        }).catch(function () { cb.checked = false; alert('Could not test URL rewriting.'); });
+            showHtResult(false, d, failMsg(d));
+            alert('Clean URLs could not be switched on yet.\n\n' + failMsg(d));
+          });
+        });
+      });
+    });
+  });
+  $$('[data-fix-htaccess]').forEach(function (btn) {
+    on(btn, 'click', function () {
+      btn.disabled = true;
+      fixHtaccess(btn.dataset.endpoint).then(function (d) {
+        return testRewrite(btn.dataset.test).then(function (ok) {
+          showHtResult(ok, d, ok ? 'All .htaccess files are in place and URL rewriting works. You can switch on Clean URLs.' : failMsg(d));
+        });
+      }).catch(function () { showHtResult(false, null, 'Something went wrong. Reload the page and try again.'); })
+        .then(function () { btn.disabled = false; });
     });
   });
 
