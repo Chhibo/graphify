@@ -20,18 +20,25 @@ $variantData = array_map(fn($v) => [
     'size' => $v['size'],
     'color' => $v['color'],
     'price' => money($v['price']),
+    'amount' => (float) $v['price'],
     'image' => $v['image'] !== '' ? img_url($v['image']) : '',
 ], product_variants((int) $p['id']));
+$extraOptions = product_extra_options($p);
+$infoRows = product_additional_info($p);
+$reviews = setting_on('reviews_enabled') ? product_reviews((int) $p['id']) : [];
+$shortDesc = trim((string) ($p['short_description'] ?? ''));
 $related = find_products(['category_id' => (int) $p['category_id'], 'exclude' => (int) $p['id'], 'limit' => 4]);
 
 $pageTitle = $p['name'];
-$metaDescription = excerpt((string) $p['description'], 155);
+$metaDescription = excerpt($shortDesc !== '' ? $shortDesc : (string) $p['description'], 155);
 include __DIR__ . '/includes/header.php';
 ?>
 <div class="container">
   <nav class="breadcrumb">
     <a href="<?= url() ?>">Home</a> <span>›</span> <a href="<?= url('shop.php') ?>">Shop</a>
-    <?php if ($p['category_name']): ?><span>›</span> <a href="<?= url('shop.php?category=' . (int) $p['category_id']) ?>"><?= e($p['category_name']) ?></a><?php endif; ?>
+    <?php $cat = find_category((int) $p['category_id']); $parentCat = $cat && !empty($cat['parent_id']) ? find_category((int) $cat['parent_id']) : null; ?>
+    <?php if ($parentCat): ?><span>›</span> <a href="<?= url('shop.php?category=' . (int) $parentCat['id']) ?>"><?= e($parentCat['name']) ?></a><?php endif; ?>
+    <?php if ($cat): ?><span>›</span> <a href="<?= url('shop.php?category=' . (int) $cat['id']) ?>"><?= e($cat['name']) ?></a><?php endif; ?>
     <span>›</span> <span><?= e($p['name']) ?></span>
   </nav>
 
@@ -50,14 +57,18 @@ include __DIR__ . '/includes/header.php';
     <div class="pd-info">
       <?php if ($p['brand']): ?><span class="pc-brand"><?= e($p['brand']) ?></span><?php endif; ?>
       <h1><?= e($p['name']) ?></h1>
-      <div class="pc-rating"><?= stars((float) $p['rating']) ?> <span><?= e(number_format((float) $p['rating'], 1)) ?>/5 · <?= (int) $p['reviews_count'] ?> reviews</span></div>
+      <a class="pc-rating" href="#tab-reviews" data-open-tab="reviews"><?= stars((float) $p['rating']) ?> <span><?= e(number_format((float) $p['rating'], 1)) ?>/5 · <?= (int) $p['reviews_count'] ?> <?= (int) $p['reviews_count'] === 1 ? 'review' : 'reviews' ?></span></a>
       <div class="price big">
         <strong data-price><?= money($p['price']) ?></strong>
         <?php if ($off > 0): ?><del><?= money($p['old_price']) ?></del><span class="off">-<?= $off ?>%</span><?php endif; ?>
       </div>
-      <div class="pd-desc"><?= nl2br(e((string) $p['description'])) ?></div>
+      <?php if ($shortDesc !== ''): ?>
+        <div class="pd-desc"><?= rich_text($shortDesc) ?></div>
+      <?php elseif (trim((string) $p['description']) !== ''): ?>
+        <div class="pd-desc"><p><?= e(excerpt((string) $p['description'], 220)) ?></p></div>
+      <?php endif; ?>
 
-      <form action="<?= url('cart.php') ?>" method="post" class="add-form"<?= $variantData ? " data-variants='" . e(json_encode($variantData)) . "'" : '' ?>>
+      <form action="<?= url('cart.php') ?>" method="post" class="add-form" data-base-price="<?= e((string) (float) $p['price']) ?>"<?= $variantData ? " data-variants='" . e(json_encode($variantData)) . "'" : '' ?>>
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="add">
         <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
@@ -84,6 +95,17 @@ include __DIR__ . '/includes/header.php';
           </div>
         <?php endif; ?>
 
+        <?php foreach ($extraOptions as $o): ?>
+          <div class="opt-group">
+            <h4><?= e($o['name']) ?></h4>
+            <div class="opts">
+              <?php foreach ($o['values'] as $i => $v): ?>
+                <label class="opt"><input type="radio" name="opt[<?= e($o['name']) ?>]" value="<?= e($v['label']) ?>" data-extra="<?= e((string) $v['price']) ?>" <?= $i === 0 ? 'checked' : '' ?>><span><?= e($v['label']) ?><?= $v['price'] > 0 ? ' <small>+' . money($v['price']) . '</small>' : '' ?></span></label>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        <?php endforeach; ?>
+
         <div class="buy-row">
           <div class="qty">
             <button type="button" data-qty="-1" aria-label="Decrease"><?= icon('minus', 16) ?></button>
@@ -109,6 +131,74 @@ include __DIR__ . '/includes/header.php';
       </ul>
     </div>
   </div>
+
+  <?php
+    $hasDesc = trim(strip_tags((string) $p['description'], '<img>')) !== '';
+    $showInfo = $infoRows || $sizes || $colors || $extraOptions;
+    $firstTab = $hasDesc ? 'description' : ($showInfo ? 'info' : 'reviews');
+  ?>
+  <section class="pd-tabs" id="product-tabs">
+    <div class="tab-nav" role="tablist">
+      <?php if ($hasDesc): ?><button type="button" role="tab" data-tab-btn="description" class="<?= $firstTab === 'description' ? 'active' : '' ?>">Description</button><?php endif; ?>
+      <?php if ($showInfo): ?><button type="button" role="tab" data-tab-btn="info" class="<?= $firstTab === 'info' ? 'active' : '' ?>">Additional Information</button><?php endif; ?>
+      <?php if (setting_on('reviews_enabled')): ?><button type="button" role="tab" data-tab-btn="reviews" id="tab-reviews" class="<?= $firstTab === 'reviews' ? 'active' : '' ?>">Reviews (<?= count($reviews) ?>)</button><?php endif; ?>
+    </div>
+
+    <?php if ($hasDesc): ?>
+      <div class="tab-pane" data-tab-pane="description" <?= $firstTab === 'description' ? '' : 'hidden' ?>><?= rich_text((string) $p['description']) ?></div>
+    <?php endif; ?>
+
+    <?php if ($showInfo): ?>
+      <div class="tab-pane" data-tab-pane="info" <?= $firstTab === 'info' ? '' : 'hidden' ?>>
+        <table class="info-table">
+          <?php if ($colors): ?><tr><th>Color</th><td><?= e(implode(', ', $colors)) ?></td></tr><?php endif; ?>
+          <?php if ($sizes): ?><tr><th>Size</th><td><?= e(implode(', ', $sizes)) ?></td></tr><?php endif; ?>
+          <?php foreach ($extraOptions as $o): ?><tr><th><?= e($o['name']) ?></th><td><?= e(implode(', ', array_column($o['values'], 'label'))) ?></td></tr><?php endforeach; ?>
+          <?php foreach ($infoRows as [$k, $v]): ?><tr><th><?= e($k) ?></th><td><?= e($v) ?></td></tr><?php endforeach; ?>
+        </table>
+      </div>
+    <?php endif; ?>
+
+    <?php if (setting_on('reviews_enabled')): ?>
+      <div class="tab-pane" data-tab-pane="reviews" <?= $firstTab === 'reviews' ? '' : 'hidden' ?>>
+        <div class="reviews-grid">
+          <div class="review-list">
+            <?php foreach ($reviews as $r): ?>
+              <div class="review-item">
+                <span class="avatar"><?= e(initials($r['name'])) ?></span>
+                <div class="review-body">
+                  <div class="review-top">
+                    <div><b><?= e($r['name']) ?></b><small><?= e(date('d F, Y', strtotime($r['created_at']))) ?></small></div>
+                    <?= stars((float) $r['rating']) ?>
+                  </div>
+                  <p><?= nl2br(e($r['comment'])) ?></p>
+                </div>
+              </div>
+            <?php endforeach; ?>
+            <?php if (!$reviews): ?><p class="muted">There are no reviews yet. Be the first to review “<?= e($p['name']) ?>”.</p><?php endif; ?>
+          </div>
+          <form class="review-form" method="post" action="<?= url('review.php') ?>" id="review-form">
+            <?= csrf_field() ?>
+            <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
+            <h3>Review this product</h3>
+            <p class="muted">Your email address will not be published. Required fields are marked *</p>
+            <div class="rate-input">
+              <span>Your rating * :</span>
+              <span class="star-pick">
+                <?php for ($i = 5; $i >= 1; $i--): ?><input type="radio" id="rate<?= $i ?>" name="rating" value="<?= $i ?>" <?= $i === 5 ? 'checked' : '' ?>><label for="rate<?= $i ?>" title="<?= $i ?> stars">★</label><?php endfor; ?>
+              </span>
+            </div>
+            <input name="name" placeholder="Your Name *" required maxlength="120" data-remember="name">
+            <input name="email" type="email" placeholder="Your Email *" required maxlength="190" data-remember="email">
+            <textarea name="comment" rows="5" placeholder="Comment *" required maxlength="2000"></textarea>
+            <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <label class="check"><input type="checkbox" data-remember-me> Save my name and email in this browser for the next time I comment.</label>
+            <button class="btn btn-primary" type="submit">Submit</button>
+          </form>
+        </div>
+      </div>
+    <?php endif; ?>
+  </section>
 
   <?php if ($related): ?>
     <section class="section">

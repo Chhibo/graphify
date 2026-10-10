@@ -37,10 +37,7 @@ $themeMode = setting('theme_mode', 'light');
 <div class="topbar" id="topbar">
   <div class="container topbar-inner">
     <nav class="topbar-links">
-      <a href="<?= url('page.php?slug=about') ?>">About</a>
-      <a href="<?= url('track.php') ?>">Track Order</a>
-      <a href="<?= url('wishlist.php') ?>">Wishlist</a>
-      <a href="<?= url('checkout.php') ?>">Checkout</a>
+      <?php foreach (menu('topbar') as $m): ?><a href="<?= e(menu_url((string) ($m['url'] ?? ''))) ?>"><?= e($m['label'] ?? '') ?></a><?php endforeach; ?>
     </nav>
     <p><?= e(setting('announcement_text')) ?>
       <?php if (setting('announcement_link_text') !== ''): ?><a href="<?= url('shop.php?sale=1') ?>"><?= e(setting('announcement_link_text')) ?></a><?php endif; ?></p>
@@ -74,30 +71,38 @@ $themeMode = setting('theme_mode', 'light');
       <button class="menu-toggle" type="button" aria-label="Menu" data-toggle-menu><?= icon('menu', 20) ?> <span>MENU</span></button>
       <nav class="main-nav" id="main-nav">
         <button class="nav-close" type="button" aria-label="Close menu" data-toggle-menu><?= icon('close', 20) ?></button>
-        <a href="<?= url() ?>" class="<?= $current === 'index.php' ? 'active' : '' ?>">Home</a>
-        <div class="nav-item has-drop">
-          <a href="<?= url('shop.php') ?>" class="<?= $current === 'shop.php' ? 'active' : '' ?>">Shop <?= icon('chevron-down', 13) ?></a>
-          <div class="dropdown">
-            <a href="<?= url('shop.php') ?>">All Products</a>
-            <?php foreach (categories() as $c): ?>
-              <a href="<?= url('shop.php?category=' . (int) $c['id']) ?>"><?= e($c['name']) ?></a>
-            <?php endforeach; ?>
-          </div>
-        </div>
-        <a href="<?= url('shop.php?sort=new') ?>">New Arrivals</a>
-        <a href="<?= url('shop.php?sale=1') ?>">On Sale</a>
-        <?php $brandList = brands(); if ($brandList): ?>
-        <div class="nav-item has-drop">
-          <a href="<?= url('shop.php') ?>">Brands <?= icon('chevron-down', 13) ?></a>
-          <div class="dropdown">
-            <?php foreach ($brandList as $b): ?>
-              <a href="<?= url('shop.php?brand=' . rawurlencode($b)) ?>"><?= e($b) ?></a>
-            <?php endforeach; ?>
-          </div>
-        </div>
-        <?php endif; ?>
-        <a href="<?= url('blog.php') ?>" class="<?= $current === 'blog.php' ? 'active' : '' ?>">Blog</a>
-        <a href="<?= url('page.php?slug=contact') ?>">Contact</a>
+        <?php
+          $here = $_SERVER['REQUEST_URI'] ?? '';
+          foreach (menu('header') as $m):
+            $href = menu_url((string) ($m['url'] ?? ''));
+            $type = $m['type'] ?? 'link';
+            $children = array_filter((array) ($m['children'] ?? []), fn($c) => trim((string) ($c['label'] ?? '')) !== '');
+            $isActive = $href === $here || ($href === url() && $current === 'index.php');
+            $brandList = $type === 'brands' ? brands() : [];
+            $hasDrop = $type === 'categories' || ($type === 'brands' && $brandList) || $children;
+        ?>
+          <?php if (!$hasDrop): ?>
+            <a href="<?= e($href) ?>" class="<?= $isActive ? 'active' : '' ?>"><?= e($m['label'] ?? '') ?></a>
+          <?php else: ?>
+            <div class="nav-item has-drop">
+              <a href="<?= e($href) ?>" class="<?= $isActive ? 'active' : '' ?>"><?= e($m['label'] ?? '') ?> <?= icon('chevron-down', 13) ?></a>
+              <div class="dropdown">
+                <?php if ($type === 'categories'): ?>
+                  <a href="<?= url('shop.php') ?>">All Products</a>
+                  <?php foreach (category_tree() as $c): ?>
+                    <a href="<?= url('shop.php?category=' . (int) $c['id']) ?>" class="<?= $c['children'] ? 'drop-parent' : '' ?>"><?= e($c['name']) ?></a>
+                    <?php foreach ($c['children'] as $sub): ?>
+                      <a href="<?= url('shop.php?category=' . (int) $sub['id']) ?>" class="drop-child"><?= e($sub['name']) ?></a>
+                    <?php endforeach; ?>
+                  <?php endforeach; ?>
+                <?php elseif ($type === 'brands'): ?>
+                  <?php foreach ($brandList as $b): ?><a href="<?= url('shop.php?brand=' . rawurlencode($b)) ?>"><?= e($b) ?></a><?php endforeach; ?>
+                <?php endif; ?>
+                <?php foreach ($children as $c): ?><a href="<?= e(menu_url((string) ($c['url'] ?? ''))) ?>"><?= e($c['label']) ?></a><?php endforeach; ?>
+              </div>
+            </div>
+          <?php endif; ?>
+        <?php endforeach; ?>
       </nav>
       <?php if (setting('promo_text', 'Get 30% Discount Now') !== ''): ?>
         <a class="nav-promo" href="<?= e($promoHref) ?>">

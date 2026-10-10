@@ -310,6 +310,7 @@ function printful_send_order(array $order, bool $confirm): string
         'retail_costs' => [
             'currency' => strtoupper(setting('currency_code', 'USD')),
             'subtotal' => number_format((float) $order['subtotal'], 2, '.', ''),
+            'discount' => number_format((float) ($order['discount'] ?? 0), 2, '.', ''),
             'shipping' => number_format((float) $order['shipping'], 2, '.', ''),
             'total' => number_format((float) $order['total'], 2, '.', ''),
         ],

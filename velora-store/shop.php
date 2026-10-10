@@ -51,10 +51,10 @@ include __DIR__ . '/includes/header.php';
           <input type="search" name="q" value="<?= e($filters['search']) ?>" placeholder="Search for products...">
         </div>
         <div class="filter-group">
-          <h4>Dress Style</h4>
+          <h4>Categories</h4>
           <label class="radio"><input type="radio" name="category" value="" <?= $filters['category_id'] === 0 ? 'checked' : '' ?>> All</label>
           <?php foreach (categories() as $c): ?>
-            <label class="radio"><input type="radio" name="category" value="<?= (int) $c['id'] ?>" <?= $filters['category_id'] === (int) $c['id'] ? 'checked' : '' ?>> <?= e($c['name']) ?> <small>(<?= (int) $c['product_count'] ?>)</small></label>
+            <label class="radio<?= $c['depth'] ? ' sub' : '' ?>"><input type="radio" name="category" value="<?= (int) $c['id'] ?>" <?= $filters['category_id'] === (int) $c['id'] ? 'checked' : '' ?>> <?= e($c['name']) ?> <small>(<?= (int) $c['product_count'] ?>)</small></label>
           <?php endforeach; ?>
         </div>
         <div class="filter-group">

@@ -62,6 +62,19 @@ You can sell Printful products in the store. Printful prints and ships each orde
 
 When the cart contains a Printful product, checkout asks for a postal / ZIP code, because Printful needs a full address to ship.
 
+## Coupons, popup, delivery options and more
+
+- **Coupons** (Admin → Coupons): percentage, fixed amount or free delivery. Each coupon can have a minimum order, a usage limit and start/end dates. Customers enter the code in the cart or at checkout. A use is counted when the order is confirmed.
+- **Subscribe popup** (Settings → Popup): turn it on or off, choose the coupon to show, and edit the image, badge, title (put a word in [brackets] to color it), text and link. Visitors can copy the code or enter their email: they are added to Subscribers, the code is applied to their cart and emailed to them if your server can send email. Add `?popup=1` to any store address to preview it.
+- **Delivery options** (Admin → Delivery options): e.g. Standard (free) and Express ($15). In each product you can switch delivery off (no delivery fee) or choose which options are available for it. The customer picks one at checkout. "Free delivery over" in Settings still applies.
+- **Custom product options**: in a product, add options like *Material → Cotton, Silk +5*. Values with `+amount` add to the price.
+- **Subcategories**: in Categories, choose a parent category. Subcategories show in the Shop menu and filters, and a main category also shows its subcategories' products.
+- **Visual editor** for product descriptions and pages/blog posts: colors, font sizes, headings, lists, tables, images (uploaded to your server), videos, and an HTML view (`</>` button).
+- **Product page**: short description under the title, then the **Description / Additional Information / Reviews** tabs. Customers can write reviews, which you approve in Admin → Product reviews (or publish directly: Settings → General).
+- **Contact page** (`contact.php`): edit the text, image, address, phone, opening hours and an optional Google map in Settings → Contact page. Messages arrive in Admin → Messages (and by email if your server can send email).
+- **Menus** (Admin → Menus): edit the header menu (with your own dropdowns, or automatic Categories/Brands dropdowns), the top bar links, the footer columns and the copyright line.
+- **Back to top** button on every page.
+
 ## What you can manage in the admin
 
 - **Orders:** view, change status (pending → processing → shipped → delivered), mark as paid, message the customer on WhatsApp

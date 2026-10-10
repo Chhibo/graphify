@@ -255,14 +255,72 @@ function files_list(?array $files): array
 
 /* ---------- Catalog ---------- */
 
+/**
+ * All categories (parents first, each followed by its subcategories).
+ * product_count of a parent category includes the products of its subcategories.
+ */
 function categories(): array
 {
     static $cats = null;
     if ($cats === null) {
-        $cats = q_all('SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id AND p.active = 1) AS product_count
+        $rows = q_all('SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id AND p.active = 1) AS product_count
                        FROM categories c ORDER BY c.sort_order, c.name');
+        $byParent = [];
+        foreach ($rows as $r) {
+            $byParent[(int) ($r['parent_id'] ?? 0)][] = $r;
+        }
+        $cats = [];
+        foreach ($byParent[0] ?? [] as $parent) {
+            $children = $byParent[(int) $parent['id']] ?? [];
+            $parent['product_count'] = (int) $parent['product_count'] + array_sum(array_column($children, 'product_count'));
+            $parent['children'] = $children;
+            $parent['depth'] = 0;
+            $cats[] = $parent;
+            foreach ($children as $child) {
+                $child['children'] = [];
+                $child['depth'] = 1;
+                $cats[] = $child;
+            }
+        }
+        // Subcategories whose parent was deleted are shown as main categories.
+        $ids = array_column($cats, 'id');
+        foreach ($rows as $r) {
+            if (!in_array($r['id'], $ids, true)) {
+                $r['children'] = [];
+                $r['depth'] = 0;
+                $cats[] = $r;
+            }
+        }
     }
     return $cats;
+}
+
+/** Main categories only, each with a 'children' list. */
+function category_tree(): array
+{
+    return array_values(array_filter(categories(), fn($c) => $c['depth'] === 0));
+}
+
+/** A category id plus the ids of its subcategories. */
+function category_with_children(int $id): array
+{
+    $ids = [$id];
+    foreach (categories() as $c) {
+        if ((int) ($c['parent_id'] ?? 0) === $id) {
+            $ids[] = (int) $c['id'];
+        }
+    }
+    return $ids;
+}
+
+function find_category(int $id): ?array
+{
+    foreach (categories() as $c) {
+        if ((int) $c['id'] === $id) {
+            return $c;
+        }
+    }
+    return null;
 }
 
 function brands(): array
@@ -299,8 +357,9 @@ function find_products(array $o = [], bool $countOnly = false)
         $where[] = 'p.' . $o['flag'] . ' = 1';
     }
     if (!empty($o['category_id'])) {
-        $where[] = 'p.category_id = ?';
-        $params[] = (int) $o['category_id'];
+        $ids = category_with_children((int) $o['category_id']);
+        $where[] = 'p.category_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+        array_push($params, ...$ids);
     }
     if (!empty($o['brand'])) {
         $where[] = 'p.brand = ?';
@@ -428,7 +487,7 @@ function order_items(int $orderId): array
     return q_all('SELECT * FROM order_items WHERE order_id = ? ORDER BY id', [$orderId]);
 }
 
-/** Reduce stock once an order is confirmed (COD placed, or online payment captured). */
+/** Reduce stock (and count the coupon use) once an order is confirmed (COD placed, or online payment captured). */
 function order_reduce_stock(int $orderId): void
 {
     $order = q_one('SELECT stock_reduced FROM orders WHERE id = ?', [$orderId]);
@@ -442,6 +501,11 @@ function order_reduce_stock(int $orderId): void
         }
     }
     q('UPDATE orders SET stock_reduced = 1 WHERE id = ?', [$orderId]);
+    // Count the coupon use at the same moment (this function runs once per confirmed order).
+    $code = (string) q_val('SELECT coupon_code FROM orders WHERE id = ?', [$orderId]);
+    if ($code !== '') {
+        q('UPDATE coupons SET used_count = used_count + 1 WHERE UPPER(code) = ?', [strtoupper($code)]);
+    }
 }
 
 /** Plain-text order summary used for WhatsApp messages. */
@@ -459,12 +523,15 @@ function order_text(array $order): string
     $lines[] = '';
     $lines[] = '📦 *Items:*';
     foreach (order_items((int) $order['id']) as $it) {
-        $variant = trim(implode(' / ', array_filter([$it['size'], $it['color']])));
+        $variant = trim(implode(' / ', array_filter([$it['size'], $it['color'], $it['options'] ?? ''])));
         $lines[] = '• ' . $it['qty'] . ' x ' . $it['name'] . ($variant !== '' ? ' (' . $variant . ')' : '') . ' = ' . money($it['price'] * $it['qty']);
     }
     $lines[] = '';
     $lines[] = 'Subtotal: ' . money($order['subtotal']);
-    $lines[] = 'Shipping: ' . ((float) $order['shipping'] > 0 ? money($order['shipping']) : 'Free');
+    if ((float) ($order['discount'] ?? 0) > 0) {
+        $lines[] = 'Discount (' . $order['coupon_code'] . '): -' . money($order['discount']);
+    }
+    $lines[] = 'Shipping' . (($order['shipping_method'] ?? '') !== '' ? ' (' . $order['shipping_method'] . ')' : '') . ': ' . ((float) $order['shipping'] > 0 ? money($order['shipping']) : 'Free');
     $lines[] = '💰 *Total: ' . money($order['total']) . '*';
     $lines[] = '💳 Payment: ' . payment_method_label($order['payment_method'])
         . ($order['payment_status'] === 'paid' ? ' (PAID)' : '');

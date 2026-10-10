@@ -3,13 +3,23 @@
 $admin = current_admin();
 $self = basename($_SERVER['SCRIPT_NAME'] ?? '');
 $newOrders = (int) q_val("SELECT COUNT(*) FROM orders WHERE status = 'pending' AND payment_status <> 'failed' AND payment_status <> 'unpaid'");
+$counts = [
+    'orders.php' => $newOrders,
+    'reviews.php' => (int) q_val('SELECT COUNT(*) FROM reviews WHERE approved = 0'),
+    'messages.php' => (int) q_val('SELECT COUNT(*) FROM messages WHERE is_read = 0'),
+];
 $menu = [
     'dashboard.php' => ['Dashboard', 'package'],
     'orders.php' => ['Orders', 'cart'],
     'products.php' => ['Products', 'heart'],
     'categories.php' => ['Categories', 'menu'],
-    'testimonials.php' => ['Reviews', 'check'],
+    'coupons.php' => ['Coupons', 'tag'],
+    'shipping.php' => ['Delivery options', 'truck'],
+    'reviews.php' => ['Product reviews', 'star'],
+    'testimonials.php' => ['Testimonials', 'check'],
     'pages.php' => ['Pages & Blog', 'mail'],
+    'menus.php' => ['Menus', 'menu'],
+    'messages.php' => ['Messages', 'mail'],
     'subscribers.php' => ['Subscribers', 'user'],
     'printful.php' => ['Printful', 'package'],
     'settings.php' => ['Settings', 'refresh'],
@@ -32,7 +42,7 @@ $active = ['order.php' => 'orders.php', 'product-edit.php' => 'products.php', 'p
     <nav>
       <?php foreach ($menu as $file => [$label, $ico]): ?>
         <a href="<?= url('admin/' . $file) ?>" class="<?= $active === $file ? 'active' : '' ?>"><?= icon($ico, 18) ?> <?= e($label) ?>
-          <?php if ($file === 'orders.php' && $newOrders): ?><b class="pill"><?= $newOrders ?></b><?php endif; ?></a>
+          <?php if (!empty($counts[$file])): ?><b class="pill"><?= (int) $counts[$file] ?></b><?php endif; ?></a>
       <?php endforeach; ?>
     </nav>
     <div class="side-foot">

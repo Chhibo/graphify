@@ -101,6 +101,27 @@
     });
   });
 
+  // Money formatting like the server (currency symbol, decimals)
+  var formatMoney = function (n) {
+    var fmt = (window.STORE && window.STORE.money) || { symbol: '$', after: false, dec: 2, trim: true };
+    var str = n.toFixed(fmt.dec).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    if (fmt.trim) str = str.replace(/\.0+$/, '');
+    return fmt.after ? str + ' ' + fmt.symbol : fmt.symbol + str;
+  };
+
+  // Product price = selected variant price (or base price) + extra price of the chosen custom options
+  var addForm = $('.add-form');
+  var currentBase = addForm ? parseFloat(addForm.getAttribute('data-base-price')) || 0 : 0;
+  var updatePrice = function (base) {
+    if (!addForm) return;
+    if (typeof base === 'number') currentBase = base;
+    var extra = 0;
+    $$('input[name^="opt["]:checked', addForm).forEach(function (i) { extra += parseFloat(i.getAttribute('data-extra')) || 0; });
+    var el = $('[data-price]');
+    if (el) el.textContent = formatMoney(currentBase + extra);
+  };
+  if (addForm) $$('input[name^="opt["]', addForm).forEach(function (i) { i.addEventListener('change', function () { updatePrice(); }); });
+
   // Products with variants (e.g. Printful): update price/image and block unavailable size+color combinations
   var vform = $('[data-variants]');
   if (vform) {
@@ -109,8 +130,7 @@
     var update = function () {
       var size = val('size'), color = val('color');
       var match = variants.filter(function (v) { return v.size === size && v.color === color; })[0];
-      var priceEl = $('[data-price]');
-      if (match && priceEl) priceEl.textContent = match.price;
+      if (match) updatePrice(match.amount);
       if (match && match.image && main) main.src = match.image;
       $$('[data-add-btn]', vform).forEach(function (b) { b.disabled = !match; });
       $('[data-variant-msg]', vform).hidden = !!match;
@@ -133,6 +153,83 @@
     };
     $$('input[name=color]', vform).forEach(function (i) { i.addEventListener('change', fixSize); });
     fixSize();
+  }
+
+  // Checkout: update delivery cost and total when another delivery method is chosen
+  var summary = $('[data-summary]');
+  if (summary) {
+    var money = formatMoney;
+    $$('input[name=shipping_method]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var cost = summary.getAttribute('data-free') === '1' ? 0 : parseFloat(r.getAttribute('data-cost')) || 0;
+        $('[data-ship]', summary).textContent = cost > 0 ? money(cost) : 'Free';
+        $('[data-total]').textContent = money(parseFloat(summary.getAttribute('data-base')) + cost);
+      });
+    });
+  }
+
+  // Product tabs (Description / Additional Information / Reviews)
+  var openTab = function (name) {
+    $$('[data-tab-btn]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-tab-btn') === name); });
+    $$('[data-tab-pane]').forEach(function (p) { p.hidden = p.getAttribute('data-tab-pane') !== name; });
+  };
+  $$('[data-tab-btn]').forEach(function (b) { b.addEventListener('click', function () { openTab(b.getAttribute('data-tab-btn')); }); });
+  $$('[data-open-tab]').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault(); openTab(a.getAttribute('data-open-tab'));
+      var t = $('#product-tabs'); if (t) t.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+  if (location.hash === '#tab-reviews' && $('[data-tab-btn=reviews]')) openTab('reviews');
+
+  // Review form: "save my name and email in this browser"
+  var rf = $('#review-form');
+  if (rf) {
+    try {
+      var saved = JSON.parse(localStorage.getItem('review_author') || 'null');
+      if (saved) { $('[data-remember=name]', rf).value = saved.name || ''; $('[data-remember=email]', rf).value = saved.email || ''; $('[data-remember-me]', rf).checked = true; }
+    } catch (e) {}
+    rf.addEventListener('submit', function () {
+      try {
+        if ($('[data-remember-me]', rf).checked) localStorage.setItem('review_author', JSON.stringify({ name: $('[data-remember=name]', rf).value, email: $('[data-remember=email]', rf).value }));
+        else localStorage.removeItem('review_author');
+      } catch (e) {}
+    });
+  }
+
+  // Back to top button
+  var toTop = $('#to-top');
+  if (toTop) {
+    var onScroll = function () { toTop.classList.toggle('show', window.scrollY > 500); };
+    window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
+    toTop.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  }
+
+  // Subscribe popup
+  var popup = $('#promo-popup');
+  if (popup) {
+    var key = 'promo_popup_' + popup.getAttribute('data-version');
+    var days = parseFloat(popup.getAttribute('data-days')) || 0;
+    var seen = 0;
+    try { seen = parseInt(localStorage.getItem(key) || '0', 10); } catch (e) {}
+    var closePopup = function () {
+      popup.classList.remove('open');
+      try { localStorage.setItem(key, String(Date.now())); } catch (e) {}
+    };
+    if (popup.hasAttribute('data-force') || !seen || (days > 0 && Date.now() - seen > days * 864e5)) {
+      setTimeout(function () { popup.classList.add('open'); }, (parseFloat(popup.getAttribute('data-delay')) || 0) * 1000);
+    }
+    $$('[data-popup-close]', popup).forEach(function (b) { b.addEventListener('click', closePopup); });
+    var pform = $('form', popup);
+    if (pform) pform.addEventListener('submit', function () { try { localStorage.setItem(key, String(Date.now())); } catch (e) {} });
+    popup.addEventListener('click', function (e) { if (e.target === popup) closePopup(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && popup.classList.contains('open')) closePopup(); });
+    var copyBtn = $('[data-copy]', popup);
+    if (copyBtn) copyBtn.addEventListener('click', function () {
+      var code = copyBtn.getAttribute('data-copy');
+      var done = function () { copyBtn.querySelector('span').textContent = 'COPIED!'; setTimeout(function () { copyBtn.querySelector('span').textContent = 'COPY CODE'; }, 2000); };
+      if (navigator.clipboard) navigator.clipboard.writeText(code).then(done, done); else done();
+    });
   }
 
   // Prevent double submit on checkout

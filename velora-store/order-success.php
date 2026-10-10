@@ -34,12 +34,13 @@ include __DIR__ . '/includes/header.php';
       <?php foreach ($items as $it): ?>
         <div class="sum-item">
           <span class="si-img"><img src="<?= e(img_url($it['image'])) ?>" alt=""><b><?= (int) $it['qty'] ?></b></span>
-          <span class="si-name"><?= e($it['name']) ?><small><?= e(implode(' / ', array_filter([$it['size'], $it['color']]))) ?></small></span>
+          <span class="si-name"><?= e($it['name']) ?><small><?= e(implode(' / ', array_filter([$it['size'], $it['color'], $it['options']]))) ?></small></span>
           <b><?= money($it['price'] * $it['qty']) ?></b>
         </div>
       <?php endforeach; ?>
       <div class="sum-row"><span>Subtotal</span><b><?= money($order['subtotal']) ?></b></div>
-      <div class="sum-row"><span>Delivery Fee</span><b><?= (float) $order['shipping'] > 0 ? money($order['shipping']) : 'Free' ?></b></div>
+      <?php if ((float) $order['discount'] > 0): ?><div class="sum-row discount"><span>Discount (<?= e($order['coupon_code']) ?>)</span><b>-<?= money($order['discount']) ?></b></div><?php endif; ?>
+      <div class="sum-row"><span>Delivery<?= $order['shipping_method'] !== '' ? ' (' . e($order['shipping_method']) . ')' : '' ?></span><b><?= (float) $order['shipping'] > 0 ? money($order['shipping']) : 'Free' ?></b></div>
       <div class="sum-row total"><span>Total</span><b><?= money($order['total']) ?></b></div>
       <div class="sum-row"><span>Payment</span><b><?= e(payment_method_label($order['payment_method'])) ?></b></div>
       <div class="sum-row"><span>Deliver to</span><b><?= e($order['address'] . ', ' . $order['city']) ?></b></div>

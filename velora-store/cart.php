@@ -44,7 +44,8 @@ if (is_post()) {
             }
             $variantId = (int) $variant['id'];
         }
-        cart_add((int) $p['id'], $qty, $size, $color, $variantId);
+        [$options] = resolve_options($p, (array) ($_POST['opt'] ?? []));
+        cart_add((int) $p['id'], $qty, $size, $color, $variantId, $options);
 
         if (!empty($_POST['ajax'])) {
             header('Content-Type: application/json');
@@ -67,6 +68,27 @@ if (is_post()) {
 
     if ($action === 'remove') {
         cart_set_qty((string) ($_POST['key'] ?? ''), 0);
+    }
+
+    $back = ($_POST['back'] ?? '') === 'checkout' ? 'checkout.php' : 'cart.php';
+    if ($action === 'coupon') {
+        $code = strtoupper(trim((string) ($_POST['coupon'] ?? '')));
+        $error = coupon_error(find_coupon($code), cart_totals()['subtotal']);
+        if ($code === '' || $error !== '') {
+            flash('error', $code === '' ? 'Please enter a coupon code.' : $error);
+        } else {
+            $_SESSION['coupon'] = $code;
+            flash('success', 'Coupon “' . $code . '” applied.');
+        }
+        redirect($back);
+    }
+    if ($action === 'coupon_remove') {
+        unset($_SESSION['coupon']);
+        redirect($back);
+    }
+    if ($action === 'shipping') {
+        $_SESSION['shipping_method'] = (int) ($_POST['shipping_method'] ?? 0);
+        redirect($back);
     }
     redirect('cart.php');
 }
@@ -102,6 +124,7 @@ include __DIR__ . '/includes/header.php';
               </div>
               <?php if ($it['size'] !== ''): ?><small>Size: <b><?= e($it['size']) ?></b></small><?php endif; ?>
               <?php if ($it['color'] !== ''): ?><small>Color: <b><?= e($it['color']) ?></b></small><?php endif; ?>
+              <?php foreach ($it['options'] as $on => $ov): ?><small><?= e($on) ?>: <b><?= e($ov) ?></b></small><?php endforeach; ?>
               <div class="ci-bottom">
                 <strong class="ci-price"><?= money($it['line_total']) ?></strong>
                 <div class="qty small">
@@ -122,7 +145,19 @@ include __DIR__ . '/includes/header.php';
       <aside class="summary">
         <h3>Order Summary</h3>
         <div class="sum-row"><span>Subtotal</span><b><?= money($totals['subtotal']) ?></b></div>
-        <div class="sum-row"><span>Delivery Fee</span><b><?= $totals['shipping'] > 0 ? money($totals['shipping']) : 'Free' ?></b></div>
+        <?php if ($totals['discount'] > 0): ?><div class="sum-row discount"><span>Discount (<?= e($totals['coupon']['code']) ?>)</span><b>-<?= money($totals['discount']) ?></b></div><?php endif; ?>
+        <?php if (count($totals['shipping_methods']) > 1): ?>
+          <form method="post" class="ship-choose">
+            <?= csrf_field() ?><input type="hidden" name="action" value="shipping">
+            <span class="muted">Delivery</span>
+            <?php foreach ($totals['shipping_methods'] as $m): ?>
+              <label class="radio"><input type="radio" name="shipping_method" value="<?= (int) $m['id'] ?>" <?= (int) $m['id'] === (int) $totals['shipping_method']['id'] ? 'checked' : '' ?> onchange="this.form.submit()">
+                <?= e($m['name']) ?> <b><?= (float) $m['cost'] > 0 ? money($m['cost']) : 'Free' ?></b></label>
+            <?php endforeach; ?>
+          </form>
+        <?php endif; ?>
+        <div class="sum-row"><span>Delivery<?= $totals['shipping_method'] ? ' (' . e($totals['shipping_method']['name']) . ')' : '' ?></span><b><?= $totals['shipping'] > 0 ? money($totals['shipping']) : 'Free' ?></b></div>
+        <?php include __DIR__ . '/includes/coupon-box.php'; ?>
         <?php if ((float) setting('free_shipping_over') > 0 && $totals['shipping'] > 0): ?>
           <p class="muted small-text">Add <?= money((float) setting('free_shipping_over') - $totals['subtotal']) ?> more for free delivery.</p>
         <?php endif; ?>

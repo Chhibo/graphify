@@ -56,10 +56,11 @@ include __DIR__ . '/includes/header.php';
     <label>Title<input name="title" value="<?= e($page['title']) ?>" required></label>
     <label>Address (slug) <small class="muted">leave empty to create from title</small><input name="slug" value="<?= e($page['slug']) ?>"></label>
   </div>
-  <label>Content <small class="muted">(HTML allowed: &lt;p&gt;, &lt;h3&gt;, &lt;b&gt;, &lt;a&gt;, &lt;img&gt; …)</small><textarea name="content" rows="14" class="code"><?= e($page['content']) ?></textarea></label>
+  <label>Content <small class="muted">(use the toolbar for headings, colors, sizes, images, tables, videos… or the &lt;/&gt; button to edit HTML)</small><textarea name="content" rows="14" data-editor="full"><?= e($page['content']) ?></textarea></label>
   <?php if ($page['image'] !== ''): ?><img class="preview" src="<?= e(img_url($page['image'])) ?>" alt=""><?php endif; ?>
   <label>Cover image <small class="muted">(optional)</small><input type="file" name="image" accept="image/*"></label>
   <label class="inline"><input type="checkbox" name="active" value="1" <?= $page['active'] ? 'checked' : '' ?>> Visible</label>
   <button class="btn btn-primary" type="submit">Save</button>
 </form>
+<?php include __DIR__ . '/includes/editor.php'; ?>
 <?php include __DIR__ . '/includes/footer.php'; ?>

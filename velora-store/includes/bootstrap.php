@@ -36,6 +36,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 require APP_ROOT . '/includes/db.php';
 require APP_ROOT . '/includes/functions.php';
 require APP_ROOT . '/includes/cart.php';
+require APP_ROOT . '/includes/store.php';
 require APP_ROOT . '/includes/icons.php';
 require APP_ROOT . '/includes/countries.php';
 require APP_ROOT . '/includes/printful.php';

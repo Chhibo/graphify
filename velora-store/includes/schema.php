@@ -9,7 +9,7 @@ function schema_statements(string $driver): array
     $fk = $driver === 'sqlite' ? 'INTEGER' : 'INT UNSIGNED';
     $tail = $driver === 'sqlite' ? '' : ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
 
-    return [
+    return array_merge([
         "CREATE TABLE IF NOT EXISTS settings (
             skey VARCHAR(100) NOT NULL PRIMARY KEY,
             svalue TEXT
@@ -28,7 +28,8 @@ function schema_statements(string $driver): array
             name VARCHAR(120) NOT NULL,
             slug VARCHAR(160) NOT NULL UNIQUE,
             image VARCHAR(255) NOT NULL DEFAULT '',
-            sort_order INT NOT NULL DEFAULT 0
+            sort_order INT NOT NULL DEFAULT 0,
+            parent_id $fk NULL
         )$tail",
 
         "CREATE TABLE IF NOT EXISTS products (
@@ -53,6 +54,11 @@ function schema_statements(string $driver): array
             active TINYINT NOT NULL DEFAULT 1,
             sort_order INT NOT NULL DEFAULT 0,
             printful_id VARCHAR(40) NOT NULL DEFAULT '',
+            short_description TEXT,
+            extra_options TEXT,
+            additional_info TEXT,
+            shipping_enabled TINYINT NOT NULL DEFAULT 1,
+            shipping_methods VARCHAR(255) NOT NULL DEFAULT '',
             created_at DATETIME NOT NULL,
             FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
         )$tail",
@@ -84,6 +90,9 @@ function schema_statements(string $driver): array
             printful_order_id VARCHAR(40) NOT NULL DEFAULT '',
             printful_status VARCHAR(40) NOT NULL DEFAULT '',
             tracking_url VARCHAR(255) NOT NULL DEFAULT '',
+            coupon_code VARCHAR(40) NOT NULL DEFAULT '',
+            discount DECIMAL(10,2) NOT NULL DEFAULT 0,
+            shipping_method VARCHAR(120) NOT NULL DEFAULT '',
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL
         )$tail",
@@ -100,6 +109,7 @@ function schema_statements(string $driver): array
             qty INT NOT NULL DEFAULT 1,
             variant_id $fk NULL,
             printful_variant_id VARCHAR(40) NOT NULL DEFAULT '',
+            options VARCHAR(500) NOT NULL DEFAULT '',
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
         )$tail",
@@ -129,7 +139,7 @@ function schema_statements(string $driver): array
             email VARCHAR(190) NOT NULL UNIQUE,
             created_at DATETIME NOT NULL
         )$tail",
-    ];
+    ], v3_tables_sql($pk, $fk, $tail));
 }
 
 /** Size/color combinations of a product (used by Printful products). */
@@ -150,4 +160,52 @@ function product_variants_sql(string $pk, string $fk, string $tail): string
 }
 
 /** Current database version. Bump it and add a step to run_migrations() when the schema changes. */
-const DB_VERSION = 2;
+const DB_VERSION = 3;
+
+/** Tables added in version 3: coupons, product reviews, contact messages, shipping methods. */
+function v3_tables_sql(string $pk, string $fk, string $tail): array
+{
+    return [
+        "CREATE TABLE IF NOT EXISTS coupons (
+            id $pk,
+            code VARCHAR(40) NOT NULL UNIQUE,
+            type VARCHAR(20) NOT NULL DEFAULT 'percent',
+            value DECIMAL(10,2) NOT NULL DEFAULT 0,
+            min_order DECIMAL(10,2) NOT NULL DEFAULT 0,
+            max_uses INT NOT NULL DEFAULT 0,
+            used_count INT NOT NULL DEFAULT 0,
+            starts_at DATETIME NULL,
+            expires_at DATETIME NULL,
+            active TINYINT NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL
+        )$tail",
+        "CREATE TABLE IF NOT EXISTS reviews (
+            id $pk,
+            product_id $fk NOT NULL,
+            name VARCHAR(120) NOT NULL,
+            email VARCHAR(190) NOT NULL DEFAULT '',
+            rating INT NOT NULL DEFAULT 5,
+            comment TEXT NOT NULL,
+            approved TINYINT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        )$tail",
+        "CREATE TABLE IF NOT EXISTS messages (
+            id $pk,
+            name VARCHAR(120) NOT NULL,
+            email VARCHAR(190) NOT NULL,
+            subject VARCHAR(200) NOT NULL DEFAULT '',
+            message TEXT NOT NULL,
+            is_read TINYINT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL
+        )$tail",
+        "CREATE TABLE IF NOT EXISTS shipping_methods (
+            id $pk,
+            name VARCHAR(120) NOT NULL,
+            description VARCHAR(255) NOT NULL DEFAULT '',
+            cost DECIMAL(10,2) NOT NULL DEFAULT 0,
+            active TINYINT NOT NULL DEFAULT 1,
+            sort_order INT NOT NULL DEFAULT 0
+        )$tail",
+    ];
+}

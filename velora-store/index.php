@@ -7,7 +7,7 @@ $deals = find_products(['flag' => 'is_flash', 'sort' => 'manual', 'limit' => 2])
 $totalProducts = find_products([], true);
 $testimonials = q_all('SELECT * FROM testimonials WHERE active = 1 ORDER BY sort_order, id');
 $instagram = find_products(['sort' => 'new', 'limit' => 6]);
-$cats = categories();
+$cats = category_tree();
 
 include __DIR__ . '/includes/header.php';
 ?>

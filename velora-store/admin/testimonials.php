@@ -28,12 +28,12 @@ if (is_post()) {
 
 $edit = isset($_GET['edit']) ? q_one('SELECT * FROM testimonials WHERE id = ?', [(int) $_GET['edit']]) : null;
 $rows = q_all('SELECT * FROM testimonials ORDER BY sort_order, id');
-$adminTitle = 'Customer reviews';
+$adminTitle = 'Testimonials';
 include __DIR__ . '/includes/header.php';
 ?>
 <div class="grid-main">
   <div class="card">
-    <p class="muted">Shown in “Our Happy Customers” on the home page.</p>
+    <p class="muted">Shown in “Our Happy Customers” on the home page. Reviews written on product pages are in <a href="reviews.php">Product reviews</a>.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>Name</th><th>Review</th><th>Stars</th><th>Visible</th><th></th></tr></thead>
       <tbody>

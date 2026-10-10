@@ -62,6 +62,38 @@ function default_settings(array $store): array
         'instagram_url' => 'https://instagram.com/',
         'newsletter_title' => 'STAY UP TO DATE ABOUT OUR LATEST OFFERS',
 
+        // Subscribe popup (Admin > Settings > Popup)
+        'popup_enabled' => '1',
+        'popup_image' => 'assets/img/demo/popup.svg',
+        'popup_badge_value' => '10%',
+        'popup_badge_text' => 'OFF',
+        'popup_subtitle' => 'FIRST ORDER OFFER',
+        'popup_title' => 'Take [10%] Off Your First Order',
+        'popup_text' => 'Use the code below at checkout, or send it to your inbox so it is there when you are ready.',
+        'popup_coupon_id' => '',
+        'popup_link_text' => 'SHOP NOW',
+        'popup_link' => 'shop.php',
+        'popup_delay' => '4',
+        'popup_days' => '7',
+
+        // Contact page
+        'contact_title' => 'Get In Touch',
+        'contact_text' => 'Have a question about an order, sizes or delivery? Send us a message and we will reply as soon as possible.',
+        'contact_image' => 'assets/img/demo/banner.svg',
+        'contact_box_title' => $store['store_name'],
+        'contact_address' => '',
+        'contact_phone' => $store['whatsapp'] !== '' ? '+' . $store['whatsapp'] : '',
+        'contact_email' => $store['store_email'],
+        'contact_hours_title' => 'Opening Hours',
+        'contact_hours' => "Monday - Friday : 9am - 5pm\nWeekend Closed",
+        'contact_map' => '',
+
+        // Product reviews
+        'reviews_enabled' => '1',
+        'reviews_moderate' => '1',
+
+        'footer_copyright' => '{store} © {year}, All Rights Reserved',
+
         // Social
         'social_facebook' => '#', 'social_twitter' => '#', 'social_instagram' => '#', 'social_github' => '',
 
@@ -144,6 +176,8 @@ function seed_demo(PDO $pdo): void
         ]);
     }
 
+    seed_v3_demo($pdo, $catIds, $now);
+
     $testimonials = [
         ['Sarah M.', 'I\'m blown away by the quality and style of the clothes I received from this store. From casual wear to elegant dresses, every piece I\'ve bought has exceeded my expectations.'],
         ['Alex K.', 'Finding clothes that align with my personal style used to be a challenge until I discovered this store. The range of options they offer is truly remarkable, catering to a variety of tastes and occasions.'],
@@ -170,4 +204,34 @@ function seed_demo(PDO $pdo): void
     foreach ($pages as $p) {
         $st->execute([$p[0], $p[1], $p[2], $p[3], $p[0] === 'post' ? 'assets/img/demo/banner.svg' : '', $now]);
     }
+}
+
+/** Demo data for version 3 features: subcategories, short descriptions, options, shipping, coupon, reviews. */
+function seed_v3_demo(PDO $pdo, array $catIds, string $now): void
+{
+    $st = $pdo->prepare('INSERT INTO categories (name, slug, image, sort_order, parent_id) VALUES (?,?,?,?,?)');
+    $st->execute(['T-Shirts', 't-shirts', 'assets/img/demo/p1.svg', 10, $catIds['casual']]);
+    $tshirts = (int) $pdo->lastInsertId();
+    $st->execute(['Jeans', 'jeans', 'assets/img/demo/p8.svg', 11, $catIds['casual']]);
+    $jeans = (int) $pdo->lastInsertId();
+    $pdo->prepare("UPDATE products SET category_id = ? WHERE slug IN ('t-shirt-with-tape-details','sleeve-striped-t-shirt','courage-graphic-t-shirt')")->execute([$tshirts]);
+    $pdo->prepare("UPDATE products SET category_id = ? WHERE slug IN ('skinny-fit-jeans','faded-skinny-jeans')")->execute([$jeans]);
+
+    $pdo->exec("UPDATE products SET short_description = 'Soft, breathable everyday piece with a modern fit. Easy to style for any occasion.'");
+    $pdo->exec("UPDATE products SET additional_info = '" . json_encode([['Material', '100% Cotton'], ['Fit', 'Regular'], ['Care', 'Machine wash cold']]) . "'");
+    $pdo->prepare("UPDATE products SET extra_options = ? WHERE slug = 't-shirt-with-tape-details'")
+        ->execute([json_encode([['name' => 'Gift wrap', 'values' => [['label' => 'No', 'price' => 0], ['label' => 'Yes', 'price' => 5]]]])]);
+
+    $st = $pdo->prepare('INSERT INTO shipping_methods (name, description, cost, active, sort_order) VALUES (?,?,?,1,?)');
+    $st->execute(['Standard Delivery', '3-5 business days', 0, 0]);
+    $st->execute(['Express Delivery', '1-2 business days', 15, 1]);
+
+    $pdo->prepare('INSERT INTO coupons (code, type, value, min_order, max_uses, used_count, active, created_at) VALUES (?,?,?,?,?,0,1,?)')
+        ->execute(['WELCOME10', 'percent', 10, 0, 0, $now]);
+    $couponId = (int) $pdo->lastInsertId();
+    $pdo->prepare("UPDATE settings SET svalue = ? WHERE skey = 'popup_coupon_id'")->execute([(string) $couponId]);
+
+    $st = $pdo->prepare("INSERT INTO reviews (product_id, name, email, rating, comment, approved, created_at) SELECT id, ?, '', 5, ?, 1, ? FROM products WHERE slug = 't-shirt-with-tape-details'");
+    $st->execute(['Eleanor F.', 'Great quality and the fit is perfect. I ordered a second color right away.', $now]);
+    $st->execute(['Haliey W.', 'Soft fabric, fast delivery and the size guide was accurate.', $now]);
 }

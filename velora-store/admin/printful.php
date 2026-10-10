@@ -141,7 +141,7 @@ include __DIR__ . '/includes/header.php';
       <label>Category for new imported products
         <select name="printful_category_id">
           <option value="0">- None -</option>
-          <?php foreach (categories() as $c): ?><option value="<?= (int) $c['id'] ?>" <?= setting('printful_category_id') === (string) $c['id'] ? 'selected' : '' ?>><?= e($c['name']) ?></option><?php endforeach; ?>
+          <?php foreach (categories() as $c): ?><option value="<?= (int) $c['id'] ?>" <?= setting('printful_category_id') === (string) $c['id'] ? 'selected' : '' ?>><?= $c['depth'] ? '&nbsp;&nbsp;— ' : '' ?><?= e($c['name']) ?></option><?php endforeach; ?>
         </select>
       </label>
       <button class="btn btn-primary" type="submit">Save & test connection</button>

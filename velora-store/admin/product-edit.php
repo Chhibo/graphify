@@ -12,6 +12,7 @@ $p = $p ?? [
     'id' => 0, 'category_id' => null, 'name' => '', 'brand' => '', 'description' => '', 'price' => '', 'old_price' => '',
     'image' => '', 'gallery' => '[]', 'sizes' => 'S,M,L,XL', 'colors' => '', 'rating' => '5.0', 'reviews_count' => 0,
     'stock' => -1, 'is_new' => 1, 'is_trending' => 0, 'is_flash' => 0, 'active' => 1, 'sort_order' => 0,
+    'short_description' => '', 'extra_options' => '[]', 'additional_info' => '[]', 'shipping_enabled' => 1, 'shipping_methods' => '',
 ];
 $gallery = json_decode((string) $p['gallery'], true) ?: [];
 $errors = [];
@@ -23,6 +24,7 @@ if (is_post()) {
         'brand' => trim((string) ($_POST['brand'] ?? '')),
         'category_id' => (int) ($_POST['category_id'] ?? 0) ?: null,
         'description' => trim((string) ($_POST['description'] ?? '')),
+        'short_description' => trim((string) ($_POST['short_description'] ?? '')),
         'price' => round((float) ($_POST['price'] ?? 0), 2),
         'old_price' => round((float) ($_POST['old_price'] ?? 0), 2),
         'sizes' => implode(',', str_list($_POST['sizes'] ?? '')),
@@ -35,7 +37,28 @@ if (is_post()) {
         'is_flash' => post_flag('is_flash'),
         'active' => post_flag('active'),
         'sort_order' => (int) ($_POST['sort_order'] ?? 0),
+        'shipping_enabled' => post_flag('shipping_enabled'),
+        'shipping_methods' => implode(',', array_map('intval', (array) ($_POST['shipping_methods'] ?? []))),
     ];
+    // Custom options: one row per option, values like "Cotton, Silk +5"
+    $opts = [];
+    foreach ((array) ($_POST['opt_name'] ?? []) as $i => $name) {
+        $name = mb_substr(trim((string) $name), 0, 60);
+        $values = parse_option_values((string) ($_POST['opt_values'][$i] ?? ''));
+        if ($name !== '' && $values) {
+            $opts[] = ['name' => $name, 'values' => $values];
+        }
+    }
+    $data['extra_options'] = json_encode($opts);
+    // Additional information rows (shown in the "Additional Information" tab)
+    $info = [];
+    foreach ((array) ($_POST['info_key'] ?? []) as $i => $k) {
+        $k = mb_substr(trim((string) $k), 0, 80);
+        if ($k !== '') {
+            $info[] = [$k, mb_substr(trim((string) ($_POST['info_val'][$i] ?? '')), 0, 255)];
+        }
+    }
+    $data['additional_info'] = json_encode($info);
     if ($data['name'] === '') {
         $errors[] = 'Product name is required.';
     }
@@ -90,7 +113,8 @@ include __DIR__ . '/includes/header.php';
   <div>
     <div class="card">
       <label>Product name *<input name="name" value="<?= e($p['name']) ?>" required></label>
-      <label>Description<textarea name="description" rows="6"><?= e($p['description']) ?></textarea></label>
+      <label>Short description <small class="muted">(shown under the product name)</small><textarea name="short_description" rows="4" data-editor="mini"><?= e($p['short_description']) ?></textarea></label>
+      <label>Description <small class="muted">(shown in the “Description” tab)</small><textarea name="description" rows="10" data-editor="basic"><?= e($p['description']) ?></textarea></label>
       <div class="grid-3">
         <label>Price *<input name="price" type="number" step="0.01" min="0" value="<?= e($p['price']) ?>" required></label>
         <label>Old price <small class="muted">(for discount)</small><input name="old_price" type="number" step="0.01" min="0" value="<?= (float) $p['old_price'] > 0 ? e($p['old_price']) : '' ?>"></label>
@@ -99,6 +123,36 @@ include __DIR__ . '/includes/header.php';
       <div class="grid-2">
         <label>Sizes <small class="muted">(comma separated)</small><input name="sizes" value="<?= e($p['sizes']) ?>" placeholder="S,M,L,XL"></label>
         <label>Colors <small class="muted">(comma separated)</small><input name="colors" value="<?= e($p['colors']) ?>" placeholder="Black,White"></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Custom options</h2><button type="button" class="btn btn-sm btn-light" data-add-row="#opt-rows"><?= icon('plus', 14) ?> Add option</button></div>
+      <p class="help">Extra choices besides size and color, e.g. <b>Material</b> → <code>Cotton, Silk +5, Wool +7.50</code>. Write <code>+amount</code> after a value to add to the price.</p>
+      <div id="opt-rows" class="rows">
+        <?php $optRows = product_extra_options($p) ?: [['name' => '', 'values' => []]]; ?>
+        <?php foreach ($optRows as $o): ?>
+          <div class="row-item">
+            <input name="opt_name[]" value="<?= e($o['name']) ?>" placeholder="Option name (e.g. Material)">
+            <input name="opt_values[]" value="<?= e(option_values_text($o['values'])) ?>" placeholder="Values, comma separated (e.g. Cotton, Silk +5)" class="grow">
+            <button type="button" class="icon-x" data-remove-row aria-label="Remove">×</button>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Additional information</h2><button type="button" class="btn btn-sm btn-light" data-add-row="#info-rows"><?= icon('plus', 14) ?> Add row</button></div>
+      <p class="help">Shown in the “Additional Information” tab, e.g. Material → 100% Cotton. Sizes, colors and options are added automatically.</p>
+      <div id="info-rows" class="rows">
+        <?php $infoRows = product_additional_info($p) ?: [['', '']]; ?>
+        <?php foreach ($infoRows as [$k, $v]): ?>
+          <div class="row-item">
+            <input name="info_key[]" value="<?= e($k) ?>" placeholder="Name (e.g. Material)">
+            <input name="info_val[]" value="<?= e($v) ?>" placeholder="Value (e.g. 100% Cotton)" class="grow">
+            <button type="button" class="icon-x" data-remove-row aria-label="Remove">×</button>
+          </div>
+        <?php endforeach; ?>
       </div>
     </div>
     <div class="card">
@@ -126,8 +180,8 @@ include __DIR__ . '/includes/header.php';
       <label>Category
         <select name="category_id">
           <option value="">- None -</option>
-          <?php foreach (q_all('SELECT id, name FROM categories ORDER BY sort_order, name') as $c): ?>
-            <option value="<?= (int) $c['id'] ?>" <?= (int) $p['category_id'] === (int) $c['id'] ? 'selected' : '' ?>><?= e($c['name']) ?></option>
+          <?php foreach (categories() as $c): ?>
+            <option value="<?= (int) $c['id'] ?>" <?= (int) $p['category_id'] === (int) $c['id'] ? 'selected' : '' ?>><?= $c['depth'] ? '&nbsp;&nbsp;— ' : '' ?><?= e($c['name']) ?></option>
           <?php endforeach; ?>
         </select>
       </label>
@@ -142,8 +196,25 @@ include __DIR__ . '/includes/header.php';
         <label>Reviews<input name="reviews_count" type="number" min="0" value="<?= (int) $p['reviews_count'] ?>"></label>
       </div>
       <label>Sort order <small class="muted">(lower shows first)</small><input name="sort_order" type="number" value="<?= (int) $p['sort_order'] ?>"></label>
+
+      <h3 class="sub">Shipping</h3>
+      <label class="inline"><input type="checkbox" name="shipping_enabled" value="1" data-toggle-target="#ship-methods" <?= (int) $p['shipping_enabled'] ? 'checked' : '' ?>> This product needs delivery</label>
+      <p class="help">Untick for products that are not shipped (gift cards, services, digital items): no delivery fee is charged for them.</p>
+      <div id="ship-methods" <?= (int) $p['shipping_enabled'] ? '' : 'hidden' ?>>
+        <?php $allMethods = shipping_methods(false); $chosen = product_shipping_ids($p); ?>
+        <?php if ($allMethods): ?>
+          <p class="help" style="margin-top:0">Delivery options for this product (none ticked = all options):</p>
+          <?php foreach ($allMethods as $m): ?>
+            <label class="inline small"><input type="checkbox" name="shipping_methods[]" value="<?= (int) $m['id'] ?>" <?= in_array((int) $m['id'], $chosen, true) ? 'checked' : '' ?>> <?= e($m['name']) ?> (<?= (float) $m['cost'] > 0 ? money($m['cost']) : 'Free' ?>)<?= $m['active'] ? '' : ' - disabled' ?></label>
+          <?php endforeach; ?>
+        <?php else: ?>
+          <p class="help" style="margin-top:0">No delivery options yet. <a href="shipping.php">Add delivery options</a>.</p>
+        <?php endif; ?>
+      </div>
+
       <button class="btn btn-primary btn-block" type="submit">Save product</button>
     </div>
   </div>
 </form>
+<?php include __DIR__ . '/includes/editor.php'; ?>
 <?php include __DIR__ . '/includes/footer.php'; ?>

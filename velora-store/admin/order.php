@@ -79,7 +79,7 @@ include __DIR__ . '/includes/header.php';
         <?php foreach ($items as $it): ?>
           <tr>
             <td><img class="thumb" src="<?= e(img_url($it['image'])) ?>" alt=""></td>
-            <td><b><?= e($it['name']) ?></b><br><small class="muted"><?= e(implode(' / ', array_filter([$it['size'], $it['color']]))) ?></small></td>
+            <td><b><?= e($it['name']) ?></b><br><small class="muted"><?= e(implode(' / ', array_filter([$it['size'], $it['color'], $it['options']]))) ?></small></td>
             <td><?= money($it['price']) ?></td>
             <td><?= (int) $it['qty'] ?></td>
             <td><?= money($it['price'] * $it['qty']) ?></td>
@@ -89,7 +89,8 @@ include __DIR__ . '/includes/header.php';
       </table></div>
       <div class="totals">
         <div><span>Subtotal</span><b><?= money($order['subtotal']) ?></b></div>
-        <div><span>Shipping</span><b><?= money($order['shipping']) ?></b></div>
+        <?php if ((float) $order['discount'] > 0): ?><div><span>Coupon <?= e($order['coupon_code']) ?></span><b>-<?= money($order['discount']) ?></b></div><?php endif; ?>
+        <div><span>Shipping<?= $order['shipping_method'] !== '' ? ' (' . e($order['shipping_method']) . ')' : '' ?></span><b><?= money($order['shipping']) ?></b></div>
         <div class="grand"><span>Total</span><b><?= money($order['total']) ?></b></div>
       </div>
     </div>

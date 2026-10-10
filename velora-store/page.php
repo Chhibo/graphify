@@ -18,7 +18,7 @@ include __DIR__ . '/includes/header.php';
       <?php if ($page['type'] === 'post'): ?><p class="muted"><?= e(date('F j, Y', strtotime($page['created_at']))) ?></p><?php endif; ?>
       <?php if ($page['image'] !== ''): ?><img class="content-img" src="<?= e(img_url($page['image'])) ?>" alt=""><?php endif; ?>
       <?php /* Page HTML is written by the store admin in the admin panel. */ ?>
-      <div class="content-body"><?= $page['content'] ?></div>
+      <div class="content-body"><?= rich_text((string) $page['content']) ?></div>
     </article>
   <?php else: ?>
     <div class="empty"><h3>Page not found</h3><a class="btn btn-primary" href="<?= url() ?>">Back home</a></div>
