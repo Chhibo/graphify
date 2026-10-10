@@ -42,10 +42,20 @@ if (is_post()) {
                 flash('error', 'Sorry, ' . trim($color . ' / ' . $size, ' /') . ' is not available. Please choose another option.');
                 redirect(product_url($p));
             }
+            if ((int) $variant['stock'] === 0) {
+                flash('error', 'Sorry, ' . trim($color . ' / ' . $size, ' /') . ' is sold out. Please choose another option.');
+                redirect(product_url($p));
+            }
+            if ((int) $variant['stock'] > 0) {
+                $qty = min($qty, (int) $variant['stock']);
+            }
             $variantId = (int) $variant['id'];
         }
         [$options] = resolve_options($p, (array) ($_POST['opt'] ?? []));
         cart_add((int) $p['id'], $qty, $size, $color, $variantId, $options);
+        $unit = ($variantId ? variant_price($variant, $p) : (float) $p['price']) + resolve_options($p, $options)[1];
+        cart_snapshot();
+        track_event('AddToCart', ['value' => round($unit * $qty, 2), 'items' => [track_item($p, $unit, $qty)]], true);
 
         if (!empty($_POST['ajax'])) {
             header('Content-Type: application/json');
@@ -95,6 +105,7 @@ if (is_post()) {
 
 $items = cart_items();
 $totals = cart_totals($items);
+cart_snapshot();
 $pageTitle = 'Your Cart';
 include __DIR__ . '/includes/header.php';
 ?>

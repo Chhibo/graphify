@@ -184,17 +184,77 @@ function cart_shipping_options(array $items): array
     if (!$shippable) {
         return [];
     }
-    $all = shipping_methods();
+    $all = shipping_methods_for_address(ship_to());
+    $allIds = array_map('intval', array_column(shipping_methods(), 'id'));
     $common = null;
     $union = [];
     foreach ($shippable as $it) {
         $allowed = product_shipping_ids($it['product']);
-        $ids = $allowed ? $allowed : array_map('intval', array_column($all, 'id'));
+        $ids = $allowed ? $allowed : $allIds;
         $common = $common === null ? $ids : array_values(array_intersect($common, $ids));
         $union = array_merge($union, $ids);
     }
     $ids = $common ?: array_unique($union);
     return array_values(array_filter($all, fn($m) => in_array((int) $m['id'], $ids, true)));
+}
+
+/* ----- Delivery zones (country / city) ----- */
+
+/** The delivery address used to calculate delivery prices: ['country' => 'MA', 'city' => 'Casablanca']. */
+function ship_to(): array
+{
+    if (!empty($_SESSION['ship_to'])) {
+        return $_SESSION['ship_to'];
+    }
+    $c = function_exists('current_customer') ? current_customer() : null;
+    return [
+        'country' => $c && $c['country_code'] !== '' ? $c['country_code'] : country_code(setting('country_default')),
+        'city' => $c ? $c['city'] : '',
+    ];
+}
+
+function set_ship_to(string $country, string $city): void
+{
+    $_SESSION['ship_to'] = ['country' => country_code($country), 'city' => mb_substr(trim($city), 0, 120)];
+}
+
+function normalize_city(string $city): string
+{
+    $city = mb_strtolower(trim($city));
+    $city = strtr($city, ['é' => 'e', 'è' => 'e', 'ê' => 'e', 'à' => 'a', 'â' => 'a', 'î' => 'i', 'ï' => 'i', 'ô' => 'o', 'û' => 'u', 'ç' => 'c', '-' => ' ']);
+    return preg_replace('/\s+/', ' ', $city);
+}
+
+/**
+ * How well a delivery option matches an address: -1 = not available,
+ * 0 = everywhere, 1 = matches the country, 2 = matches the city.
+ */
+function shipping_method_match(array $m, array $addr): int
+{
+    $countries = array_filter(array_map('strtoupper', array_map('trim', explode(',', (string) ($m['countries'] ?? '')))));
+    $cities = array_filter(array_map('normalize_city', preg_split('/[,\n]+/', (string) ($m['cities'] ?? ''))));
+    if ($countries && !in_array(strtoupper((string) ($addr['country'] ?? '')), $countries, true)) {
+        return -1;
+    }
+    if ($cities) {
+        return in_array(normalize_city((string) ($addr['city'] ?? '')), $cities, true) ? 2 : -1;
+    }
+    return $countries ? 1 : 0;
+}
+
+/** Delivery options for an address: only the most specific zone that matches (city > country > everywhere). */
+function shipping_methods_for_address(array $addr): array
+{
+    $best = -1;
+    $scored = [];
+    foreach (shipping_methods() as $m) {
+        $score = shipping_method_match($m, $addr);
+        if ($score >= 0) {
+            $scored[] = [$score, $m];
+            $best = max($best, $score);
+        }
+    }
+    return array_values(array_map(fn($x) => $x[1], array_filter($scored, fn($x) => $x[0] === $best)));
 }
 
 /* ===================== Menus ===================== */
@@ -252,6 +312,13 @@ function menu_url(string $u): string
     }
     if (preg_match('#^[a-z]+:#i', $u)) {
         return '#'; // block javascript: and other schemes
+    }
+    if (pretty_urls() && preg_match('#^page\.php\?slug=([a-z0-9\-]+)$#i', ltrim($u, '/'), $m)) {
+        $type = (string) q_val('SELECT type FROM pages WHERE slug = ?', [$m[1]]);
+        return page_url($m[1], $type ?: 'page');
+    }
+    if (pretty_urls() && preg_match('#^shop\.php\?category=(\d+)$#', ltrim($u, '/'), $m) && ($cat = find_category((int) $m[1]))) {
+        return category_url($cat);
     }
     return url(ltrim($u, '/'));
 }

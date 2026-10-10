@@ -9,6 +9,14 @@ $testimonials = q_all('SELECT * FROM testimonials WHERE active = 1 ORDER BY sort
 $instagram = find_products(['sort' => 'new', 'limit' => 6]);
 $cats = category_tree();
 
+$canonical = abs_url(url());
+$jsonLd = [
+    ['@context' => 'https://schema.org', '@type' => 'Organization', 'name' => setting('store_name'), 'url' => abs_url(url()),
+        'logo' => setting('logo') !== '' ? abs_url(img_url(setting('logo'))) : null,
+        'sameAs' => array_values(array_filter([setting('social_facebook'), setting('social_instagram'), setting('social_twitter')], fn($u) => preg_match('#^https?://#', $u)))],
+    ['@context' => 'https://schema.org', '@type' => 'WebSite', 'name' => setting('store_name'), 'url' => abs_url(url()),
+        'potentialAction' => ['@type' => 'SearchAction', 'target' => abs_url(url('shop.php')) . '?q={search_term_string}', 'query-input' => 'required name=search_term_string']],
+];
 include __DIR__ . '/includes/header.php';
 ?>
 
@@ -50,7 +58,7 @@ include __DIR__ . '/includes/header.php';
     </div>
     <div class="slider cat-slider" id="cat-slider" style="--cols: <?= max(4, min(6, count($cats))) ?>">
       <?php foreach ($cats as $c): ?>
-        <a class="cat-card" href="<?= url('shop.php?category=' . (int) $c['id']) ?>">
+        <a class="cat-card" href="<?= category_url($c) ?>">
           <span class="cat-img"><img src="<?= e(img_url($c['image'])) ?>" alt="<?= e($c['name']) ?>" loading="lazy"></span>
           <strong><?= e($c['name']) ?></strong>
         </a>

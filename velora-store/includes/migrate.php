@@ -120,6 +120,23 @@ function run_migrations(): void
         }
     }
 
+    if ($version < 5) {
+        foreach (array_merge(v5_alter_sql($fk), v5_tables_sql($pk, $fk, $tail)) as $sql) {
+            try {
+                db()->exec($sql);
+            } catch (PDOException $ex) {
+                if (stripos($ex->getMessage(), 'duplicate') === false) {
+                    throw $ex;
+                }
+            }
+        }
+        foreach (default_v5_settings() as $k => $v) {
+            if (!array_key_exists($k, settings_all())) {
+                set_setting($k, $v);
+            }
+        }
+    }
+
     set_setting('db_version', (string) DB_VERSION);
     settings_all(true);
 }

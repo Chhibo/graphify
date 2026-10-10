@@ -17,15 +17,18 @@ include __DIR__ . '/includes/header.php';
 <?php if (!$methods): ?><div class="alert alert-error">No payment method is enabled - customers cannot check out. <a href="settings.php?tab=payments">Enable one</a>.</div><?php endif; ?>
 <?php if (setting('whatsapp_number') === '' && isset($methods['cod'])): ?><div class="alert alert-warn">Add your WhatsApp number to receive Cash on Delivery orders. <a href="settings.php?tab=whatsapp">Add it now</a>.</div><?php endif; ?>
 
+<?php if (admin_can('reports')): ?>
 <div class="stats">
   <div class="stat"><span>Revenue (collected)</span><strong><?= money($revenue) ?></strong></div>
   <div class="stat"><span>COD to collect</span><strong><?= money($pendingCod) ?></strong></div>
   <div class="stat"><span>Orders today</span><strong><?= $ordersToday ?></strong></div>
   <div class="stat"><span>Total orders</span><strong><?= $ordersTotal ?></strong></div>
   <div class="stat"><span>Products</span><strong><?= $products ?></strong></div>
-</div>
+</div><?php endif; ?>
+
 
 <div class="grid-main">
+  <?php if (admin_can('orders')): ?>
   <div class="card">
     <div class="card-head"><h2>Recent orders</h2><a href="orders.php">View all →</a></div>
     <?php if ($recent): ?>
@@ -45,6 +48,8 @@ include __DIR__ . '/includes/header.php';
     </table></div>
     <?php else: ?><p class="muted">No orders yet. Share your store link to get your first order!</p><?php endif; ?>
   </div>
+  <?php else: ?><div class="card"><p>Welcome, <?= e(current_admin()['name']) ?>! Use the menu on the left to get started.</p></div><?php endif; ?>
+  <?php if (admin_can('settings')): ?>
   <div class="card">
     <div class="card-head"><h2>Quick setup</h2></div>
     <ul class="checklist">
@@ -61,5 +66,6 @@ include __DIR__ . '/includes/header.php';
       <?php endforeach; ?>
     <?php endif; ?>
   </div>
+  <?php endif; ?>
 </div>
 <?php include __DIR__ . '/includes/footer.php'; ?>

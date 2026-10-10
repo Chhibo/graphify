@@ -57,6 +57,8 @@ $storeName = setting('store_name', 'VELORA');
 
 <?php include __DIR__ . '/popup.php'; ?>
 
+<?= tracking_footer() ?>
+
 <script>window.STORE = {base: <?= json_encode(BASE_PATH) ?>, csrf: <?= json_encode(csrf_token()) ?>,
   money: <?= json_encode(['symbol' => setting('currency_symbol', '$'), 'after' => setting('currency_position') === 'after', 'dec' => (int) setting('currency_decimals', '2'), 'trim' => setting('hide_zero_decimals', '1') === '1']) ?>};</script>
 <script src="<?= asset('js/app.js') ?>?v=<?= APP_VERSION ?>"></script>

@@ -132,11 +132,16 @@
       var match = variants.filter(function (v) { return v.size === size && v.color === color; })[0];
       if (match) updatePrice(match.amount);
       if (match && match.image && main) main.src = match.image;
-      $$('[data-add-btn]', vform).forEach(function (b) { b.disabled = !match; });
-      $('[data-variant-msg]', vform).hidden = !!match;
+      var ok = match && match.stock !== 0;
+      $$('[data-add-btn]', vform).forEach(function (b) { b.disabled = !ok; });
+      var msg = $('[data-variant-msg]', vform);
+      msg.hidden = !!ok;
+      msg.textContent = match ? 'This option is sold out.' : 'This combination is not available.';
+      var qtyIn = $('input[name=qty]', vform);
+      if (qtyIn && match) { qtyIn.max = match.stock > 0 ? match.stock : 99; if (match.stock > 0 && +qtyIn.value > match.stock) qtyIn.value = match.stock; }
       // Grey out sizes that do not exist in the selected color
       $$('input[name=size]', vform).forEach(function (i) {
-        var ok = variants.some(function (v) { return v.size === i.value && (color === '' || v.color === color); });
+        var ok = variants.some(function (v) { return v.size === i.value && (color === '' || v.color === color) && v.stock !== 0; });
         i.parentNode.classList.toggle('unavailable', !ok);
       });
     };
@@ -144,7 +149,7 @@
     // Keep the chosen size if it exists in the selected color, otherwise pick the first size that does
     var fixSize = function () {
       var color = val('color');
-      var hasSize = function (s) { return variants.some(function (v) { return v.color === color && v.size === s; }); };
+      var hasSize = function (s) { return variants.some(function (v) { return v.color === color && v.size === s && v.stock !== 0; }); };
       if (!hasSize(val('size'))) {
         var first = $$('input[name=size]', vform).filter(function (x) { return hasSize(x.value); })[0];
         if (first) first.checked = true;
@@ -155,17 +160,26 @@
     fixSize();
   }
 
-  // Checkout: update delivery cost and total when another delivery method is chosen
-  var summary = $('[data-summary]');
-  if (summary) {
-    var money = formatMoney;
-    $$('input[name=shipping_method]').forEach(function (r) {
-      r.addEventListener('change', function () {
-        var cost = summary.getAttribute('data-free') === '1' ? 0 : parseFloat(r.getAttribute('data-cost')) || 0;
-        $('[data-ship]', summary).textContent = cost > 0 ? money(cost) : 'Free';
-        $('[data-total]').textContent = money(parseFloat(summary.getAttribute('data-base')) + cost);
-      });
-    });
+  // Checkout: refresh delivery options and totals when the country, city or delivery option changes
+  var shipBox = $('#ship-box');
+  if (shipBox) {
+    var form = $('#checkout-form'), shipTimer;
+    var refreshShipping = function () {
+      var country = form.querySelector('[name=country]'), city = form.querySelector('[name=city]');
+      var picked = form.querySelector('input[name=shipping_method]:checked');
+      var q = '?country=' + encodeURIComponent(country ? country.value : '') + '&city=' + encodeURIComponent(city ? city.value : '') + (picked ? '&method=' + picked.value : '');
+      fetch(shipBox.getAttribute('data-url') + q, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+        $('#ship-list').innerHTML = d.html;
+        shipBox.hidden = !d.show;
+        var ship = $('[data-ship]'); if (ship) ship.textContent = d.shipping;
+        var total = $('[data-total]'); if (total) total.textContent = d.total;
+      }).catch(function () {});
+    };
+    var later = function () { clearTimeout(shipTimer); shipTimer = setTimeout(refreshShipping, 450); };
+    var cSel = form.querySelector('[name=country]'), cIn = form.querySelector('[name=city]');
+    if (cSel) cSel.addEventListener('change', refreshShipping);
+    if (cIn) { cIn.addEventListener('input', later); cIn.addEventListener('change', refreshShipping); }
+    shipBox.addEventListener('change', function (e) { if (e.target.name === 'shipping_method') refreshShipping(); });
   }
 
   // Product tabs (Description / Additional Information / Reviews)
@@ -229,6 +243,34 @@
       var code = copyBtn.getAttribute('data-copy');
       var done = function () { copyBtn.querySelector('span').textContent = 'COPIED!'; setTimeout(function () { copyBtn.querySelector('span').textContent = 'COPY CODE'; }, 2000); };
       if (navigator.clipboard) navigator.clipboard.writeText(code).then(done, done); else done();
+    });
+  }
+
+  // Checkout: remember the email for an abandoned cart reminder (only sent if no order is placed)
+  var coForm = $('#checkout-form[data-capture]');
+  if (coForm && coForm.email) {
+    coForm.email.addEventListener('change', function () {
+      if (!/^\S+@\S+\.\S+$/.test(coForm.email.value)) return;
+      var fd = new FormData();
+      fd.append('_csrf', window.STORE.csrf); fd.append('email', coForm.email.value);
+      fd.append('name', coForm.customer_name ? coForm.customer_name.value : ''); fd.append('phone', coForm.phone ? coForm.phone.value : '');
+      fetch(coForm.getAttribute('data-capture'), { method: 'POST', body: fd, credentials: 'same-origin' }).catch(function () {});
+    });
+  }
+
+  // Cookie notice
+  var cookieBar = $('#cookie-bar');
+  if (cookieBar) {
+    var choice = null;
+    try { choice = localStorage.getItem('cookie_consent'); } catch (e) {}
+    if (!choice) cookieBar.hidden = false;
+    $$('[data-cookie]', cookieBar).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var yes = b.getAttribute('data-cookie') === 'yes';
+        if (window.SHOP_TRACK) { if (yes) window.SHOP_TRACK.accept(); else window.SHOP_TRACK.decline(); }
+        else { try { localStorage.setItem('cookie_consent', yes ? 'yes' : 'no'); } catch (e) {} }
+        cookieBar.hidden = true;
+      });
     });
   }
 

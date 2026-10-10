@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
-require_admin();
+require_admin('marketing');
 
 $types = ['percent' => 'Percentage (%)', 'fixed' => 'Fixed amount', 'free_shipping' => 'Free delivery'];
 

@@ -332,7 +332,7 @@ function printful_auto_send(int $orderId): void
         return;
     }
     $order = q_one('SELECT * FROM orders WHERE id = ?', [$orderId]);
-    if (!$order || $order['printful_order_id'] !== '') {
+    if (!$order || $order['printful_order_id'] !== '' || $order['status'] === 'unconfirmed') {
         return;
     }
     $auto = $order['payment_status'] === 'paid' ? setting_on('printful_auto_paid') : ($order['payment_method'] === 'cod' && setting_on('printful_auto_cod'));

@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
-require_admin();
+require_admin('products');
 set_time_limit(120);
 
 const PF_BATCH = 10; // products imported per page load (keeps each request short on shared hosting)

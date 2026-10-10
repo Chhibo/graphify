@@ -127,6 +127,11 @@ function csrf_field(): string
 function verify_csrf(): void
 {
     $token = $_POST['_csrf'] ?? '';
+    // A form with a file bigger than the server's post_max_size arrives completely empty.
+    if (!$_POST && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        http_response_code(413);
+        exit('The file you sent is too large for this server (maximum ' . ini_get('post_max_size') . 'B). Please go back and choose a smaller image or file.');
+    }
     if (!is_string($token) || !hash_equals(csrf_token(), $token)) {
         http_response_code(419);
         exit('Your session expired. Please go back, refresh the page and try again.');
@@ -231,7 +236,79 @@ function upload_image(?array $file): ?string
     if (!move_uploaded_file($file['tmp_name'], APP_ROOT . '/' . $name)) {
         throw new RuntimeException('Could not save the uploaded image.');
     }
+    optimize_image(APP_ROOT . '/' . $name, $info[2]);
     return $name;
+}
+
+/**
+ * Speed: shrink big photos (Settings > General > Images & speed) and fix phone photo rotation.
+ * Never throws - if GD is missing or the image is unusual, the original file is kept.
+ */
+function optimize_image(string $path, int $type): void
+{
+    $maxW = (int) setting('image_max_width', '1600');
+    $quality = max(40, min(95, (int) setting('image_quality', '82')));
+    if ($maxW <= 0 || !function_exists('imagecreatetruecolor') || $type === IMAGETYPE_GIF) {
+        return;
+    }
+    try {
+        $img = null;
+        if ($type === IMAGETYPE_JPEG && function_exists('imagecreatefromjpeg')) {
+            $img = @imagecreatefromjpeg($path);
+        } elseif ($type === IMAGETYPE_PNG && function_exists('imagecreatefrompng')) {
+            $img = @imagecreatefrompng($path);
+        } elseif ($type === IMAGETYPE_WEBP && function_exists('imagecreatefromwebp')) {
+            $img = @imagecreatefromwebp($path);
+        }
+        if (!$img) {
+            return;
+        }
+        $rotated = false;
+        if ($type === IMAGETYPE_JPEG && function_exists('exif_read_data')) {
+            $exif = @exif_read_data($path);
+            $angle = [3 => 180, 6 => -90, 8 => 90][(int) ($exif['Orientation'] ?? 1)] ?? 0;
+            if ($angle !== 0 && ($r = imagerotate($img, $angle, 0))) {
+                imagedestroy($img);
+                $img = $r;
+                $rotated = true;
+            }
+        }
+        $w = imagesx($img);
+        $h = imagesy($img);
+        if ($w > $maxW) {
+            $nh = (int) round($h * $maxW / $w);
+            $out = imagecreatetruecolor($maxW, $nh);
+            if ($type !== IMAGETYPE_JPEG) {
+                imagealphablending($out, false);
+                imagesavealpha($out, true);
+            }
+            imagecopyresampled($out, $img, 0, 0, 0, 0, $maxW, $nh, $w, $h);
+            imagedestroy($img);
+            $img = $out;
+        } elseif (!$rotated && filesize($path) < 300 * 1024) {
+            imagedestroy($img);
+            return; // already small: keep the original
+        }
+        $tmp = $path . '.tmp';
+        $ok = false;
+        if ($type === IMAGETYPE_JPEG) {
+            imageinterlace($img, true);
+            $ok = imagejpeg($img, $tmp, $quality);
+        } elseif ($type === IMAGETYPE_PNG) {
+            $ok = imagepng($img, $tmp, 8);
+        } elseif ($type === IMAGETYPE_WEBP) {
+            $ok = imagewebp($img, $tmp, $quality);
+        }
+        imagedestroy($img);
+        // Keep whichever file is smaller (unless the photo had to be rotated).
+        if ($ok && is_file($tmp) && ($rotated || filesize($tmp) < filesize($path))) {
+            rename($tmp, $path);
+        } elseif (is_file($tmp)) {
+            unlink($tmp);
+        }
+    } catch (Throwable $ex) {
+        // keep the original image
+    }
 }
 
 /** Normalise $_FILES['x'][] (multiple) into a list of single-file arrays. */
@@ -412,9 +489,50 @@ function find_product(int $id): ?array
     return q_one('SELECT p.*, c.name AS category_name FROM products p LEFT JOIN categories c ON c.id = p.category_id WHERE p.id = ? AND p.active = 1', [$id]);
 }
 
+/** Clean links like /product/black-hoodie (Admin > Settings > SEO; needs Apache mod_rewrite). */
+function pretty_urls(): bool
+{
+    return setting('pretty_urls', '0') === '1';
+}
+
 function product_url(array $p): string
 {
-    return url('product.php?id=' . (int) $p['id'] . '&' . 'n=' . rawurlencode((string) ($p['slug'] ?? '')));
+    $slug = (string) ($p['slug'] ?? '');
+    if (pretty_urls() && $slug !== '') {
+        return url('product/' . rawurlencode($slug));
+    }
+    return url('product.php?id=' . (int) $p['id'] . '&' . 'n=' . rawurlencode($slug));
+}
+
+/** Make an image/link address absolute (https://shop.com/...), for share previews and Google. */
+function abs_url(string $u): string
+{
+    if (preg_match('#^https?://#i', $u)) {
+        return $u;
+    }
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    return ($https ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $u;
+}
+
+function find_product_by_slug(string $slug): ?array
+{
+    return q_one('SELECT p.*, c.name AS category_name FROM products p LEFT JOIN categories c ON c.id = p.category_id WHERE p.slug = ? AND p.active = 1', [$slug]);
+}
+
+function category_url(array $c): string
+{
+    if (pretty_urls() && ($c['slug'] ?? '') !== '') {
+        return url('category/' . rawurlencode($c['slug']));
+    }
+    return url('shop.php?category=' . (int) $c['id']);
+}
+
+function page_url(string $slug, string $type = 'page'): string
+{
+    if (pretty_urls()) {
+        return url(($type === 'post' ? 'blog/' : 'page/') . rawurlencode($slug));
+    }
+    return url('page.php?slug=' . rawurlencode($slug));
 }
 
 function stars(float $rating): string
@@ -450,6 +568,7 @@ function in_wishlist(int $id): bool
 function order_status_labels(): array
 {
     return [
+        'unconfirmed' => 'Awaiting confirmation',
         'pending' => 'Pending',
         'processing' => 'Processing',
         'shipped' => 'Shipped',
@@ -495,7 +614,11 @@ function order_reduce_stock(int $orderId): void
         return;
     }
     foreach (order_items($orderId) as $item) {
-        if ($item['product_id']) {
+        if (!empty($item['variant_id'])) {
+            // Stock per size/color
+            q('UPDATE product_variants SET stock = CASE WHEN stock - ? < 0 THEN 0 ELSE stock - ? END WHERE id = ? AND stock >= 0',
+                [(int) $item['qty'], (int) $item['qty'], (int) $item['variant_id']]);
+        } elseif ($item['product_id']) {
             q('UPDATE products SET stock = CASE WHEN stock - ? < 0 THEN 0 ELSE stock - ? END WHERE id = ? AND stock >= 0',
                 [(int) $item['qty'], (int) $item['qty'], (int) $item['product_id']]);
         }

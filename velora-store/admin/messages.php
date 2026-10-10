@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
-require_admin();
+require_admin('customers');
 
 if (is_post()) {
     verify_csrf();

@@ -75,6 +75,27 @@ When the cart contains a Printful product, checkout asks for a postal / ZIP code
 - **Menus** (Admin → Menus): edit the header menu (with your own dropdowns, or automatic Categories/Brands dropdowns), the top bar links, the footer columns and the copyright line.
 - **Back to top** button on every page.
 
+## Selling, marketing & growth tools
+
+- **Cash on delivery protection** (Settings → Payments): maximum COD order amount, maximum COD orders per phone per day, and an optional *"Ask the customer to confirm on WhatsApp"*. When it is on, new COD orders are marked **Awaiting confirmation** until you click *Confirm* in the order. In an order you can also **Block** the customer (phone, email and IP). Blocked customers cannot order; manage the list in Admin → **Block list**.
+- **Ads pixels** (Settings → **Tracking & Cookies**): paste your **Facebook/Meta Pixel ID**, **TikTok Pixel ID** and/or **Google Analytics 4** ID (G-XXXX). The store sends *View product*, *Add to cart*, *Start checkout* and *Purchase* (with the order value) automatically. A "head code" box lets you add other codes (e.g. Google Search Console verification).
+- **Cookie notice** (same tab): a bar with Accept / Decline. When it is on, the pixels only load after the visitor clicks Accept.
+- **Stock per size / color** (product edit → *Stock per size & color*): tick the box and a table appears with every combination (e.g. M / Red). Set the stock and an optional price for each one. Sold-out combinations cannot be bought, and stock goes down when an order is placed.
+- **Invoices, packing slips & CSV** : in an order, click **Invoice** or **Packing slip** (print or save as PDF). Customers can download their invoice from My account. Admin → Orders → **Export CSV** downloads the orders (opens in Excel).
+- **Reports** (Admin → **Reports**): revenue, orders, average order and new customers for a date range (compared with the period before), a daily revenue chart, best-selling products, top cities and payment methods.
+- **SEO**: each product has its own page address (slug), SEO title and description. Product pages, categories and blog posts include Google rich data and Facebook/WhatsApp share previews. `sitemap.xml` and `robots.txt` are created automatically: submit `https://yourdomain.com/sitemap.xml` to Google Search Console. **Clean links** (`/product/white-shirt` instead of `product.php?slug=…`): Settings → SEO. The store checks that your server supports them (Apache with mod_rewrite, which almost all cPanel hosting has) before turning them on.
+- **Abandoned cart reminders** (Settings → General): when a logged-in customer, or a visitor who typed their email at checkout, leaves without ordering, one reminder email is sent after X hours with a button that refills the cart. You can attach a coupon to it. See them in Admin → **Abandoned carts**. Reminders are sent when you open the admin panel. To send them on time even when you don't log in, add a cron job (cPanel → Cron Jobs, every 15 minutes) with the command shown in Admin → Abandoned carts, e.g. `curl -s "https://yourdomain.com/cron.php?key=YOURKEY"`.
+- **Delivery prices by zone** (Admin → Delivery options): each option can be limited to some countries and/or cities, and can have its own *free over* amount. Example: *Casablanca $3*, *Rest of Morocco $5*, *International $15*. At checkout the customer sees only the options for their address, and the price updates while they type. A city option wins over a country option, which wins over an "everywhere" option. If no option matches an address, it cannot be ordered.
+
+## Speed, import, staff & backup
+
+- **Faster images**: uploaded photos are resized automatically (1600 px wide by default), turned the right way up and compressed. A 6 MB phone photo becomes about 400 KB. Settings → General → *Images & speed*. The `.htaccess` file also turns on compression and browser caching.
+- **Bulk import / export** (Admin → **Import / Export**): download the sample CSV, fill it in Excel or Google Sheets (one product per row), and upload it. Products with the same slug or name are updated, others are created. Images can be links and are downloaded to your server. Categories like `Women > Dresses` are created automatically. **Export** downloads all your products in the same format.
+- **Staff accounts** (Admin → **Staff**, owner only): add team members with their own login and choose what they can see: Orders, Customers, Products, Marketing, Content, Reports, Settings. For example, give an order-confirmation agent only *Orders*. Staff never see Staff or Backup. Revenue figures are only shown to people with *Reports*.
+- **Backup** (Admin → **Backup**, owner only): download the database as a `.sql` file (import it in phpMyAdmin to restore), the SQLite file if you use SQLite, and a `.zip` of your uploaded images. Make a backup before big changes and keep a copy on your computer.
+
+**Updating from an older version**: upload the new files over the old ones (keep `config.php`, `data/` and `uploads/`). The database is updated automatically the first time you open the store. Existing admin accounts become owners.
+
 ## Customer accounts & emails
 
 - **Accounts**: customers can register, log in, reset a forgotten password and use **My account** (orders with status and tracking, account details, saved address, password). Their details are filled in automatically at checkout. You can see them in **Admin → Customers**, where you can disable an account or set a new password.
@@ -90,7 +111,7 @@ When the cart contains a Printful product, checkout asks for a postal / ZIP code
 
 ## What you can manage in the admin
 
-- **Orders:** view, change status (pending → processing → shipped → delivered), mark as paid, message the customer on WhatsApp
+- **Orders:** view, change status (awaiting confirmation → pending → processing → shipped → delivered), mark as paid, message the customer on WhatsApp, print invoice/packing slip, block a customer, export CSV
 - **Products:** price, old price (shows a discount badge), sizes, colors, stock (empty = unlimited), main image and gallery. You also choose which home sections a product appears in: *New Arrivals*, *Trending Now* or *Deal of the Days* (the first 2 are shown).
 - **Categories:** the "Best For Your Categories" slider and the Shop menu
 - **Reviews:** the "Our Happy Customers" section

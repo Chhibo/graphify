@@ -2,3 +2,10 @@
 location ~ ^/(includes|data)/ { deny all; }
 location ~ ^/config\.php$ { deny all; }
 location ~ ^/uploads/.*\.(php|phtml|phar)$ { deny all; }
+
+# Clean links (Admin > Settings > SEO), sitemap and robots (adjust /shop/ if the store is in a sub-folder)
+rewrite ^/product/([A-Za-z0-9\-_]+)/?$ /product.php?slug=$1 last;
+rewrite ^/category/([A-Za-z0-9\-_]+)/?$ /shop.php?cat=$1 last;
+rewrite ^/(page|blog)/([A-Za-z0-9\-_]+)/?$ /page.php?slug=$2 last;
+rewrite ^/sitemap\.xml$ /sitemap.php last;
+rewrite ^/robots\.txt$ /robots.php last;

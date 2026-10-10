@@ -104,9 +104,10 @@ include __DIR__ . '/includes/header.php';
         <p><a href="<?= url('account.php?tab=orders') ?>">← All orders</a></p>
         <h2 class="acc-title">Order <?= e($order['order_number']) ?></h2>
         <p class="muted">Placed on <?= e(date('F j, Y', strtotime($order['created_at']))) ?> · <?= e(payment_method_label($order['payment_method'])) ?></p>
+        <?php if ($order['status'] === 'unconfirmed'): ?><div class="alert alert-info">This order is waiting for your confirmation. Please confirm it on WhatsApp or answer our call.</div><?php endif; ?>
         <?php if ($order['status'] === 'cancelled'): ?>
           <div class="alert alert-error">This order was cancelled.</div>
-        <?php else: $reached = true; ?>
+        <?php else: $reached = $order['status'] !== 'unconfirmed'; ?>
           <ol class="timeline">
             <?php foreach ($statusSteps as $key => $label): ?>
               <li class="<?= $reached ? 'done' : '' ?>"><?= e($label) ?></li>
@@ -114,7 +115,10 @@ include __DIR__ . '/includes/header.php';
             <?php endforeach; ?>
           </ol>
         <?php endif; ?>
-        <?php if ($order['tracking_url'] !== ''): ?><a class="btn btn-primary" href="<?= e($order['tracking_url']) ?>" target="_blank" rel="noopener"><?= icon('truck', 18) ?> Track your package</a><?php endif; ?>
+        <p>
+          <?php if ($order['tracking_url'] !== ''): ?><a class="btn btn-primary" href="<?= e($order['tracking_url']) ?>" target="_blank" rel="noopener"><?= icon('truck', 18) ?> Track your package</a><?php endif; ?>
+          <a class="btn btn-outline" href="<?= url('invoice.php?order=' . rawurlencode($order['order_number'])) ?>" target="_blank">🧾 Invoice</a>
+        </p>
         <div class="order-box">
           <?php foreach (order_items((int) $order['id']) as $it): ?>
             <div class="sum-item">

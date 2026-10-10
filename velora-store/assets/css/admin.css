@@ -147,3 +147,31 @@ label .jodit-container { font-weight: 400; }
 .badge-new { display: inline-block; min-width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-right: 6px; }
 .msg-body { white-space: pre-wrap; background: var(--bg); border-radius: 10px; padding: 14px; margin: 10px 0; }
 @media (max-width: 800px) { .row-item { flex-wrap: wrap; } .row-item input:not(.grow) { flex-basis: 100%; } }
+.st-unconfirmed { background: #ffe9d6; color: #9a4a00; }
+.vs-table input { margin: 0 !important; padding: 7px 9px !important; max-width: 140px; }
+.vs-table td { padding: 6px 8px; }
+/* Reports */
+.report-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 18px; }
+.custom-range { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.custom-range input { width: auto; margin: 0; padding: 6px 8px; }
+.stats .stat { position: relative; }
+.delta { display: inline-block; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.delta.up { color: #1d6b40; } .delta.down { color: #b42318; }
+.chart-wrap { position: relative; }
+.chart { width: 100%; height: auto; display: block; }
+.chart .grid { stroke: #ececec; stroke-width: 1; }
+.chart .axis { stroke: #cfcfcf; stroke-width: 1; }
+.chart .tick { fill: #8a8a8a; font-size: 11px; }
+.chart .bar { fill: var(--primary); }
+.chart .hit { fill: transparent; }
+.chart .col.on .hit { fill: rgba(0,0,0,.035); }
+.chart-tip { position: absolute; pointer-events: none; background: #161616; color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 8px; white-space: nowrap; }
+.table-view { margin-top: 10px; } .table-view summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.report-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+.hbars { display: grid; gap: 12px; }
+.hbar-top { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; margin-bottom: 4px; }
+.hbar-top span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-top b { font-weight: 600; white-space: nowrap; }
+.hbar-track { height: 10px; background: #f1f1f1; border-radius: 0 4px 4px 0; }
+.hbar-track span { display: block; height: 100%; background: var(--primary); border-radius: 0 4px 4px 0; }
+@media (max-width: 1000px) { .report-grid { grid-template-columns: 1fr; } .custom-range { margin-left: 0; } }

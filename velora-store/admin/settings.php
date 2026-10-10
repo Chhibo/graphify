@@ -1,7 +1,7 @@
 <?php
 require __DIR__ . '/includes/auth.php';
 require APP_ROOT . '/includes/whatsapp.php';
-require_admin();
+require_admin('settings');
 
 /*
  * Every setting shown here: [key, label, type, help, options]
@@ -44,6 +44,14 @@ $tabs = [
         ['', 'Customer accounts & checkout', 'heading'],
         ['accounts_enabled', 'Customers can create an account and log in', 'checkbox', 'Customers get a “My account” page with their orders, address and password.'],
         ['guest_checkout', 'Allow guest checkout (order without an account)', 'checkbox', 'When off, customers must log in or create an account before they can place an order.'],
+        ['', 'Abandoned cart reminders', 'heading'],
+        ['abandoned_enabled', 'Email customers who leave items in their cart', 'checkbox', 'Works for logged-in customers and for visitors who typed their email at checkout. See Admin → Abandoned carts.'],
+        ['abandoned_delay_hours', 'Send the reminder after (hours)', 'number'],
+        ['abandoned_coupon_id', 'Coupon to include in the reminder (optional)', 'select', '',
+            ['' => '- No coupon -'] + array_column(array_map(fn($c) => ['id' => (string) $c['id'], 'label' => $c['code'] . ' (' . coupon_label($c) . ')'], q_all('SELECT * FROM coupons ORDER BY id DESC')), 'label', 'id')],
+        ['', 'Images & speed', 'heading'],
+        ['image_max_width', 'Resize uploaded images to max width (px)', 'number', 'Big photos from phones are reduced and compressed automatically so pages load fast. 0 = keep original size.'],
+        ['image_quality', 'JPEG / WebP quality (40-95)', 'number'],
         ['', 'Product reviews', 'heading'],
         ['reviews_enabled', 'Let customers write reviews on product pages', 'checkbox'],
         ['reviews_moderate', 'Approve reviews before they are published', 'checkbox', 'New reviews wait in Admin → Product reviews.'],
@@ -85,6 +93,10 @@ $tabs = [
         ['pay_cod_enabled', 'Enable Cash on Delivery', 'checkbox', 'Order details are sent to your WhatsApp number (see the WhatsApp tab).'],
         ['pay_cod_title', 'Title shown at checkout', 'text'],
         ['pay_cod_text', 'Description shown at checkout', 'text'],
+        ['', 'Cash on Delivery protection (against fake orders)', 'heading'],
+        ['cod_require_confirmation', 'New COD orders need confirmation first', 'checkbox', 'New COD orders get the status “Awaiting confirmation”. The customer is asked to confirm on WhatsApp, and you click “Customer confirmed” on the order before preparing it.'],
+        ['cod_max_total', 'Maximum order total for COD (0 = no limit)', 'number', 'Bigger orders must be paid online (PayPal / card).'],
+        ['cod_max_per_day', 'Maximum COD orders per phone number per day (0 = no limit)', 'number'],
         ['', 'PayPal', 'heading'],
         ['pay_paypal_enabled', 'Enable PayPal', 'checkbox'],
         ['pay_paypal_title', 'Title shown at checkout', 'text'],
@@ -148,6 +160,27 @@ $tabs = [
         ['notify_customer_order', 'Send customers an order confirmation email', 'checkbox'],
         ['notify_customer_status', 'Email customers when their order status changes (you can untick it per order)', 'checkbox'],
         ['notify_customer_welcome', 'Send a welcome email when a customer creates an account', 'checkbox'],
+    ]],
+    'seo' => ['SEO', [
+        ['', 'Google & sharing', 'heading'],
+        ['seo_title', 'Home page title (Google)', 'text', 'e.g. VELORA - Trendy clothes delivered in Morocco. Empty = store name.'],
+        ['seo_description', 'Home page description (Google)', 'textarea', 'About 155 characters shown under your title in Google.'],
+        ['og_image', 'Share image (when a link is shared on WhatsApp, Facebook...)', 'image', 'Best size 1200 × 630. Products use their own photo.'],
+        ['', 'Clean links', 'heading'],
+        ['pretty_urls', 'Use clean links like /product/black-hoodie (recommended)', 'checkbox', 'Needs Apache with mod_rewrite (most cPanel hosting). When you switch it on, the store first tests that it works on your server.'],
+        ['', 'Sitemap', 'heading'],
+    ]],
+    'tracking' => ['Tracking & Cookies', [
+        ['', 'Ads & analytics pixels (leave empty to turn off)', 'heading'],
+        ['fb_pixel_id', 'Meta (Facebook / Instagram) Pixel ID', 'text', 'Meta Events Manager → Data sources → your pixel → ID (numbers only, e.g. 123456789012345)'],
+        ['tiktok_pixel_id', 'TikTok Pixel ID', 'text', 'TikTok Ads Manager → Assets → Events → Web events → your pixel ID (e.g. CABCD1234...)'],
+        ['ga4_id', 'Google Analytics 4 Measurement ID', 'text', 'Google Analytics → Admin → Data streams → your website → Measurement ID (G-XXXXXXX)'],
+        ['head_code', 'Extra code in <head> (optional)', 'textarea', 'For example the Google Search Console verification tag. Not affected by the cookie notice.'],
+        ['', 'Cookie notice', 'heading'],
+        ['cookie_enabled', 'Show a cookie notice (pixels only load after the visitor accepts)', 'checkbox', 'Required for visitors from the EU / UK when you use tracking pixels.'],
+        ['cookie_text', 'Text', 'textarea'],
+        ['cookie_link_text', 'Link text', 'text'],
+        ['cookie_link', 'Link address', 'text'],
     ]],
     'whatsapp' => ['WhatsApp', [
         ['', 'Where orders are sent', 'heading'],
@@ -241,6 +274,11 @@ if (is_post()) {
                 set_setting($key, $v);
         }
     }
+    // Clean links: only switch on when the server really supports them.
+    if ($tab === 'seo' && post_flag('pretty_urls') && !pretty_urls_work()) {
+        set_setting('pretty_urls', '0');
+        $errors[] = 'Clean links could not be switched on: your server did not answer ' . full_url('sitemap.xml') . ' correctly. Check that mod_rewrite is enabled and that the .htaccess file was uploaded (it is a hidden file).';
+    }
     foreach ($errors as $err) {
         flash('error', $err);
     }
@@ -319,6 +357,9 @@ include __DIR__ . '/includes/header.php';
   <?php endif; ?>
   <div class="form-actions">
     <button class="btn btn-primary" type="submit">Save settings</button>
+    <?php if ($k === 'seo'): ?>
+      <p class="help" style="width:100%">Your sitemap: <a href="<?= e(url(pretty_urls() ? 'sitemap.xml' : 'sitemap.php')) ?>" target="_blank"><?= e(full_url(pretty_urls() ? 'sitemap.xml' : 'sitemap.php')) ?></a> - add it in Google Search Console → Sitemaps.</p>
+    <?php endif; ?>
     <?php if ($k === 'email'): ?>
       <input type="email" name="test_to" placeholder="Send test to (default: <?= e(admin_email() ?: 'your email') ?>)" style="max-width:320px;margin:0">
       <button class="btn btn-light" type="submit" name="action" value="test_email" formnovalidate>Send test email</button>
@@ -330,3 +371,11 @@ include __DIR__ . '/includes/header.php';
 </form>
 <?php endforeach; ?>
 <?php include __DIR__ . '/includes/footer.php'; ?>
+
+<?php
+/** Does /sitemap.xml work (Apache mod_rewrite + .htaccess)? */
+function pretty_urls_work(): bool
+{
+    $res = http_request('GET', full_url('sitemap.xml'));
+    return $res['status'] === 200 && strpos($res['body'], '<urlset') !== false;
+}

@@ -1,7 +1,7 @@
 <?php
 require __DIR__ . '/includes/bootstrap.php';
 
-$p = find_product((int) ($_GET['id'] ?? 0));
+$p = isset($_GET['slug']) ? find_product_by_slug((string) $_GET['slug']) : find_product((int) ($_GET['id'] ?? 0));
 if (!$p) {
     http_response_code(404);
     $pageTitle = 'Product not found';
@@ -15,14 +15,17 @@ $images = product_images($p) ?: [''];
 $sizes = str_list($p['sizes']);
 $colors = str_list($p['colors']);
 $off = discount_pct($p);
-$soldOut = (int) $p['stock'] === 0;
+$allVariants = product_variants((int) $p['id']);
+// Sold out: product stock 0, or (with stock per size/color) every combination is at 0.
+$soldOut = $allVariants ? !array_filter($allVariants, fn($v) => (int) $v['stock'] !== 0) : (int) $p['stock'] === 0;
 $variantData = array_map(fn($v) => [
     'size' => $v['size'],
     'color' => $v['color'],
-    'price' => money($v['price']),
-    'amount' => (float) $v['price'],
+    'price' => money(variant_price($v, $p)),
+    'amount' => variant_price($v, $p),
+    'stock' => (int) $v['stock'],
     'image' => $v['image'] !== '' ? img_url($v['image']) : '',
-], product_variants((int) $p['id']));
+], $allVariants);
 $extraOptions = product_extra_options($p);
 $infoRows = product_additional_info($p);
 $reviews = setting_on('reviews_enabled') ? product_reviews((int) $p['id']) : [];
@@ -30,15 +33,41 @@ $shortDesc = trim((string) ($p['short_description'] ?? ''));
 $related = find_products(['category_id' => (int) $p['category_id'], 'exclude' => (int) $p['id'], 'limit' => 4]);
 
 $pageTitle = $p['name'];
-$metaDescription = excerpt($shortDesc !== '' ? $shortDesc : (string) $p['description'], 155);
+track_event('ViewContent', ['value' => (float) $p['price'], 'items' => [track_item($p, (float) $p['price'])]]);
+// SEO & share previews
+$seoTitle = trim((string) ($p['meta_title'] ?? '')) !== '' ? $p['meta_title'] : '';
+$canonical = abs_url(product_url($p));
+$ogType = 'product';
+$ogImage = $images[0];
+$jsonLd = [[
+    '@context' => 'https://schema.org',
+    '@type' => 'Product',
+    'name' => $p['name'],
+    'image' => array_map(fn($i) => abs_url(img_url($i)), $images),
+    'description' => excerpt(strip_tags((string) ($shortDesc !== '' ? $shortDesc : $p['description'])), 300),
+    'sku' => 'P' . (int) $p['id'],
+    'brand' => ['@type' => 'Brand', 'name' => $p['brand'] !== '' ? $p['brand'] : setting('store_name')],
+    'offers' => [
+        '@type' => 'Offer',
+        'url' => $canonical,
+        'priceCurrency' => strtoupper(setting('currency_code', 'USD')),
+        'price' => number_format((float) $p['price'], 2, '.', ''),
+        'availability' => $soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+        'itemCondition' => 'https://schema.org/NewCondition',
+    ],
+]];
+if ((int) $p['reviews_count'] > 0) {
+    $jsonLd[0]['aggregateRating'] = ['@type' => 'AggregateRating', 'ratingValue' => number_format((float) $p['rating'], 1), 'reviewCount' => (int) $p['reviews_count']];
+}
+$metaDescription = trim((string) ($p['meta_description'] ?? '')) !== '' ? $p['meta_description'] : excerpt($shortDesc !== '' ? $shortDesc : (string) $p['description'], 155);
 include __DIR__ . '/includes/header.php';
 ?>
 <div class="container">
   <nav class="breadcrumb">
     <a href="<?= url() ?>">Home</a> <span>›</span> <a href="<?= url('shop.php') ?>">Shop</a>
     <?php $cat = find_category((int) $p['category_id']); $parentCat = $cat && !empty($cat['parent_id']) ? find_category((int) $cat['parent_id']) : null; ?>
-    <?php if ($parentCat): ?><span>›</span> <a href="<?= url('shop.php?category=' . (int) $parentCat['id']) ?>"><?= e($parentCat['name']) ?></a><?php endif; ?>
-    <?php if ($cat): ?><span>›</span> <a href="<?= url('shop.php?category=' . (int) $cat['id']) ?>"><?= e($cat['name']) ?></a><?php endif; ?>
+    <?php if ($parentCat): ?><span>›</span> <a href="<?= category_url($parentCat) ?>"><?= e($parentCat['name']) ?></a><?php endif; ?>
+    <?php if ($cat): ?><span>›</span> <a href="<?= category_url($cat) ?>"><?= e($cat['name']) ?></a><?php endif; ?>
     <span>›</span> <span><?= e($p['name']) ?></span>
   </nav>
 

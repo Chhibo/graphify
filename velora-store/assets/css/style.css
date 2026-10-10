@@ -655,3 +655,10 @@ a.pc-rating:hover span { text-decoration: underline; }
   .order-row { grid-template-columns: 1fr auto; }
   .account-stats { grid-template-columns: 1fr 1fr; }
 }
+
+/* ---------- Cookie notice ---------- */
+.cookie-bar { position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 150; max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.18); font-size: 14px; }
+.cookie-bar p { margin: 0; flex: 1; color: var(--muted); }
+.cookie-bar a { color: var(--primary); text-decoration: underline; }
+.cookie-actions { display: flex; gap: 8px; flex-shrink: 0; }
+@media (max-width: 560px) { .cookie-bar { flex-direction: column; align-items: stretch; bottom: 10px; left: 10px; right: 10px; } .cookie-actions .btn { flex: 1; } }

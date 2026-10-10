@@ -39,6 +39,9 @@ function customer_login(array $c): void
     $_SESSION['customer_id'] = (int) $c['id'];
     q('UPDATE customers SET last_login = ? WHERE id = ?', [now(), $c['id']]);
     current_customer(true);
+    if (function_exists('cart_restore_for_customer')) {
+        cart_restore_for_customer((int) $c['id']);
+    }
 }
 
 function customer_logout(): void

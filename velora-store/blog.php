@@ -11,7 +11,7 @@ include __DIR__ . '/includes/header.php';
   <?php if ($posts): ?>
     <div class="blog-grid">
       <?php foreach ($posts as $post): ?>
-        <a class="blog-card" href="<?= url('page.php?slug=' . rawurlencode($post['slug'])) ?>">
+        <a class="blog-card" href="<?= page_url($post['slug'], 'post') ?>">
           <img src="<?= e(img_url($post['image'])) ?>" alt="" loading="lazy">
           <div>
             <small class="muted"><?= e(date('F j, Y', strtotime($post['created_at']))) ?></small>

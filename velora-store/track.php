@@ -33,9 +33,10 @@ include __DIR__ . '/includes/header.php';
   <?php if ($order): ?>
     <div class="box">
       <h3>Order <?= e($order['order_number']) ?></h3>
+      <?php if ($order['status'] === 'unconfirmed'): ?><div class="alert alert-info">This order is waiting for your confirmation. Please confirm it on WhatsApp or answer our call.</div><?php endif; ?>
       <?php if ($order['status'] === 'cancelled'): ?>
         <div class="alert alert-error">This order was cancelled.</div>
-      <?php else: $reached = true; ?>
+      <?php else: $reached = $order['status'] !== 'unconfirmed'; ?>
         <ol class="timeline">
           <?php foreach ($steps as $key => $label): ?>
             <li class="<?= $reached ? 'done' : '' ?>"><?= e($label) ?></li>

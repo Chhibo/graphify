@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
-require_admin();
+require_admin('products');
 
 if (is_post()) {
     verify_csrf();
@@ -14,6 +14,9 @@ if (is_post()) {
         'name' => mb_substr(trim((string) ($_POST['name'] ?? '')), 0, 120),
         'description' => mb_substr(trim((string) ($_POST['description'] ?? '')), 0, 255),
         'cost' => max(0, round((float) ($_POST['cost'] ?? 0), 2)),
+        'free_over' => max(0, round((float) ($_POST['free_over'] ?? 0), 2)),
+        'countries' => implode(',', array_filter(array_map('country_code', (array) ($_POST['countries'] ?? [])))),
+        'cities' => implode("\n", array_filter(array_map('trim', preg_split('/[,\n]+/', (string) ($_POST['cities'] ?? ''))))),
         'active' => post_flag('active'),
         'sort_order' => (int) ($_POST['sort_order'] ?? 0),
     ];
@@ -33,17 +36,23 @@ include __DIR__ . '/includes/header.php';
 ?>
 <div class="grid-main">
   <div class="card">
+    <p class="muted"><b>Delivery zones:</b> limit an option to some countries and/or cities. At checkout the customer sees the options of the most precise zone matching their address: <i>city</i> options first, then <i>country</i> options, then options for <i>everywhere</i>.
+      Example: “Casablanca - $3” (city Casablanca), “Morocco - $5” (country Morocco), “International - $15” (everywhere).</p>
     <p class="muted">Customers choose one of these at checkout. In each product you can turn delivery off, or choose which options are available for it.
       <?php if ((float) setting('free_shipping_over') > 0): ?> Orders over <?= money(setting('free_shipping_over')) ?> get free delivery (<a href="settings.php">change</a>).<?php endif; ?></p>
     <?php if ($rows): ?>
     <div class="table-wrap"><table>
-      <thead><tr><th>Name</th><th>Description</th><th>Price</th><th>Active</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Where</th><th>Price</th><th>Active</th><th></th></tr></thead>
       <tbody>
       <?php foreach ($rows as $m): ?>
         <tr>
           <td><b><?= e($m['name']) ?></b></td>
-          <td><?= e($m['description']) ?></td>
-          <td><?= (float) $m['cost'] > 0 ? money($m['cost']) : 'Free' ?></td>
+          <td><small><?php
+            $cs = array_filter(explode(',', (string) $m['countries'])); $ct = array_filter(preg_split('/\n/', (string) $m['cities']));
+            echo $ct ? 'Cities: ' . e(implode(', ', $ct)) . '<br>' : '';
+            echo $cs ? 'Countries: ' . e(implode(', ', array_map(fn($c) => countries()[$c] ?? $c, $cs))) : ($ct ? '' : 'Everywhere');
+          ?></small></td>
+          <td><?= (float) $m['cost'] > 0 ? money($m['cost']) : 'Free' ?><?= (float) $m['free_over'] > 0 ? '<br><small class="muted">free over ' . money($m['free_over']) . '</small>' : '' ?></td>
           <td><?= $m['active'] ? 'Yes' : 'No' ?></td>
           <td class="actions">
             <a class="btn btn-sm btn-light" href="?edit=<?= (int) $m['id'] ?>">Edit</a>
@@ -63,6 +72,16 @@ include __DIR__ . '/includes/header.php';
     <label>Description <small class="muted">(optional)</small><input name="description" value="<?= e($edit['description'] ?? '') ?>" placeholder="e.g. 1-2 business days"></label>
     <div class="grid-2">
       <label>Price <small class="muted">(0 = free)</small><input name="cost" type="number" step="0.01" min="0" value="<?= e($edit['cost'] ?? '0') ?>"></label>
+      <label>Free over <small class="muted">(0 = never)</small><input name="free_over" type="number" step="0.01" min="0" value="<?= e($edit['free_over'] ?? '0') ?>"></label>
+    </div>
+    <?php $selC = array_filter(explode(',', (string) ($edit['countries'] ?? ''))); ?>
+    <label>Only for these countries <small class="muted">(none selected = all countries; Ctrl/Cmd+click to pick several)</small>
+      <select name="countries[]" multiple size="7">
+        <?php foreach (countries() as $code => $cname): ?><option value="<?= e($code) ?>" <?= in_array($code, $selC, true) ? 'selected' : '' ?>><?= e($cname) ?></option><?php endforeach; ?>
+      </select>
+    </label>
+    <label>Only for these cities <small class="muted">(optional, one per line or comma separated)</small><textarea name="cities" rows="3" placeholder="Casablanca&#10;Rabat"><?= e((string) ($edit['cities'] ?? '')) ?></textarea></label>
+    <div class="grid-2">
       <label>Sort order<input name="sort_order" type="number" value="<?= (int) ($edit['sort_order'] ?? 0) ?>"></label>
     </div>
     <label class="inline"><input type="checkbox" name="active" value="1" <?= ($edit['active'] ?? 1) ? 'checked' : '' ?>> Active</label>

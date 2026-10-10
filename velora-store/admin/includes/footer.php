@@ -1,3 +1,4 @@
+<?php run_background_jobs(); ?>
     </div>
   </div>
 </div>

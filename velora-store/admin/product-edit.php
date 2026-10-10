@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
-require_admin();
+require_admin('products');
 
 $id = (int) ($_GET['id'] ?? 0);
 $p = $id ? q_one('SELECT * FROM products WHERE id = ?', [$id]) : null;
@@ -38,6 +38,9 @@ if (is_post()) {
         'active' => post_flag('active'),
         'sort_order' => (int) ($_POST['sort_order'] ?? 0),
         'shipping_enabled' => post_flag('shipping_enabled'),
+        'variant_stock' => empty($p['printful_id']) ? post_flag('variant_stock') : 0,
+        'meta_title' => mb_substr(trim((string) ($_POST['meta_title'] ?? '')), 0, 200),
+        'meta_description' => mb_substr(trim((string) ($_POST['meta_description'] ?? '')), 0, 300),
         'shipping_methods' => implode(',', array_map('intval', (array) ($_POST['shipping_methods'] ?? []))),
     ];
     // Custom options: one row per option, values like "Cotton, Silk +5"
@@ -86,16 +89,20 @@ if (is_post()) {
     }
 
     if (!$errors) {
-        $data['slug'] = unique_slug('products', $data['name'], (int) $p['id']);
+        $slugIn = trim((string) ($_POST['slug'] ?? ''));
+        $data['slug'] = unique_slug('products', $slugIn !== '' ? $slugIn : $data['name'], (int) $p['id']);
         if ($p['id']) {
             db_update('products', (int) $p['id'], $data);
-            flash('success', 'Product saved.');
-            redirect('admin/product-edit.php?id=' . (int) $p['id']);
+            $savedId = (int) $p['id'];
+        } else {
+            $data['created_at'] = now();
+            $savedId = db_insert('products', $data);
         }
-        $data['created_at'] = now();
-        $newId = db_insert('products', $data);
-        flash('success', 'Product created.');
-        redirect('admin/product-edit.php?id=' . $newId);
+        if (empty($p['printful_id'])) {
+            save_variant_stock($savedId, (bool) $data['variant_stock'], str_list($data['sizes']), str_list($data['colors']));
+        }
+        flash('success', $p['id'] ? 'Product saved.' : 'Product created.');
+        redirect('admin/product-edit.php?id=' . $savedId);
     }
     $p = array_merge($p, $data, ['image' => $data['image'] ?? $p['image']]);
 }
@@ -118,12 +125,26 @@ include __DIR__ . '/includes/header.php';
       <div class="grid-3">
         <label>Price *<input name="price" type="number" step="0.01" min="0" value="<?= e($p['price']) ?>" required></label>
         <label>Old price <small class="muted">(for discount)</small><input name="old_price" type="number" step="0.01" min="0" value="<?= (float) $p['old_price'] > 0 ? e($p['old_price']) : '' ?>"></label>
-        <label>Stock <small class="muted">(empty = unlimited)</small><input name="stock" type="number" min="0" value="<?= (int) $p['stock'] < 0 ? '' : (int) $p['stock'] ?>"></label>
+        <label data-hide-when-variant-stock>Stock <small class="muted">(empty = unlimited)</small><input name="stock" type="number" min="0" value="<?= (int) $p['stock'] < 0 ? '' : (int) $p['stock'] ?>"></label>
       </div>
       <div class="grid-2">
         <label>Sizes <small class="muted">(comma separated)</small><input name="sizes" value="<?= e($p['sizes']) ?>" placeholder="S,M,L,XL"></label>
         <label>Colors <small class="muted">(comma separated)</small><input name="colors" value="<?= e($p['colors']) ?>" placeholder="Black,White"></label>
       </div>
+      <?php if (empty($p['printful_id'])): ?>
+        <label class="inline"><input type="checkbox" name="variant_stock" value="1" id="variant-stock-toggle" <?= (int) ($p['variant_stock'] ?? 0) ? 'checked' : '' ?>> Track stock for each size / color</label>
+        <div id="variant-grid" <?= (int) ($p['variant_stock'] ?? 0) ? '' : 'hidden' ?>>
+          <p class="help">Stock for each combination (empty = unlimited, 0 = sold out). Price is optional: leave empty to use the product price.</p>
+          <?php
+            $existing = [];
+            foreach (q_all("SELECT size, color, stock, price FROM product_variants WHERE product_id = ? AND printful_variant_id = '' AND active = 1", [(int) $p['id']]) as $v) {
+                $existing[$v['size'] . '|' . $v['color']] = ['stock' => (int) $v['stock'], 'price' => (float) $v['price']];
+            }
+          ?>
+          <div class="table-wrap"><table class="vs-table"><thead><tr><th>Size</th><th>Color</th><th>Stock</th><th>Price</th></tr></thead><tbody id="vs-body"></tbody></table></div>
+          <script>window.VARIANT_STOCK = <?= json_encode((object) $existing) ?>;</script>
+        </div>
+      <?php endif; ?>
     </div>
 
     <div class="card">
@@ -197,6 +218,11 @@ include __DIR__ . '/includes/header.php';
       </div>
       <label>Sort order <small class="muted">(lower shows first)</small><input name="sort_order" type="number" value="<?= (int) $p['sort_order'] ?>"></label>
 
+      <h3 class="sub">SEO (Google)</h3>
+      <label>Page address <small class="muted">(e.g. black-hoodie)</small><input name="slug" value="<?= e($p['slug'] ?? '') ?>" placeholder="created from the name"></label>
+      <label>SEO title <small class="muted">(optional)</small><input name="meta_title" maxlength="200" value="<?= e($p['meta_title'] ?? '') ?>" placeholder="<?= e($p['name']) ?>"></label>
+      <label>SEO description <small class="muted">(optional, ~155 characters)</small><textarea name="meta_description" rows="3" maxlength="300"><?= e($p['meta_description'] ?? '') ?></textarea></label>
+
       <h3 class="sub">Shipping</h3>
       <label class="inline"><input type="checkbox" name="shipping_enabled" value="1" data-toggle-target="#ship-methods" <?= (int) $p['shipping_enabled'] ? 'checked' : '' ?>> This product needs delivery</label>
       <p class="help">Untick for products that are not shipped (gift cards, services, digital items): no delivery fee is charged for them.</p>
@@ -216,5 +242,38 @@ include __DIR__ . '/includes/header.php';
     </div>
   </div>
 </form>
+<script>
+// Stock per size/color grid: rebuilt when sizes or colors change, keeping the values already typed.
+(function () {
+  var body = document.getElementById('vs-body');
+  if (!body) return;
+  var toggle = document.getElementById('variant-stock-toggle'), grid = document.getElementById('variant-grid');
+  var values = window.VARIANT_STOCK || {};
+  var list = function (name) { return document.querySelector('input[name=' + name + ']').value.split(',').map(function (s) { return s.trim(); }).filter(Boolean); };
+  var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); };
+  var build = function () {
+    body.querySelectorAll('tr').forEach(function (tr) {
+      values[tr.getAttribute('data-key')] = { stock: tr.querySelector('[data-f=stock]').value === '' ? -1 : parseInt(tr.querySelector('[data-f=stock]').value, 10), price: parseFloat(tr.querySelector('[data-f=price]').value) || 0 };
+    });
+    var sizes = list('sizes'), colors = list('colors'), html = '';
+    (sizes.length ? sizes : ['']).forEach(function (s) {
+      (colors.length ? colors : ['']).forEach(function (c) {
+        var k = s + '|' + c, v = values[k] || { stock: -1, price: 0 };
+        html += '<tr data-key="' + esc(k) + '"><td>' + esc(s || '-') + '</td><td>' + esc(c || '-') + '</td>'
+          + '<td><input type="hidden" name="vs_key[]" value="' + esc(k) + '"><input data-f="stock" name="vs_stock[]" type="number" min="0" value="' + (v.stock >= 0 ? v.stock : '') + '" placeholder="∞"></td>'
+          + '<td><input data-f="price" name="vs_price[]" type="number" step="0.01" min="0" value="' + (v.price > 0 ? v.price : '') + '" placeholder="Default"></td></tr>';
+      });
+    });
+    body.innerHTML = html;
+  };
+  var sync = function () {
+    grid.hidden = !toggle.checked;
+    document.querySelectorAll('[data-hide-when-variant-stock]').forEach(function (el) { el.style.opacity = toggle.checked ? .4 : 1; el.title = toggle.checked ? 'Stock is set per size/color below' : ''; });
+  };
+  ['sizes', 'colors'].forEach(function (n) { document.querySelector('input[name=' + n + ']').addEventListener('input', build); });
+  toggle.addEventListener('change', sync);
+  build(); sync();
+})();
+</script>
 <?php include __DIR__ . '/includes/editor.php'; ?>
 <?php include __DIR__ . '/includes/footer.php'; ?>

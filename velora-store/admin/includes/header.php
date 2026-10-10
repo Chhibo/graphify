@@ -2,30 +2,38 @@
 /** @var string $adminTitle */
 $admin = current_admin();
 $self = basename($_SERVER['SCRIPT_NAME'] ?? '');
-$newOrders = (int) q_val("SELECT COUNT(*) FROM orders WHERE status = 'pending' AND payment_status <> 'failed' AND payment_status <> 'unpaid'");
+$newOrders = (int) q_val("SELECT COUNT(*) FROM orders WHERE status IN ('pending','unconfirmed') AND payment_status <> 'failed' AND payment_status <> 'unpaid'");
 $counts = [
     'orders.php' => $newOrders,
     'reviews.php' => (int) q_val('SELECT COUNT(*) FROM reviews WHERE approved = 0'),
     'messages.php' => (int) q_val('SELECT COUNT(*) FROM messages WHERE is_read = 0'),
 ];
+// [label, icon, permission needed]
 $menu = [
-    'dashboard.php' => ['Dashboard', 'package'],
-    'orders.php' => ['Orders', 'cart'],
-    'customers.php' => ['Customers', 'user'],
-    'products.php' => ['Products', 'heart'],
-    'categories.php' => ['Categories', 'menu'],
-    'coupons.php' => ['Coupons', 'tag'],
-    'shipping.php' => ['Delivery options', 'truck'],
-    'reviews.php' => ['Product reviews', 'star'],
-    'testimonials.php' => ['Testimonials', 'check'],
-    'pages.php' => ['Pages & Blog', 'mail'],
-    'menus.php' => ['Menus', 'menu'],
-    'messages.php' => ['Messages', 'mail'],
-    'subscribers.php' => ['Subscribers', 'user'],
-    'printful.php' => ['Printful', 'package'],
-    'settings.php' => ['Settings', 'refresh'],
+    'dashboard.php' => ['Dashboard', 'package', ''],
+    'reports.php' => ['Reports', 'star', 'reports'],
+    'orders.php' => ['Orders', 'cart', 'orders'],
+    'abandoned.php' => ['Abandoned carts', 'cart', 'orders'],
+    'blocklist.php' => ['Block list', 'shield', 'orders'],
+    'customers.php' => ['Customers', 'user', 'customers'],
+    'products.php' => ['Products', 'heart', 'products'],
+    'categories.php' => ['Categories', 'menu', 'products'],
+    'import.php' => ['Import / Export', 'refresh', 'products'],
+    'coupons.php' => ['Coupons', 'tag', 'marketing'],
+    'shipping.php' => ['Delivery options', 'truck', 'products'],
+    'reviews.php' => ['Product reviews', 'star', 'products'],
+    'testimonials.php' => ['Testimonials', 'check', 'content'],
+    'pages.php' => ['Pages & Blog', 'mail', 'content'],
+    'menus.php' => ['Menus', 'menu', 'content'],
+    'messages.php' => ['Messages', 'mail', 'customers'],
+    'subscribers.php' => ['Subscribers', 'user', 'customers'],
+    'printful.php' => ['Printful', 'package', 'products'],
+    'settings.php' => ['Settings', 'refresh', 'settings'],
+    'staff.php' => ['Staff accounts', 'user', 'owner'],
+    'backup.php' => ['Backup', 'shield', 'owner'],
 ];
-$active = ['order.php' => 'orders.php', 'product-edit.php' => 'products.php', 'page-edit.php' => 'pages.php'][$self] ?? $self;
+$menu = array_filter($menu, fn($m) => admin_can($m[2]));
+$active = ['order.php' => 'orders.php', 'product-edit.php' => 'products.php', 'page-edit.php' => 'pages.php', 'invoice.php' => 'orders.php'][$self] ?? $self;
 ?>
 <!doctype html>
 <html lang="en">

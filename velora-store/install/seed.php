@@ -99,7 +99,7 @@ function default_settings(array $store): array
         'mail_from_email' => $store['store_email'],
         'mail_from_name' => $store['store_name'],
         'admin_notify_email' => $store['store_email'],
-    ] + default_v4_settings() + [
+    ] + default_v4_settings() + default_v5_settings() + [
 
         // Social
         'social_facebook' => '#', 'social_twitter' => '#', 'social_instagram' => '#', 'social_github' => '',

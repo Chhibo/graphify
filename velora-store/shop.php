@@ -1,6 +1,10 @@
 <?php
 require __DIR__ . '/includes/bootstrap.php';
 
+// /category/slug (clean links) arrives as ?cat=slug
+if (isset($_GET['cat']) && ($catRow = q_one('SELECT id FROM categories WHERE slug = ?', [(string) $_GET['cat']]))) {
+    $_GET['category'] = $catRow['id'];
+}
 $filters = [
     'category_id' => (int) ($_GET['category'] ?? 0),
     'brand' => trim((string) ($_GET['brand'] ?? '')),
@@ -37,6 +41,9 @@ if ($filters['search'] !== '') {
 $query = array_filter($_GET, fn($v) => $v !== '' && $v !== null);
 unset($query['page']);
 $pageTitle = $title;
+if ($filters['category_id'] && ($catSeo = find_category($filters['category_id']))) {
+    $canonical = abs_url(category_url($catSeo));
+}
 include __DIR__ . '/includes/header.php';
 ?>
 <div class="container">

@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
-require_admin();
+require_admin('content');
 
 $id = (int) ($_GET['id'] ?? 0);
 $page = $id ? q_one('SELECT * FROM pages WHERE id = ?', [$id]) : null;

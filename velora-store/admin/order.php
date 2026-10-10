@@ -1,7 +1,7 @@
 <?php
 require __DIR__ . '/includes/auth.php';
 require APP_ROOT . '/includes/whatsapp.php';
-require_admin();
+require_admin('orders');
 
 $order = q_one('SELECT * FROM orders WHERE id = ?', [(int) ($_GET['id'] ?? 0)]);
 if (!$order) {
@@ -23,6 +23,27 @@ if (is_post()) {
         } catch (RuntimeException $ex) {
             flash('error', $ex->getMessage());
         }
+        redirect('admin/order.php?id=' . (int) $order['id']);
+    }
+    if (($_POST['action'] ?? '') === 'confirm') {
+        q("UPDATE orders SET status = 'pending', updated_at = ? WHERE id = ? AND status = 'unconfirmed'", [now(), $order['id']]);
+        printful_auto_send((int) $order['id']);
+        flash('success', 'Order confirmed. You can now prepare it.');
+        redirect('admin/order.php?id=' . (int) $order['id']);
+    }
+    if (($_POST['action'] ?? '') === 'block') {
+        $note = 'Order ' . $order['order_number'];
+        blocklist_add('phone', $order['phone'], $note);
+        if ($order['email'] !== '') {
+            blocklist_add('email', $order['email'], $note);
+        }
+        if (!empty($_POST['block_ip']) && $order['ip'] !== '') {
+            blocklist_add('ip', $order['ip'], $note);
+        }
+        if (!empty($_POST['cancel'])) {
+            q("UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ?", [now(), $order['id']]);
+        }
+        flash('success', 'Customer blocked: they can no longer place orders with this phone/email.');
         redirect('admin/order.php?id=' . (int) $order['id']);
     }
     if (($_POST['action'] ?? '') === 'resend') {
@@ -79,7 +100,7 @@ $customerWa = 'https://wa.me/' . preg_replace('/\D+/', '', $order['phone']) . '?
 $adminTitle = 'Order ' . $order['order_number'];
 include __DIR__ . '/includes/header.php';
 ?>
-<p><a href="orders.php">← All orders</a></p>
+<p><a href="orders.php">← All orders</a> · <a href="invoice.php?id=<?= (int) $order['id'] ?>" target="_blank">🧾 Invoice</a> · <a href="invoice.php?id=<?= (int) $order['id'] ?>&type=slip" target="_blank">📦 Packing slip</a></p>
 <div class="grid-main">
   <div>
     <div class="card">
@@ -186,6 +207,24 @@ include __DIR__ . '/includes/header.php';
     </div>
     <?php endif; ?>
 
+    <div class="card">
+      <div class="card-head"><h2>Fraud protection</h2></div>
+      <?php if ($order['status'] === 'unconfirmed'): ?>
+        <p class="muted">This Cash on Delivery order is waiting for the customer's confirmation (WhatsApp or phone call).</p>
+        <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="confirm"><button class="btn btn-primary btn-block" type="submit">✓ Customer confirmed - accept order</button></form>
+      <?php endif; ?>
+      <?php $blocked = is_blocked($order['phone'], $order['email']); ?>
+      <?php if ($blocked): ?>
+        <p class="status st-cancelled">This customer is on the block list</p> <a href="blocklist.php">Manage</a>
+      <?php else: ?>
+        <form method="post" data-confirm="Block this customer from placing new orders?">
+          <?= csrf_field() ?><input type="hidden" name="action" value="block">
+          <label class="inline small"><input type="checkbox" name="cancel" value="1" checked> Also cancel this order</label>
+          <?php if ($order['ip'] !== ''): ?><label class="inline small"><input type="checkbox" name="block_ip" value="1"> Also block IP <?= e($order['ip']) ?></label><?php endif; ?>
+          <button class="btn btn-danger-light btn-block" type="submit">Block this customer (fake order)</button>
+        </form>
+      <?php endif; ?>
+    </div>
     <form method="post" class="card" data-confirm="Delete this order permanently?">
       <?= csrf_field() ?><input type="hidden" name="action" value="delete">
       <button class="btn btn-danger btn-block" type="submit">Delete order</button>

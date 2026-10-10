@@ -3,7 +3,7 @@
 require __DIR__ . '/includes/auth.php';
 header('Content-Type: application/json');
 
-if (!current_admin() || !is_post() || !hash_equals(csrf_token(), (string) ($_POST['_csrf'] ?? ''))) {
+if (!(admin_can('products') || admin_can('content')) || !is_post() || !hash_equals(csrf_token(), (string) ($_POST['_csrf'] ?? ''))) {
     http_response_code(403);
     exit(json_encode(['success' => false, 'message' => 'Please log in again.']));
 }

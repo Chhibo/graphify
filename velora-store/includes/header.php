@@ -1,6 +1,16 @@
 <?php
 /** @var string $pageTitle */
-$pageTitle = isset($pageTitle) ? $pageTitle . ' | ' . setting('store_name', 'Store') : setting('store_name', 'Store');
+// SEO: pages can set $seoTitle, $metaDescription, $canonical, $ogImage, $ogType, $jsonLd and $noindex before including this file.
+if (!empty($seoTitle)) {
+    $pageTitle = $seoTitle;
+} elseif (isset($pageTitle)) {
+    $pageTitle = $pageTitle . ' | ' . setting('store_name', 'Store');
+} else {
+    $pageTitle = setting('seo_title') !== '' ? setting('seo_title') : setting('store_name', 'Store');
+}
+$metaDescription = $metaDescription ?? (setting('seo_description') !== '' ? setting('seo_description') : setting('store_tagline'));
+$ogImage = abs_url(img_url($ogImage ?? (setting('og_image') !== '' ? setting('og_image') : setting('hero_image'))));
+$noindex = $noindex ?? in_array(basename($_SERVER['SCRIPT_NAME'] ?? ''), ['cart.php', 'checkout.php', 'account.php', 'login.php', 'register.php', 'forgot-password.php', 'reset-password.php', 'order-success.php', 'track.php', 'wishlist.php'], true);
 $storeName = setting('store_name', 'VELORA');
 $cartCount = cart_count();
 $cartTotal = $cartCount ? cart_totals()['subtotal'] : 0;
@@ -23,7 +33,19 @@ $themeMode = setting('theme_mode', 'light');
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($pageTitle) ?></title>
-<meta name="description" content="<?= e($metaDescription ?? setting('store_tagline')) ?>">
+<meta name="description" content="<?= e($metaDescription) ?>">
+<?php if ($noindex): ?><meta name="robots" content="noindex, follow"><?php endif; ?>
+<?php if (!empty($canonical)): ?><link rel="canonical" href="<?= e($canonical) ?>"><?php endif; ?>
+<meta property="og:site_name" content="<?= e(setting('store_name')) ?>">
+<meta property="og:type" content="<?= e($ogType ?? 'website') ?>">
+<meta property="og:title" content="<?= e($pageTitle) ?>">
+<meta property="og:description" content="<?= e($metaDescription) ?>">
+<meta property="og:url" content="<?= e($canonical ?? abs_url($_SERVER['REQUEST_URI'] ?? url())) ?>">
+<meta property="og:image" content="<?= e($ogImage) ?>">
+<meta name="twitter:card" content="summary_large_image">
+<?php foreach ((array) ($jsonLd ?? []) as $ld): ?><script type="application/ld+json"><?= json_encode($ld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script>
+<?php endforeach; ?>
+<?= tracking_head() ?>
 <meta name="theme-color" content="<?= e($themeColor) ?>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -94,9 +116,9 @@ $themeMode = setting('theme_mode', 'light');
                 <?php if ($type === 'categories'): ?>
                   <a href="<?= url('shop.php') ?>">All Products</a>
                   <?php foreach (category_tree() as $navCat): ?>
-                    <a href="<?= url('shop.php?category=' . (int) $navCat['id']) ?>" class="<?= $navCat['children'] ? 'drop-parent' : '' ?>"><?= e($navCat['name']) ?></a>
+                    <a href="<?= category_url($navCat) ?>" class="<?= $navCat['children'] ? 'drop-parent' : '' ?>"><?= e($navCat['name']) ?></a>
                     <?php foreach ($navCat['children'] as $navSub): ?>
-                      <a href="<?= url('shop.php?category=' . (int) $navSub['id']) ?>" class="drop-child"><?= e($navSub['name']) ?></a>
+                      <a href="<?= category_url($navSub) ?>" class="drop-child"><?= e($navSub['name']) ?></a>
                     <?php endforeach; ?>
                   <?php endforeach; ?>
                 <?php elseif ($type === 'brands'): ?>

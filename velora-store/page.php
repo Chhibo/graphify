@@ -6,6 +6,18 @@ if (!$page) {
     http_response_code(404);
 }
 $pageTitle = $page['title'] ?? 'Page not found';
+if ($page) {
+    $canonical = abs_url(page_url($page['slug'], $page['type']));
+    $metaDescription = excerpt((string) $page['content'], 155) ?: null;
+    if ($page['image'] !== '') {
+        $ogImage = $page['image'];
+    }
+    if ($page['type'] === 'post') {
+        $ogType = 'article';
+        $jsonLd = [['@context' => 'https://schema.org', '@type' => 'BlogPosting', 'headline' => $page['title'], 'datePublished' => date('c', strtotime($page['created_at'])),
+            'image' => $page['image'] !== '' ? abs_url(img_url($page['image'])) : null, 'publisher' => ['@type' => 'Organization', 'name' => setting('store_name')]]];
+    }
+}
 include __DIR__ . '/includes/header.php';
 ?>
 <div class="container narrow">

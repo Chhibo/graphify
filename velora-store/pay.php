@@ -47,6 +47,7 @@ q("UPDATE orders SET payment_status = 'paid', status = 'processing', updated_at 
 order_reduce_stock((int) $order['id']);
 printful_auto_send((int) $order['id']);
 notify_new_order(q_one('SELECT * FROM orders WHERE id = ?', [$order['id']]));
+cart_mark_recovered();
 cart_clear();
 $_SESSION['my_orders'][] = $number;
 

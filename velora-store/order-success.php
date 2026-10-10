@@ -11,6 +11,14 @@ if (!$order) {
 $items = order_items((int) $order['id']);
 $waLink = $_SESSION['wa_link'][$number] ?? '';
 
+// Send the purchase to the ad pixels once (not again when the page is refreshed).
+if (empty($_SESSION['tracked_orders'][$number]) && $order['status'] !== 'cancelled') {
+    $_SESSION['tracked_orders'][$number] = true;
+    track_event('Purchase', [
+        'value' => (float) $order['total'], 'shipping' => (float) $order['shipping'], 'order_id' => $order['order_number'],
+        'items' => array_map(fn($it) => ['id' => (string) $it['product_id'], 'name' => $it['name'], 'price' => (float) $it['price'], 'qty' => (int) $it['qty']], $items),
+    ]);
+}
 $pageTitle = 'Thank you for your order';
 include __DIR__ . '/includes/header.php';
 ?>
@@ -20,6 +28,12 @@ include __DIR__ . '/includes/header.php';
     <h1>Thank you, <?= e(explode(' ', $order['customer_name'])[0]) ?>!</h1>
     <p>Your order <b><?= e($order['order_number']) ?></b> has been received<?= $order['payment_status'] === 'paid' ? ' and paid' : '' ?>.</p>
 
+    <?php if ($order['status'] === 'unconfirmed' && $waLink === '' && setting('whatsapp_number') !== ''): ?>
+      <div class="wa-box">
+        <p><b>Last step:</b> please confirm your order so we can prepare it.</p>
+        <a class="btn btn-wa" href="https://wa.me/<?= e(preg_replace('/\D+/', '', setting('whatsapp_number'))) ?>?text=<?= rawurlencode('Hello, I confirm my order ' . $order['order_number'] . '.') ?>" target="_blank" rel="noopener"><?= icon('whatsapp', 20) ?> Confirm on WhatsApp</a>
+      </div>
+    <?php endif; ?>
     <?php if ($waLink !== ''): ?>
       <div class="wa-box">
         <p><b>Last step:</b> send us your order on WhatsApp so we can confirm it quickly.</p>

@@ -11,6 +11,9 @@ if ($items && !$customer && !guest_checkout_allowed()) {
     redirect('login.php?return=checkout.php');
 }
 $methods = enabled_payment_methods();
+if (isset($methods['cod']) && !cod_allowed_for($totals['total']) && count($methods) > 1) {
+    unset($methods['cod']); // order total is above the Cash on Delivery limit
+}
 // Printful needs a complete postal address (ZIP code) to ship.
 $hasPrintful = (bool) array_filter($items, fn($it) => !empty($it['variant']['printful_variant_id']));
 $errors = [];
@@ -29,10 +32,14 @@ if ($customer) {
 
 if (is_post() && $items) {
     verify_csrf();
-    // Recalculate with the delivery option the customer picked.
+    // Recalculate with the delivery address and the delivery option the customer picked.
+    set_ship_to((string) ($_POST['country'] ?? ''), (string) ($_POST['city'] ?? ''));
     if (isset($_POST['shipping_method'])) {
         $_SESSION['shipping_method'] = (int) $_POST['shipping_method'];
-        $totals = cart_totals($items);
+    }
+    $totals = cart_totals($items);
+    if ($totals['no_delivery']) {
+        $errors[] = 'Sorry, we do not deliver to this address yet. Please contact us.';
     }
     if ($totals['coupon_error'] !== '' && !empty($_SESSION['coupon'])) {
         $errors[] = 'Coupon: ' . $totals['coupon_error'];
@@ -66,8 +73,18 @@ if (is_post() && $items) {
     if (!isset($methods[$form['payment_method']])) {
         $errors[] = 'Please choose a payment method.';
     }
+    // Fraud protection (Admin > Block list, Settings > Payments)
+    if (is_blocked($form['phone'], $form['email'], client_ip())) {
+        $errors[] = 'Sorry, we cannot accept this order online. Please contact us on WhatsApp or by phone.';
+    } elseif ($form['payment_method'] === 'cod') {
+        if (!cod_allowed_for($totals['total'])) {
+            $errors[] = 'Cash on Delivery is available for orders up to ' . money(setting('cod_max_total')) . '. Please choose an online payment method.';
+        } elseif ((int) setting('cod_max_per_day', '0') > 0 && cod_orders_today($form['phone']) >= (int) setting('cod_max_per_day')) {
+            $errors[] = 'You have reached the daily limit of Cash on Delivery orders. Please contact us or pay online.';
+        }
+    }
     foreach ($items as $it) {
-        $stock = (int) $it['product']['stock'];
+        $stock = $it['variant'] ? (int) $it['variant']['stock'] : (int) $it['product']['stock'];
         if ($stock >= 0 && $it['qty'] > $stock) {
             $errors[] = '“' . $it['product']['name'] . '” has only ' . $stock . ' left in stock.';
         }
@@ -100,8 +117,9 @@ if (is_post() && $items) {
                 'payment_method' => $form['payment_method'],
                 'payment_status' => $form['payment_method'] === 'cod' ? 'cod' : 'unpaid',
                 'payment_ref' => '',
-                'status' => 'pending',
+                'status' => $form['payment_method'] === 'cod' && setting_on('cod_require_confirmation') ? 'unconfirmed' : 'pending',
                 'whatsapp_sent' => 0,
+                'ip' => client_ip(),
                 'stock_reduced' => 0,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -140,6 +158,7 @@ if (is_post() && $items) {
             printful_auto_send($orderId);
             notify_new_order($order);
             $_SESSION['wa_link'][$orderNumber] = whatsapp_notify_order($order);
+            cart_mark_recovered();
             cart_clear();
             redirect('order-success.php?order=' . rawurlencode($orderNumber));
         }
@@ -155,6 +174,10 @@ if (is_post() && $items) {
     }
 }
 
+if (!is_post() && $items) {
+    cart_snapshot();
+    track_event('InitiateCheckout', ['value' => $totals['total'], 'items' => array_map(fn($it) => track_item($it['product'], $it['price'], $it['qty']), $items)]);
+}
 $pageTitle = 'Checkout';
 include __DIR__ . '/includes/header.php';
 ?>
@@ -175,7 +198,7 @@ include __DIR__ . '/includes/header.php';
     <?php endif; ?>
     <?php $couponFormPrinted = true; $couponBack = 'checkout'; ?>
     <form method="post" action="<?= url('cart.php') ?>" id="coupon-form"><?= csrf_field() ?><input type="hidden" name="back" value="checkout"></form>
-    <form method="post" class="checkout-layout" id="checkout-form">
+    <form method="post" class="checkout-layout" id="checkout-form" data-capture="<?= url('cart-capture.php') ?>">
       <?= csrf_field() ?>
       <div class="checkout-main">
         <div class="box">
@@ -202,23 +225,10 @@ include __DIR__ . '/includes/header.php';
           <label>Order notes <small class="muted">(optional)</small><textarea name="notes" rows="3" placeholder="Anything we should know about your delivery?"><?= e($form['notes']) ?></textarea></label>
         </div>
 
-        <?php if ($totals['shipping_methods']): ?>
-        <div class="box">
+        <div class="box" id="ship-box" data-url="<?= url('shipping-options.php') ?>" <?= $totals['shipping_methods'] || $totals['no_delivery'] ? '' : 'hidden' ?>>
           <h3>Delivery method</h3>
-          <div class="pay-methods">
-            <?php foreach ($totals['shipping_methods'] as $m): ?>
-              <label class="pay-method">
-                <input type="radio" name="shipping_method" value="<?= (int) $m['id'] ?>" data-cost="<?= e((string) (float) $m['cost']) ?>" <?= (int) $m['id'] === (int) $totals['shipping_method']['id'] ? 'checked' : '' ?>>
-                <span class="pm-body">
-                  <span class="pm-title"><?= e($m['name']) ?></span>
-                  <?php if ($m['description'] !== ''): ?><span class="pm-text"><?= e($m['description']) ?></span><?php endif; ?>
-                </span>
-                <span class="pm-cost"><?= (float) $m['cost'] > 0 ? money($m['cost']) : 'Free' ?></span>
-              </label>
-            <?php endforeach; ?>
-          </div>
+          <div class="pay-methods" id="ship-list"><?php include __DIR__ . '/includes/shipping-list.php'; ?></div>
         </div>
-        <?php endif; ?>
 
         <div class="box">
           <h3>Payment method</h3>

@@ -1,6 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
-require_admin();
+require_admin('content');
 
 /** Clean a list of links coming from the editor. */
 function clean_links($list, bool $withType = false): array

@@ -79,7 +79,7 @@ function cart_items(): array
             continue;
         }
         [$options, $extra] = resolve_options($p, (array) ($line['options'] ?? []));
-        $price = ($variant ? (float) $variant['price'] : (float) $p['price']) + $extra;
+        $price = ($variant ? variant_price($variant, $p) : (float) $p['price']) + $extra;
         $items[] = [
             'key' => $key,
             'product' => $p,
@@ -117,6 +117,9 @@ function cart_totals(?array $items = null): array
         }
         $method = $method ?? $methods[0];
         $shipping = (float) $method['cost'];
+        if ((float) ($method['free_over'] ?? 0) > 0 && $subtotal >= (float) $method['free_over']) {
+            $shipping = 0.0; // free delivery above this option's amount
+        }
     } elseif ($needsShipping && !shipping_methods()) {
         $shipping = (float) setting('shipping_fee', '0'); // no shipping methods set up: old flat fee
     }
@@ -154,6 +157,8 @@ function cart_totals(?array $items = null): array
         'coupon_error' => $couponError,
         'shipping_methods' => $methods,
         'shipping_method' => $method,
+        // Delivery options exist, but none covers the customer's country/city.
+        'no_delivery' => $needsShipping && !$methods && (bool) shipping_methods(),
     ];
 }
 
@@ -171,4 +176,53 @@ function find_variant(int $productId, string $size, string $color): ?array
         }
     }
     return null;
+}
+
+/** Price of a variant: its own price, or the product price when no special price is set. */
+function variant_price(array $v, array $p): float
+{
+    return (float) $v['price'] > 0 ? (float) $v['price'] : (float) $p['price'];
+}
+
+/**
+ * Save stock per size/color for a store's own product (not Printful).
+ * Rows come from the admin grid: vs_key[] = "size|color", vs_stock[], vs_price[].
+ */
+function save_variant_stock(int $productId, bool $enabled, array $sizes, array $colors): void
+{
+    if (!$enabled) {
+        q("DELETE FROM product_variants WHERE product_id = ? AND printful_variant_id = ''", [$productId]);
+        return;
+    }
+    $posted = [];
+    foreach ((array) ($_POST['vs_key'] ?? []) as $i => $key) {
+        $stock = trim((string) ($_POST['vs_stock'][$i] ?? ''));
+        $posted[(string) $key] = [
+            'stock' => $stock === '' ? -1 : max(0, (int) $stock),
+            'price' => max(0, round((float) ($_POST['vs_price'][$i] ?? 0), 2)),
+        ];
+    }
+    $existing = [];
+    foreach (q_all("SELECT id, size, color FROM product_variants WHERE product_id = ? AND printful_variant_id = ''", [$productId]) as $v) {
+        $existing[$v['size'] . '|' . $v['color']] = (int) $v['id'];
+    }
+    $keep = [];
+    foreach ($sizes ?: [''] as $size) {
+        foreach ($colors ?: [''] as $color) {
+            $key = $size . '|' . $color;
+            $row = ['size' => mb_substr($size, 0, 60), 'color' => mb_substr($color, 0, 60), 'active' => 1,
+                'stock' => $posted[$key]['stock'] ?? -1, 'price' => $posted[$key]['price'] ?? 0];
+            if (isset($existing[$key])) {
+                db_update('product_variants', $existing[$key], $row);
+                $keep[] = $existing[$key];
+            } else {
+                $keep[] = db_insert('product_variants', $row + ['product_id' => $productId, 'printful_variant_id' => '', 'sku' => '', 'image' => '']);
+            }
+        }
+    }
+    foreach ($existing as $id) {
+        if (!in_array($id, $keep, true)) {
+            q('DELETE FROM product_variants WHERE id = ?', [$id]);
+        }
+    }
 }
