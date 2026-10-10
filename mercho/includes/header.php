@@ -11,7 +11,7 @@ if (!empty($seoTitle)) {
 $metaDescription = $metaDescription ?? (setting('seo_description') !== '' ? setting('seo_description') : setting('store_tagline'));
 $ogImage = abs_url(img_url($ogImage ?? (setting('og_image') !== '' ? setting('og_image') : setting('hero_image'))));
 $noindex = $noindex ?? in_array(basename($_SERVER['SCRIPT_NAME'] ?? ''), ['cart.php', 'checkout.php', 'account.php', 'login.php', 'register.php', 'forgot-password.php', 'reset-password.php', 'order-success.php', 'track.php', 'wishlist.php'], true);
-$storeName = setting('store_name', 'VELORA');
+$storeName = setting('store_name', 'MERCHO');
 $cartCount = cart_count();
 $cartTotal = $cartCount ? cart_totals()['subtotal'] : 0;
 $wishCount = count(wishlist_ids());

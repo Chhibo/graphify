@@ -14,7 +14,7 @@ if (isset($_GET['export']) || isset($_GET['sample'])) {
     fwrite($out, "\xEF\xBB\xBF");
     fputcsv($out, $columns);
     if (isset($_GET['sample'])) {
-        fputcsv($out, ['', 'Classic White T-Shirt', '19.99', '24.99', 'Casual > T-Shirts', 'Velora', 'S|M|L|XL', 'White|Black', '50',
+        fputcsv($out, ['', 'Classic White T-Shirt', '19.99', '24.99', 'Casual > T-Shirts', 'Mercho', 'S|M|L|XL', 'White|Black', '50',
             'https://example.com/images/white-tee.jpg', 'https://example.com/images/white-tee-2.jpg|https://example.com/images/white-tee-3.jpg',
             'Soft cotton tee for every day.', '<p>100% cotton, regular fit.</p>', '1', '1', '0', '0']);
     } else {

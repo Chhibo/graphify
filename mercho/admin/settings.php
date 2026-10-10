@@ -163,7 +163,7 @@ $tabs = [
     ]],
     'seo' => ['SEO', [
         ['', 'Google & sharing', 'heading'],
-        ['seo_title', 'Home page title (Google)', 'text', 'e.g. VELORA - Trendy clothes delivered in Morocco. Empty = store name.'],
+        ['seo_title', 'Home page title (Google)', 'text', 'e.g. MERCHO - Trendy clothes delivered in Morocco. Empty = store name.'],
         ['seo_description', 'Home page description (Google)', 'textarea', 'About 155 characters shown under your title in Google.'],
         ['og_image', 'Share image (when a link is shared on WhatsApp, Facebook...)', 'image', 'Best size 1200 × 630. Products use their own photo.'],
         ['', 'Clean links', 'heading'],

@@ -53,7 +53,7 @@ include __DIR__ . '/includes/header.php';
   <div class="card">
     <div class="card-head"><h2>Quick setup</h2></div>
     <ul class="checklist">
-      <li class="<?= setting('logo') !== '' || setting('store_name') !== 'VELORA' ? 'ok' : '' ?>"><a href="settings.php">Store name & logo</a></li>
+      <li class="<?= setting('logo') !== '' || setting('store_name') !== 'MERCHO' ? 'ok' : '' ?>"><a href="settings.php">Store name & logo</a></li>
       <li class="<?= isset($methods['cod']) || isset($methods['paypal']) || isset($methods['stripe']) ? 'ok' : '' ?>"><a href="settings.php?tab=payments">Payment methods</a></li>
       <li class="<?= setting('whatsapp_number') !== '' ? 'ok' : '' ?>"><a href="settings.php?tab=whatsapp">WhatsApp number</a></li>
       <li class="<?= $products > 0 ? 'ok' : '' ?>"><a href="product-edit.php">Add products</a></li>

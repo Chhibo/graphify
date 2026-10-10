@@ -14,7 +14,7 @@ if ($action !== '' && hash_equals(csrf_token(), (string) ($_GET['t'] ?? ''))) {
         header('Content-Type: application/sql; charset=utf-8');
         header('Content-Disposition: attachment; filename="store-backup-' . $stamp . '.sql"');
         $pdo = db();
-        echo "-- Velora Store backup " . date('Y-m-d H:i') . " (" . DB_DRIVER . ")\n-- Restore: import this file in phpMyAdmin (Import tab) into an empty database.\n\n";
+        echo "-- Mercho backup " . date('Y-m-d H:i') . " (" . DB_DRIVER . ")\n-- Restore: import this file in phpMyAdmin (Import tab) into an empty database.\n\n";
         if (DB_DRIVER !== 'sqlite') {
             echo "SET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS = 0;\n\n";
         }

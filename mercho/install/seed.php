@@ -58,7 +58,7 @@ function default_settings(array $store): array
         'banner_text' => 'Discover premium essentials designed for the modern lifestyle.',
         'banner_button' => 'Explore Collection',
         'banner_image' => 'assets/img/demo/banner.svg',
-        'instagram_handle' => '@velora',
+        'instagram_handle' => '@mercho',
         'instagram_url' => 'https://instagram.com/',
         'newsletter_title' => 'STAY UP TO DATE ABOUT OUR LATEST OFFERS',
 

@@ -1,4 +1,4 @@
-/* Velora Store - small vanilla JS helpers (no libraries needed) */
+/* Mercho - small vanilla JS helpers (no libraries needed) */
 (function () {
   'use strict';
   var $ = function (s, c) { return (c || document).querySelector(s); };

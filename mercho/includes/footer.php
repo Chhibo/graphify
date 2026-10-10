@@ -1,5 +1,5 @@
 <?php
-$storeName = setting('store_name', 'VELORA');
+$storeName = setting('store_name', 'MERCHO');
 ?>
 </main>
 

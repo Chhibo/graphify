@@ -1,6 +1,6 @@
 <?php
 /**
- * Velora Store - bootstrap. Every public page and admin page includes this file first.
+ * Mercho - bootstrap. Every public page and admin page includes this file first.
  */
 declare(strict_types=1);
 
@@ -22,7 +22,7 @@ ini_set('display_errors', defined('APP_DEBUG') && APP_DEBUG ? '1' : '0');
 date_default_timezone_set(defined('APP_TIMEZONE') ? APP_TIMEZONE : 'UTC');
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_name('velora_sid');
+    session_name('mercho_sid');
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => (BASE_PATH === '' ? '/' : BASE_PATH . '/'),

@@ -1,4 +1,4 @@
-/* Velora Store - admin panel */
+/* Mercho - admin panel */
 :root { --primary: #e03a3e; --primary-2: color-mix(in srgb, var(--primary) 82%, #000); --bg: #f3f5f4; --card: #fff; --text: #141816; --muted: #6b7470; --line: #e4e9e6; --red: #d92d20; color-scheme: light; }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }

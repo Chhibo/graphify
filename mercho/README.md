@@ -1,4 +1,4 @@
-# Velora Store: PHP fashion store
+# Mercho: PHP fashion store
 
 A complete online clothing store in plain PHP. It has no frameworks and doesn't need Composer. It includes a 3-step web installer, an admin panel, **PayPal**, **Stripe** and **Cash on Delivery**, and order notifications sent to **WhatsApp**.
 
@@ -11,7 +11,7 @@ A complete online clothing store in plain PHP. It has no frameworks and doesn't 
 
 ## Install in 5 minutes
 
-1. **Upload** the contents of this `velora-store` folder to your hosting (for example into `public_html/`, or into `public_html/shop/` for a sub-folder) using File Manager or FTP. Uploading the zip and using *Extract* is fastest.
+1. **Upload** the contents of this `mercho` folder to your hosting (for example into `public_html/`, or into `public_html/shop/` for a sub-folder) using File Manager or FTP. Uploading the zip and using *Extract* is fastest.
 2. **Create a database** (optional): cPanel → *MySQL Databases* → create a database and a user, and add the user to the database with *All privileges*. Skip this if you want SQLite.
 3. Open **`https://your-domain.com/install/`** in your browser and follow the steps:
    - Step 1 checks your server.

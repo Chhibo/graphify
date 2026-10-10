@@ -1,4 +1,4 @@
-/* Velora Store - ads & analytics pixels (Meta, TikTok, Google Analytics 4) with cookie consent */
+/* Mercho - ads & analytics pixels (Meta, TikTok, Google Analytics 4) with cookie consent */
 (function () {
   'use strict';
   var cfg = window.SHOP_TRACK_CFG || {};
