@@ -204,6 +204,7 @@ $tab = isset($tabs[$_GET['tab'] ?? '']) ? $_GET['tab'] : 'general';
 
 if (is_post()) {
     verify_csrf();
+    $wasPretty = pretty_urls();
     $tab = isset($tabs[$_POST['tab'] ?? '']) ? $_POST['tab'] : 'general';
 
     if (($_POST['action'] ?? '') === 'test_whatsapp') {
@@ -274,10 +275,19 @@ if (is_post()) {
                 set_setting($key, $v);
         }
     }
-    // Clean links: only switch on when the server really supports them.
-    if ($tab === 'seo' && post_flag('pretty_urls') && !pretty_urls_work()) {
-        set_setting('pretty_urls', '0');
-        $errors[] = 'Clean links could not be switched on: your server did not answer ' . full_url('sitemap.xml') . ' correctly. Check that mod_rewrite is enabled and that the .htaccess file was uploaded (it is a hidden file).';
+    // Clean links: only switch on when they really work. The admin's browser tests the link before the form is sent
+    // (pretty_check), and the server tests it too. Shared hosts often block a server's requests to itself, so either test is enough.
+    if ($tab === 'seo' && post_flag('pretty_urls') && !$wasPretty) {
+        $browser = (string) ($_POST['pretty_check'] ?? '');
+        $server = $browser === 'ok' ? ['ok' => true, 'why' => ''] : pretty_urls_work();
+        if ($browser !== 'ok' && !$server['ok']) {
+            set_setting('pretty_urls', '0');
+            $errors[] = 'Clean links could not be switched on: ' . full_url('sitemap.xml') . ' does not work yet'
+                . ($browser !== '' && $browser !== 'ok' ? ' (your browser got: ' . mb_substr($browser, 0, 80) . ')' : '')
+                . ($server['why'] !== '' ? ' (server test: ' . $server['why'] . ')' : '') . '. '
+                . 'Open that address in your browser: if you see "404 Not Found", the .htaccess file is missing in the store folder - '
+                . 'in cPanel File Manager click Settings → "Show Hidden Files", then upload .htaccess from the zip next to index.php.';
+        }
     }
     foreach ($errors as $err) {
         flash('error', $err);
@@ -370,12 +380,55 @@ include __DIR__ . '/includes/header.php';
   </div>
 </form>
 <?php endforeach; ?>
+<?php if (!pretty_urls()): ?>
+<script>
+// Clean links: test /sitemap.xml from this browser before saving (the same request your customers will make).
+(function () {
+  var form = document.getElementById('seo');
+  var box = form && form.querySelector('input[type=checkbox][name="pretty_urls"]');
+  if (!box) return;
+  form.addEventListener('submit', function (ev) {
+    if (!box.checked || form.dataset.checked) return;
+    ev.preventDefault();
+    var done = function (result) {
+      var input = form.querySelector('input[name="pretty_check"]') || form.appendChild(Object.assign(document.createElement('input'), { type: 'hidden', name: 'pretty_check' }));
+      input.value = result;
+      form.dataset.checked = '1';
+      (form.requestSubmit ? form.requestSubmit() : form.submit());
+    };
+    fetch(<?= json_encode(url('sitemap.xml')) ?> + '?check=' + Date.now(), { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (r) { return r.text().then(function (t) { done(r.ok && t.indexOf('<urlset') !== -1 ? 'ok' : 'HTTP ' + r.status); }); })
+      .catch(function (e) { done('error ' + (e && e.message || '')); });
+  });
+})();
+</script>
+<?php endif; ?>
 <?php include __DIR__ . '/includes/footer.php'; ?>
 
 <?php
-/** Does /sitemap.xml work (Apache mod_rewrite + .htaccess)? */
-function pretty_urls_work(): bool
+/** Does /sitemap.xml work (Apache mod_rewrite + .htaccess)? Returns ['ok' => bool, 'why' => reason]. */
+function pretty_urls_work(): array
 {
-    $res = http_request('GET', full_url('sitemap.xml'));
-    return $res['status'] === 200 && strpos($res['body'], '<urlset') !== false;
+    if (!function_exists('curl_init')) {
+        return ['ok' => false, 'why' => 'cURL is not enabled'];
+    }
+    $ch = curl_init(full_url('sitemap.xml') . '?check=' . time());
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true, // http → https, www redirects
+        CURLOPT_MAXREDIRS => 5,
+        CURLOPT_TIMEOUT => 8,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        // Some hosting firewalls block requests that do not look like a browser.
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; StoreSetupCheck/1.0)',
+        CURLOPT_HTTPHEADER => ['Accept: application/xml,text/xml,*/*'],
+    ]);
+    $body = (string) curl_exec($ch);
+    $err = curl_error($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($status === 200 && strpos($body, '<urlset') !== false) {
+        return ['ok' => true, 'why' => ''];
+    }
+    return ['ok' => false, 'why' => $status > 0 ? 'HTTP ' . $status : ($err !== '' ? $err : 'no answer')];
 }
