@@ -13,7 +13,7 @@ function listing_form_defaults(array $user): array
 {
     return [
         'title' => '', 'category_id' => 0, 'description' => '', 'price' => '', 'price_type' => 'fixed',
-        'item_condition' => '', 'location' => $user['location'] ?? '', 'phone' => $user['phone'] ?? '', 'show_phone' => 1,
+        'item_condition' => '', 'location' => $user['location'] ?? '', 'location_id' => 0, 'phone' => $user['phone'] ?? '', 'show_phone' => 1,
         'tags' => '', 'status' => 'pending', 'featured' => 0, 'reject_reason' => '',
     ];
 }
@@ -47,6 +47,43 @@ function listing_form_save(?array $listing, bool $asAdmin, string $successUrl): 
     }
     if ($d['price'] > 999999999999) $errors['price'] = 'That price is too high.';
 
+    // location from the admin-managed list
+    if (location_list_mode()) {
+        $d['location_id'] = (int) input('location_id');
+        if (!isset(locations_all()[$d['location_id']])) {
+            $errors['location_id'] = 'Please choose a location.';
+            $d['location_id'] = 0;
+        }
+        $d['location'] = location_label($d['location_id']);
+    } else {
+        $d['location_id'] = 0;
+    }
+
+    // category-specific fields
+    [$fieldValues, $fieldErrors] = clean_field_input($d['category_id'], (array) ($_POST['cf'] ?? []));
+    $errors += $fieldErrors;
+
+    $forceReview = false;
+    if (!$asAdmin && $me['role'] !== 'admin') {
+        if (!$listing) {
+            $limit = (int) setting('max_ads_per_day', '20');
+            if ($limit > 0 && (int) q_val('SELECT COUNT(*) FROM listings WHERE user_id = ? AND created_at > ?', [$me['id'], date('Y-m-d H:i:s', time() - 86400)]) >= $limit) {
+                $errors['title'] = "You've reached the limit of $limit new ads per day. Please try again tomorrow.";
+            }
+            if (!captcha_passed('post')) {
+                $errors['captcha'] = 'Please complete the security check.';
+            }
+        }
+        $bad = find_banned_word($d['title'], $d['description'], $d['tags'], implode(' ', $fieldValues));
+        if ($bad !== null) {
+            if (setting('banned_words_action') === 'block') {
+                $errors['title'] = 'Your ad contains a word or phrase that is not allowed (“' . $bad . '”). Please remove it.';
+            } else {
+                $forceReview = true;
+            }
+        }
+    }
+
     if ($asAdmin) {
         $status = input('status');
         $d['status'] = in_array($status, LISTING_STATUSES, true) ? $status : 'active';
@@ -60,7 +97,7 @@ function listing_form_save(?array $listing, bool $asAdmin, string $successUrl): 
         return $errors;
     }
 
-    $needsApproval = setting('require_approval') === '1' && !$asAdmin && $me['role'] !== 'admin';
+    $needsApproval = (setting('require_approval') === '1' || $forceReview) && !$asAdmin && $me['role'] !== 'admin';
     $d['updated_at'] = now();
 
     if ($listing) {
@@ -80,6 +117,12 @@ function listing_form_save(?array $listing, bool $asAdmin, string $successUrl): 
             $d['expires_at'] = new_expiry();
         }
         db_update('listings', $d, 'id = ?', [$id]);
+        if ($asAdmin) {
+            log_activity('listing.edit', $d['title'] . ' (status: ' . $d['status'] . ')', 'listing', $id);
+            if ($d['status'] !== $listing['status']) {
+                notify_listing_status($id, $d['status'], $d['reject_reason']);
+            }
+        }
     } else {
         $d += [
             'user_id' => $me['id'],
@@ -91,6 +134,7 @@ function listing_form_save(?array $listing, bool $asAdmin, string $successUrl): 
         ];
         $id = db_insert('listings', $d);
     }
+    save_listing_fields($id, $fieldValues);
 
     // ---- images
     $existing = q_all('SELECT * FROM listing_images WHERE listing_id = ? ORDER BY sort_order, id', [$id]);
@@ -137,10 +181,13 @@ function listing_form_save(?array $listing, bool $asAdmin, string $successUrl): 
     } else {
         flash('success', $status === 'pending' ? 'Your ad was submitted and will go live once approved.' : 'Your ad is live! 🎉');
     }
+    if ($forceReview && $status === 'pending') {
+        flash('info', 'Your ad will be checked by our team before it goes live.');
+    }
     redirect(str_replace('{id}', (string) $id, $successUrl));
 }
 
-function render_listing_form(array $d, array $images, array $errors, bool $asAdmin, string $cancelUrl): void
+function render_listing_form(array $d, array $images, array $errors, bool $asAdmin, string $cancelUrl, array $fieldValues = []): void
 {
     $err = fn(string $k) => isset($errors[$k]) ? '<span class="field-error">' . e($errors[$k]) . '</span>' : '';
     $cls = fn(string $k) => isset($errors[$k]) ? ' has-error' : '';
@@ -171,6 +218,7 @@ function render_listing_form(array $d, array $images, array $errors, bool $asAdm
               </select>
             </div>
           </div>
+          <?php render_custom_field_inputs($fieldValues, $errors); ?>
           <div class="field<?= $cls('description') ?>">
             <label for="lf-desc">Description</label>
             <textarea id="lf-desc" name="description" rows="8" maxlength="20000" placeholder="Include details buyers care about: brand, model, age, size, defects, reason for selling…" required><?= e($d['description']) ?></textarea>
@@ -222,10 +270,18 @@ function render_listing_form(array $d, array $images, array $errors, bool $asAdm
         <section class="card form-section">
           <h2><span class="step-num">4</span>Location & contact</h2>
           <div class="form-grid">
+            <?php if (location_list_mode()): ?>
+            <div class="field<?= $cls('location_id') ?>">
+              <label for="lf-loc">Location</label>
+              <select id="lf-loc" name="location_id" required><option value="">Choose a location</option><?= location_options((int) ($d['location_id'] ?? 0)) ?></select>
+              <?= $err('location_id') ?>
+            </div>
+            <?php else: ?>
             <div class="field">
               <label for="lf-loc">Location</label>
               <div class="input-icon"><?= icon('map-pin') ?><input id="lf-loc" name="location" maxlength="150" value="<?= e($d['location']) ?>" placeholder="City, area"></div>
             </div>
+            <?php endif; ?>
             <div class="field">
               <label for="lf-phone">Phone</label>
               <div class="input-icon"><?= icon('phone') ?><input id="lf-phone" name="phone" type="tel" maxlength="40" value="<?= e($d['phone']) ?>" placeholder="Optional"></div>
@@ -258,10 +314,55 @@ function render_listing_form(array $d, array $images, array $errors, bool $asAdm
             <li><?= icon('check') ?>Add bright photos from several angles</li>
             <li><?= icon('check') ?>Set a fair, realistic price</li>
           </ul>
+          <?php if (!$isEdit && !$asAdmin && !is_admin()): ?><?= captcha_widget('post') ?><?= $err('captcha') ?><?php endif; ?>
           <button class="btn btn-primary btn-block btn-lg" type="submit"><?= icon($isEdit ? 'check' : 'zap') ?><?= $isEdit ? 'Save ad' : 'Post my ad' ?></button>
           <a class="btn btn-ghost btn-block" href="<?= e($cancelUrl) ?>">Cancel</a>
         </section>
       </aside>
     </form>
     <?php
+}
+
+/** Inputs for every category's custom fields; JS shows only the groups for the chosen category. */
+function render_custom_field_inputs(array $values, array $errors): void
+{
+    $groups = [];
+    foreach (fields_all() as $id => $f) {
+        $groups[(int) $f['category_id']][$id] = $f;
+    }
+    if (!$groups) {
+        return;
+    }
+    echo '<div class="cf-wrap" data-cf-wrap>';
+    foreach ($groups as $catId => $fields) {
+        echo '<div class="cf-group form-grid" data-cf-cat="' . $catId . '" hidden>';
+        foreach ($fields as $id => $f) {
+            $name = 'cf[' . $id . ']';
+            $val = (string) ($values[$id] ?? '');
+            $req = $f['required'] && $f['type'] !== 'checkbox' ? ' data-required' : '';
+            $has = isset($errors['cf_' . $id]) ? ' has-error' : '';
+            $label = e($f['label']) . ($f['unit'] !== '' ? ' <small class="muted">(' . e($f['unit']) . ')</small>' : '') . ($f['required'] ? '' : ' <small class="muted">optional</small>');
+            if ($f['type'] === 'checkbox') {
+                echo '<div class="field cf-check"><label class="switch"><input type="checkbox" name="' . $name . '" value="1"' . ($val === '1' ? ' checked' : '') . '><span class="switch-ui"></span><span>' . e($f['label']) . '</span></label></div>';
+                continue;
+            }
+            echo '<div class="field' . $has . '"><label for="cf' . $id . '">' . $label . '</label>';
+            if ($f['type'] === 'select') {
+                echo '<select id="cf' . $id . '" name="' . $name . '"' . $req . '><option value="">Choose…</option>';
+                foreach (field_options($f) as $o) {
+                    echo '<option' . ($o === $val ? ' selected' : '') . '>' . e($o) . '</option>';
+                }
+                echo '</select>';
+            } else {
+                $type = $f['type'] === 'number' ? ' inputmode="decimal"' : ' maxlength="190"';
+                echo '<input id="cf' . $id . '" name="' . $name . '" value="' . e($val) . '"' . $type . $req . '>';
+            }
+            if (isset($errors['cf_' . $id])) {
+                echo '<span class="field-error">' . e($errors['cf_' . $id]) . '</span>';
+            }
+            echo '</div>';
+        }
+        echo '</div>';
+    }
+    echo '</div>';
 }

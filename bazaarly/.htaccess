@@ -2,6 +2,14 @@
 Options -Indexes
 DirectoryIndex index.php
 
+# Clean URLs (turn on in Admin → Settings → SEO & URLs)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ router.php [L,QSA]
+</IfModule>
+
 <IfModule mod_php.c>
   php_value upload_max_filesize 16M
   php_value post_max_size 64M

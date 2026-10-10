@@ -39,15 +39,28 @@ if (is_post()) {
             $d['avatar'] = '';
         }
         if (!$errors) {
+            $emailChanged = $d['email'] !== strtolower($me['email']);
+            if ($emailChanged) {
+                $d['email_verified_at'] = null;
+            }
             db_update('users', $d, 'id = ?', [$uid]);
-            flash('success', 'Your profile has been updated.');
+            if ($emailChanged && setting('require_email_verification') === '1' && $me['role'] !== 'admin') {
+                send_verification_email(array_merge($me, $d));
+                flash('success', 'Profile saved. We sent a confirmation link to your new email address.');
+            } else {
+                if ($emailChanged) {
+                    q('UPDATE users SET email_verified_at = ? WHERE id = ?', [now(), $uid]);
+                }
+                flash('success', 'Your profile has been updated.');
+            }
             redirect('dashboard/settings.php');
         }
         $me = array_merge($me, $d);
     } elseif ($section === 'password') {
         $current = (string) ($_POST['current_password'] ?? '');
         $new = (string) ($_POST['new_password'] ?? '');
-        if (!password_verify($current, $me['password'])) $errors['current_password'] = 'Your current password is incorrect.';
+        $skipCurrent = !empty($_SESSION['social_login']);
+        if (!$skipCurrent && !password_verify($current, $me['password'])) $errors['current_password'] = 'Your current password is incorrect.';
         elseif (strlen($new) < 8) $errors['new_password'] = 'Use at least 8 characters.';
         elseif ($new !== (string) ($_POST['new_password_confirm'] ?? '')) $errors['new_password_confirm'] = 'Passwords do not match.';
         if (!$errors) {
@@ -56,8 +69,12 @@ if (is_post()) {
             flash('success', 'Password changed.');
             redirect('dashboard/settings.php');
         }
+    } elseif ($section === 'unblock') {
+        q('DELETE FROM user_blocks WHERE user_id = ? AND blocked_id = ?', [$uid, (int) input('blocked_id')]);
+        flash('success', 'Member unblocked.');
+        redirect('dashboard/settings.php#blocked');
     } elseif ($section === 'delete') {
-        if (!password_verify((string) ($_POST['confirm_password'] ?? ''), $me['password'])) {
+        if (empty($_SESSION['social_login']) && !password_verify((string) ($_POST['confirm_password'] ?? ''), $me['password'])) {
             $errors['confirm_password'] = 'Password is incorrect.';
         } elseif ($me['role'] === 'admin' && (int) q_val("SELECT COUNT(*) FROM users WHERE role = 'admin'") <= 1) {
             $errors['confirm_password'] = 'You are the only administrator. Promote another admin first.';
@@ -72,6 +89,8 @@ if (is_post()) {
     }
 }
 
+$blocked = q_all('SELECT u.id, u.name, u.username, u.avatar, b.created_at FROM user_blocks b JOIN users u ON u.id = b.blocked_id WHERE b.user_id = ? ORDER BY b.created_at DESC', [$uid]);
+$social = q_all('SELECT provider, created_at FROM user_social WHERE user_id = ?', [$uid]);
 $err = fn(string $k) => isset($errors[$k]) ? '<span class="field-error">' . e($errors[$k]) . '</span>' : '';
 $dashActive = 'settings';
 $pageTitle = 'Account settings';
@@ -104,19 +123,34 @@ require APP_ROOT . '/includes/dash-top.php';
 <form method="post" class="card form-section">
   <?= csrf_field() ?><input type="hidden" name="section" value="password">
   <h2>Change password</h2>
+  <?php if ($social): ?><p class="muted small"><?= icon('info') ?> Connected sign-in: <?= e(implode(', ', array_map(fn($x) => ucfirst($x['provider']), $social))) ?>.<?= !empty($_SESSION['social_login']) ? ' You can set a password without entering the old one.' : '' ?></p><?php endif; ?>
   <div class="form-grid three">
-    <div class="field<?= isset($errors['current_password']) ? ' has-error' : '' ?>"><label for="p-cur">Current password</label><input id="p-cur" type="password" name="current_password" autocomplete="current-password" required><?= $err('current_password') ?></div>
+    <?php if (empty($_SESSION['social_login'])): ?><div class="field<?= isset($errors['current_password']) ? ' has-error' : '' ?>"><label for="p-cur">Current password</label><input id="p-cur" type="password" name="current_password" autocomplete="current-password" required><?= $err('current_password') ?></div><?php endif; ?>
     <div class="field<?= isset($errors['new_password']) ? ' has-error' : '' ?>"><label for="p-new">New password</label><input id="p-new" type="password" name="new_password" autocomplete="new-password" minlength="8" required><?= $err('new_password') ?></div>
     <div class="field<?= isset($errors['new_password_confirm']) ? ' has-error' : '' ?>"><label for="p-new2">Confirm new password</label><input id="p-new2" type="password" name="new_password_confirm" autocomplete="new-password" required><?= $err('new_password_confirm') ?></div>
   </div>
   <button class="btn btn-primary" type="submit">Update password</button>
 </form>
 
+<section class="card form-section" id="blocked">
+  <h2>Blocked members</h2>
+  <?php if ($blocked): ?>
+    <ul class="mini-list flush">
+      <?php foreach ($blocked as $b): ?>
+        <li><?= avatar_html($b, 'sm') ?><div class="mini-body"><a href="<?= e(profile_url((int) $b['id'], $b['username'])) ?>"><?= e($b['name']) ?></a><small>Blocked <?= e(time_ago($b['created_at'])) ?></small></div>
+          <form method="post"><?= csrf_field() ?><input type="hidden" name="section" value="unblock"><input type="hidden" name="blocked_id" value="<?= (int) $b['id'] ?>"><button class="btn btn-ghost btn-sm" type="submit">Unblock</button></form></li>
+      <?php endforeach; ?>
+    </ul>
+  <?php else: ?>
+    <p class="muted small">You haven't blocked anyone. You can block a member from a conversation or their profile.</p>
+  <?php endif; ?>
+</section>
+
 <form method="post" class="card form-section danger-zone" data-confirm="This will permanently delete your account, ads, messages and reviews. Continue?">
   <?= csrf_field() ?><input type="hidden" name="section" value="delete">
   <h2>Delete account</h2>
   <p class="muted">Permanently remove your account and everything you've posted. This cannot be undone.</p>
-  <div class="field<?= isset($errors['confirm_password']) ? ' has-error' : '' ?>" style="max-width:320px"><label for="d-pw">Confirm with your password</label><input id="d-pw" type="password" name="confirm_password" required><?= $err('confirm_password') ?></div>
+  <?php if (empty($_SESSION['social_login'])): ?><div class="field<?= isset($errors['confirm_password']) ? ' has-error' : '' ?>" style="max-width:320px"><label for="d-pw">Confirm with your password</label><input id="d-pw" type="password" name="confirm_password" required><?= $err('confirm_password') ?></div><?php else: ?><?= $err('confirm_password') ?><?php endif; ?>
   <button class="btn btn-danger" type="submit"><?= icon('trash') ?>Delete my account</button>
 </form>
 <?php require APP_ROOT . '/includes/dash-bottom.php';

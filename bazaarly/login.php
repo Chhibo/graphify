@@ -12,6 +12,8 @@ if (is_post()) {
     $password = (string) ($_POST['password'] ?? '');
     if (too_many_attempts()) {
         $error = 'Too many sign-in attempts. Please wait 15 minutes and try again.';
+    } elseif (!captcha_passed('login')) {
+        $error = 'Please complete the security check.';
     } else {
         $user = q_one('SELECT * FROM users WHERE email = ? OR username = ?', [strtolower($login), $login]);
         if ($user && password_verify($password, $user['password'])) {
@@ -22,6 +24,9 @@ if (is_post()) {
                     q('UPDATE users SET password = ? WHERE id = ?', [password_hash($password, PASSWORD_DEFAULT), $user['id']]);
                 }
                 login_user($user, !empty($_POST['remember']));
+                if ($user['role'] === 'admin') {
+                    log_activity('admin.login', 'Signed in', 'user', (int) $user['id']);
+                }
                 flash('success', 'Welcome back, ' . strtok($user['name'], ' ') . '!');
                 header('Location: ' . intended_url($user['role'] === 'admin' && setting('maintenance_mode') === '1' ? 'admin/' : 'dashboard/'));
                 exit;
@@ -42,6 +47,7 @@ require __DIR__ . '/includes/header.php';
       <?= csrf_field() ?>
       <h1>Welcome back</h1>
       <p class="muted">Sign in to manage your ads and messages.</p>
+      <?= social_buttons() ?>
       <?php if ($error): ?><div class="alert alert-error"><?= icon('alert') ?><span><?= e($error) ?></span></div><?php endif; ?>
       <div class="field">
         <label for="login">Email or username</label>
@@ -56,6 +62,7 @@ require __DIR__ . '/includes/header.php';
         <label class="check"><input type="checkbox" name="remember" value="1"><span>Keep me signed in</span></label>
         <a class="small-link" href="<?= e(url('forgot.php')) ?>">Forgot password?</a>
       </div>
+      <?= captcha_widget('login') ?>
       <button class="btn btn-primary btn-block btn-lg" type="submit">Sign in</button>
       <?php if (setting('allow_registration') === '1'): ?>
         <p class="center muted">New here? <a href="<?= e(url('register.php')) ?>">Create a free account</a></p>

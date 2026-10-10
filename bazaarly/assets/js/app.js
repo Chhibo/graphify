@@ -189,6 +189,11 @@
     ['dragenter', 'dragover'].forEach(function (ev) { on(dz, ev, function () { dz.classList.add('drag'); }); });
     ['dragleave', 'drop'].forEach(function (ev) { on(dz, ev, function () { dz.classList.remove('drag'); }); });
     on(input, 'change', function () {
+      if (!preview) {
+        var label = $('strong', dz);
+        if (label && input.files.length) label.textContent = Array.prototype.map.call(input.files, function (f) { return f.name; }).join(', ');
+        return;
+      }
       preview.innerHTML = '';
       var files = Array.prototype.slice.call(input.files);
       if (max >= 0 && files.length > max) {
@@ -275,5 +280,142 @@
         ta.setRangeText(out, s, e, 'end'); ta.focus();
       });
     });
+  });
+
+  /* ---------- v1.1 additions ---------- */
+
+  /* generic "please wait" on submit */
+  $$('[data-loading]').forEach(function (b) {
+    var f = b.form;
+    if (!f) return;
+    on(f, 'submit', function () { setTimeout(function () { b.disabled = true; b.textContent = b.dataset.loading; }, 0); });
+  });
+  $$('[data-confirm-click]').forEach(function (b) {
+    on(b, 'click', function (e) { if (!confirm(b.dataset.confirmClick)) e.preventDefault(); });
+  });
+
+  /* listing form: show the custom fields of the chosen category (and its parent) */
+  var cfWrap = $('[data-cf-wrap]'), catSel = $('#lf-cat');
+  function syncFields() {
+    if (!cfWrap || !catSel) return;
+    var opt = catSel.options[catSel.selectedIndex], id = catSel.value, parent = opt ? opt.getAttribute('data-parent') : '';
+    $$('[data-cf-cat]', cfWrap).forEach(function (g) {
+      var show = id !== '' && (g.dataset.cfCat === id || g.dataset.cfCat === parent);
+      g.hidden = !show;
+      $$('input, select, textarea', g).forEach(function (i) {
+        i.disabled = !show;
+        if (i.hasAttribute('data-required')) i.required = show;
+      });
+    });
+  }
+  on(catSel, 'change', syncFields);
+  syncFields();
+
+  /* search suggestions */
+  $$('[data-suggest]').forEach(function (input) {
+    var box = document.createElement('div'), timer = null, items = [], active = -1, last = '';
+    box.className = 'suggest-box'; box.hidden = true; box.setAttribute('role', 'listbox');
+    (input.closest('.suggest-wrap') || input.parentNode).appendChild(box);
+    input.setAttribute('aria-autocomplete', 'list');
+    function esc(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+    function close() { box.hidden = true; active = -1; }
+    function highlight(i) {
+      items.forEach(function (el, k) { el.classList.toggle('on', k === i); });
+      active = i;
+    }
+    function render(d) {
+      var html = '';
+      (d.categories || []).forEach(function (c) {
+        html += '<a class="sg-item sg-cat" href="' + esc(c.url) + '"><span class="sg-ico">#</span><span><strong>' + esc(c.name) + '</strong>' + (c.parent ? '<small>in ' + esc(c.parent) + '</small>' : '<small>Category</small>') + '</span></a>';
+      });
+      (d.ads || []).forEach(function (a) {
+        html += '<a class="sg-item" href="' + esc(a.url) + '">' + (a.thumb ? '<img src="' + esc(a.thumb) + '" alt="">' : '<span class="sg-ico"></span>') +
+          '<span><strong>' + esc(a.title) + '</strong><small>' + esc(a.price) + (a.category ? ' · ' + esc(a.category) : '') + '</small></span></a>';
+      });
+      html += '<a class="sg-item sg-all" href="' + esc(d.search_url) + '">Search for “' + esc(input.value.trim()) + '”</a>';
+      box.innerHTML = html;
+      items = $$('.sg-item', box);
+      box.hidden = false;
+      active = -1;
+    }
+    on(input, 'input', function () {
+      var q = input.value.trim();
+      clearTimeout(timer);
+      if (q.length < 2) { close(); return; }
+      timer = setTimeout(function () {
+        if (q === last && !box.hidden) return;
+        last = q;
+        fetch(cfg.base + '/ajax.php?action=suggest&q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { if (input.value.trim() === q) render(d); })
+          .catch(close);
+      }, 180);
+    });
+    on(input, 'keydown', function (e) {
+      if (box.hidden) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(items.length - 1, active + 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(-1, active - 1)); }
+      else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); location.href = items[active].href; }
+      else if (e.key === 'Escape') close();
+    });
+    on(input, 'blur', function () { setTimeout(close, 150); });
+  });
+
+  /* installable app */
+  if (cfg.pwa && 'serviceWorker' in navigator && (location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register(cfg.base + '/sw.js').catch(function () {}); });
+  }
+  var installEvt = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault(); installEvt = e;
+    $$('[data-install-app]').forEach(function (el) { el.hidden = false; });
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-install-btn]');
+    if (!b || !installEvt) return;
+    e.preventDefault();
+    installEvt.prompt();
+    installEvt.userChoice.finally(function () { installEvt = null; $$('[data-install-app]').forEach(function (el) { el.hidden = true; }); });
+  });
+
+  /* admin: check that URL rewriting works before enabling clean URLs */
+  $$('[data-rewrite-test]').forEach(function (cb) {
+    on(cb, 'change', function () {
+      if (!cb.checked) return;
+      fetch(cb.dataset.rewriteTest, { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.text() : ''; })
+        .then(function (t) {
+          if (t.trim() !== 'ok') {
+            cb.checked = false;
+            alert('Clean URLs are not supported by your server yet (URL rewriting is off). On Apache/LiteSpeed make sure the .htaccess file was uploaded; on Nginx add the rule from the README.');
+          }
+        }).catch(function () { cb.checked = false; alert('Could not test URL rewriting.'); });
+    });
+  });
+
+  /* admin: custom field type → show matching options */
+  $$('[data-field-type]').forEach(function (sel) {
+    function sync() {
+      $$('[data-show-for]').forEach(function (el) { el.hidden = el.dataset.showFor.split(' ').indexOf(sel.value) < 0; });
+    }
+    on(sel, 'change', sync); sync();
+  });
+
+  /* admin: email delivery method */
+  $$('[data-mail-driver]').forEach(function (r) {
+    on(r, 'change', function () { var f = $('[data-smtp-fields]'); if (f) f.hidden = r.value !== 'smtp'; });
+  });
+  $$('[data-insert]').forEach(function (c) {
+    c.style.cursor = 'pointer';
+    on(c, 'click', function () {
+      var ta = $('#t-body'); if (!ta) return;
+      ta.setRangeText(c.dataset.insert, ta.selectionStart, ta.selectionEnd, 'end'); ta.focus();
+    });
+  });
+
+  /* saved searches: rename inline */
+  $$('[data-rename]').forEach(function (i) {
+    var start = i.value;
+    on(i, 'change', function () { if (i.value.trim() && i.value !== start) i.form.submit(); });
   });
 })();

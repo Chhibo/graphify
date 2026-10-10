@@ -23,6 +23,7 @@ if (is_post()) {
         'role' => $self ? $d['role'] : (input('role') === 'admin' ? 'admin' : 'user'),
         'status' => $self ? 'active' : (input('status') === 'banned' ? 'banned' : 'active'),
         'verified' => empty($_POST['verified']) ? 0 : 1,
+        'email_verified_at' => empty($_POST['email_verified']) ? null : ($d['email_verified_at'] ?? null ?: now()),
     ]);
     $pw = (string) ($_POST['password'] ?? '');
     if (mb_strlen($d['name']) < 2) $errors['name'] = 'Name is required.';
@@ -34,15 +35,17 @@ if (is_post()) {
     if ($user && $pw !== '' && strlen($pw) < 8) $errors['password'] = 'Use at least 8 characters.';
 
     if (!$errors) {
-        $data = array_intersect_key($d, array_flip(['name', 'username', 'email', 'phone', 'location', 'bio', 'role', 'status', 'verified']));
+        $data = array_intersect_key($d, array_flip(['name', 'username', 'email', 'phone', 'location', 'bio', 'role', 'status', 'verified', 'email_verified_at']));
         if ($pw !== '') {
             $data['password'] = password_hash($pw, PASSWORD_DEFAULT);
         }
         if ($user) {
             db_update('users', $data, 'id = ?', [$id]);
+            log_activity('user.update', $data['name'] . ' <' . $data['email'] . '>' . ($pw !== '' ? ' (password changed)' : ''), 'user', $id);
             flash('success', 'User saved.');
         } else {
             $id = db_insert('users', $data + ['avatar' => '', 'created_at' => now()]);
+            log_activity('user.create', $data['name'] . ' <' . $data['email'] . '>', 'user', $id);
             flash('success', 'User created.');
         }
         redirect('admin/user-edit.php?id=' . $id);
@@ -64,7 +67,7 @@ require APP_ROOT . '/includes/admin-top.php';
   <?php if ($user): ?>
     <span class="push"></span>
     <a class="btn btn-ghost btn-sm" href="<?= e(url('admin/listings.php?user=' . $id)) ?>"><?= icon('package') ?>Their ads (<?= $stats['ads'] ?>)</a>
-    <a class="btn btn-ghost btn-sm" href="<?= e(url('profile.php?id=' . $id)) ?>" target="_blank"><?= icon('eye') ?>Public profile</a>
+    <a class="btn btn-ghost btn-sm" href="<?= e(profile_url($id, $user['username'])) ?>" target="_blank"><?= icon('eye') ?>Public profile</a>
   <?php endif; ?>
 </div>
 
@@ -85,6 +88,7 @@ require APP_ROOT . '/includes/admin-top.php';
       <div class="field"><label for="u-status">Status</label><select id="u-status" name="status" <?= $self ? 'disabled' : '' ?>><option value="active">Active</option><option value="banned" <?= $d['status'] === 'banned' ? 'selected' : '' ?>>Banned</option></select></div>
     </div>
     <label class="switch"><input type="checkbox" name="verified" value="1" <?= $d['verified'] ? 'checked' : '' ?>><span class="switch-ui"></span><span>Verified seller badge</span></label>
+    <label class="switch"><input type="checkbox" name="email_verified" value="1" <?= !empty($d['email_verified_at']) || !$user ? 'checked' : '' ?>><span class="switch-ui"></span><span>Email address confirmed</span></label>
     <div class="field<?= isset($errors['password']) ? ' has-error' : '' ?>"><label for="u-pw"><?= $user ? 'New password <small class="muted">(leave blank to keep)</small>' : 'Password' ?></label><input id="u-pw" type="password" name="password" autocomplete="new-password"><?= $err('password') ?></div>
     <button class="btn btn-primary" type="submit"><?= $user ? 'Save user' : 'Create user' ?></button>
   </form>

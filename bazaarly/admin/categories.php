@@ -32,11 +32,19 @@ if (is_post()) {
             'description' => mb_substr(input('description'), 0, 255),
             'sort_order' => (int) input('sort_order'),
         ];
+        // slugs must be unique (they are used in clean URLs)
+        $base = $data['slug'];
+        $n = 2;
+        while (q_val('SELECT id FROM categories WHERE slug = ? AND id <> ?', [$data['slug'], $id])) {
+            $data['slug'] = $base . '-' . $n++;
+        }
         if ($id) {
             db_update('categories', $data, 'id = ?', [$id]);
+            log_activity('category.update', $name, 'category', $id);
             flash('success', 'Category updated.');
         } else {
-            db_insert('categories', $data + ['created_at' => now()]);
+            $newId = db_insert('categories', $data + ['created_at' => now()]);
+            log_activity('category.create', $name, 'category', $newId);
             flash('success', 'Category added.');
         }
         redirect('admin/categories.php');
@@ -51,6 +59,9 @@ if (is_post()) {
             flash('error', 'This category still has ads. Choose a category to move them to.');
             redirect('admin/categories.php?delete=' . $id);
         }
+        q("DELETE FROM listing_field_values WHERE field_id IN (SELECT id FROM category_fields WHERE category_id IN ($in))");
+        q("DELETE FROM category_fields WHERE category_id IN ($in)");
+        log_activity('category.delete', (string) (categories_all()[$id]['name'] ?? $id), 'category', $id);
         q("DELETE FROM categories WHERE id IN ($in)");
         flash('success', 'Category deleted.');
         redirect('admin/categories.php');
@@ -62,6 +73,10 @@ $all = categories_all();
 $counts = [];
 foreach (q_all('SELECT category_id, COUNT(*) AS n FROM listings GROUP BY category_id') as $r) {
     $counts[(int) $r['category_id']] = (int) $r['n'];
+}
+$fieldCounts = [];
+foreach (q_all('SELECT category_id, COUNT(*) AS n FROM category_fields GROUP BY category_id') as $r) {
+    $fieldCounts[(int) $r['category_id']] = (int) $r['n'];
 }
 $edit = input('edit') ? ($all[(int) input('edit')] ?? null) : null;
 $deleting = input('delete') ? ($all[(int) input('delete')] ?? null) : null;
@@ -76,14 +91,16 @@ require APP_ROOT . '/includes/admin-top.php';
     <div class="card-head"><h2>All categories</h2><span class="muted small"><?= count($all) ?> total</span></div>
     <div class="table-wrap">
       <table class="table">
-        <thead><tr><th>Name</th><th>Ads</th><th>Order</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Ads</th><th>Fields</th><th>Order</th><th></th></tr></thead>
         <tbody>
         <?php foreach ($tree as $id => $c): ?>
           <tr class="row-parent">
             <td><span class="cat-cell"><span class="cat-icon sm"><?= icon($c['icon']) ?></span><strong><?= e($c['name']) ?></strong></span></td>
             <td><?= $counts[$id] ?? 0 ?></td>
+            <td><a class="small-link" href="<?= e(url('admin/category-fields.php?category=' . $id)) ?>"><?= $fieldCounts[$id] ?? 0 ?> fields</a></td>
             <td><?= (int) $c['sort_order'] ?></td>
             <td class="row-actions nowrap">
+              <a class="icon-btn sm" href="<?= e(url('admin/category-fields.php?category=' . $id)) ?>" aria-label="Custom fields" title="Custom fields"><?= icon('sliders') ?></a>
               <a class="icon-btn sm" href="?edit=<?= $id ?>" aria-label="Edit"><?= icon('edit') ?></a>
               <a class="icon-btn sm danger" href="?delete=<?= $id ?>" aria-label="Delete"><?= icon('trash') ?></a>
             </td>
@@ -92,15 +109,17 @@ require APP_ROOT . '/includes/admin-top.php';
             <tr>
               <td><span class="cat-cell child"><?= icon('chevron-right') ?><?= e($ch['name']) ?></span></td>
               <td><?= $counts[$cid] ?? 0 ?></td>
+              <td><a class="small-link" href="<?= e(url('admin/category-fields.php?category=' . $cid)) ?>"><?= $fieldCounts[$cid] ?? 0 ?> fields</a></td>
               <td><?= (int) $ch['sort_order'] ?></td>
               <td class="row-actions nowrap">
+                <a class="icon-btn sm" href="<?= e(url('admin/category-fields.php?category=' . $cid)) ?>" aria-label="Custom fields" title="Custom fields"><?= icon('sliders') ?></a>
                 <a class="icon-btn sm" href="?edit=<?= $cid ?>" aria-label="Edit"><?= icon('edit') ?></a>
                 <a class="icon-btn sm danger" href="?delete=<?= $cid ?>" aria-label="Delete"><?= icon('trash') ?></a>
               </td>
             </tr>
           <?php endforeach; ?>
         <?php endforeach; ?>
-        <?php if (!$tree): ?><tr><td colspan="4" class="center muted">No categories yet. Add your first one.</td></tr><?php endif; ?>
+        <?php if (!$tree): ?><tr><td colspan="5" class="center muted">No categories yet. Add your first one.</td></tr><?php endif; ?>
         </tbody>
       </table>
     </div>

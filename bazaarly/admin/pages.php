@@ -10,6 +10,7 @@ $d = $page ?? ['title' => '', 'slug' => '', 'content' => '', 'in_header' => 0, '
 
 if (is_post()) {
     if (input('action') === 'delete') {
+        log_activity('page.delete', (string) ($page['title'] ?? $editId), 'page', $editId);
         q('DELETE FROM pages WHERE id = ?', [$editId]);
         flash('success', 'Page deleted.');
         redirect('admin/pages.php');
@@ -30,6 +31,7 @@ if (is_post()) {
         } else {
             $editId = db_insert('pages', $d + ['created_at' => now()]);
         }
+        log_activity($page ? 'page.update' : 'page.create', $d['title'], 'page', $editId);
         flash('success', 'Page saved.');
         redirect('admin/pages.php?id=' . $editId);
     }
@@ -44,7 +46,7 @@ require APP_ROOT . '/includes/admin-top.php';
 <?php if ($editing): ?>
   <div class="page-actions">
     <a class="btn btn-ghost btn-sm" href="<?= e(url('admin/pages.php')) ?>"><?= icon('chevron-left') ?>All pages</a>
-    <?php if ($page): ?><span class="push"></span><a class="btn btn-ghost btn-sm" href="<?= e(url('page.php?slug=' . $page['slug'])) ?>" target="_blank"><?= icon('eye') ?>View</a>
+    <?php if ($page): ?><span class="push"></span><a class="btn btn-ghost btn-sm" href="<?= e(page_url($page['slug'])) ?>" target="_blank"><?= icon('eye') ?>View</a>
       <form method="post" data-confirm="Delete this page?"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $editId ?>"><input type="hidden" name="action" value="delete"><button class="btn btn-danger btn-sm" type="submit"><?= icon('trash') ?>Delete</button></form><?php endif; ?>
   </div>
   <?php foreach ($errors as $er): ?><div class="alert alert-error"><?= icon('alert') ?><span><?= e($er) ?></span></div><?php endforeach; ?>
@@ -81,7 +83,7 @@ require APP_ROOT . '/includes/admin-top.php';
             <td><?= $p['in_header'] ? icon('check', 'text-success') : '' ?></td>
             <td><?= $p['in_footer'] ? icon('check', 'text-success') : '' ?></td>
             <td class="muted small nowrap"><?= e(format_date($p['updated_at'])) ?></td>
-            <td class="row-actions nowrap"><a class="icon-btn sm" href="?id=<?= (int) $p['id'] ?>" aria-label="Edit"><?= icon('edit') ?></a><a class="icon-btn sm" href="<?= e(url('page.php?slug=' . $p['slug'])) ?>" target="_blank" aria-label="View"><?= icon('eye') ?></a></td>
+            <td class="row-actions nowrap"><a class="icon-btn sm" href="?id=<?= (int) $p['id'] ?>" aria-label="Edit"><?= icon('edit') ?></a><a class="icon-btn sm" href="<?= e(page_url($p['slug'])) ?>" target="_blank" aria-label="View"><?= icon('eye') ?></a></td>
           </tr>
         <?php endforeach; ?>
         <?php if (!$rows): ?><tr><td colspan="6" class="center muted">No pages yet.</td></tr><?php endif; ?>

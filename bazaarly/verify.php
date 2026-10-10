@@ -1,0 +1,38 @@
+<?php
+require __DIR__ . '/includes/bootstrap.php';
+
+// Resend the confirmation email
+if (is_post() && input('action') === 'resend') {
+    $me = require_login();
+    if (!empty($me['email_verified_at'])) {
+        flash('info', 'Your email is already confirmed.');
+    } elseif (time() - (int) ($_SESSION['verify_sent_at'] ?? 0) < 120) {
+        flash('warning', 'We just sent an email. Please wait a couple of minutes before asking again.');
+    } else {
+        $_SESSION['verify_sent_at'] = time();
+        send_verification_email($me)
+            ? flash('success', 'Confirmation email sent to ' . $me['email'] . '. Check your inbox and spam folder.')
+            : flash('error', 'We could not send the email right now. Please try again later or contact us.');
+    }
+    back('dashboard/');
+}
+
+$uid = consume_token(input('token'), 'verify');
+if ($uid) {
+    q('UPDATE users SET email_verified_at = ? WHERE id = ?', [now(), $uid]);
+    flash('success', 'Thanks! Your email address is confirmed.');
+    redirect(is_logged_in() ? 'dashboard/' : 'login.php');
+}
+
+$pageTitle = 'Confirm email';
+require __DIR__ . '/includes/header.php';
+?>
+<section class="container section-sm">
+  <div class="card auth-single center">
+    <span class="auth-icon"><?= icon('alert') ?></span>
+    <h1>Link expired</h1>
+    <p class="muted">This confirmation link is invalid or has already been used. Sign in and use “Resend email” to get a new one.</p>
+    <a class="btn btn-primary" href="<?= e(url(is_logged_in() ? 'dashboard/' : 'login.php')) ?>"><?= is_logged_in() ? 'Go to dashboard' : 'Sign in' ?></a>
+  </div>
+</section>
+<?php require __DIR__ . '/includes/footer.php';

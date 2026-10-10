@@ -25,6 +25,8 @@ if (is_post() && !$closed) {
     elseif ($pw !== $pw2) $errors['password_confirm'] = 'Passwords do not match.';
     if (empty($_POST['terms'])) $errors['terms'] = 'Please accept the terms to continue.';
     if (input('website') !== '') $errors['name'] = 'Spam detected.';
+    if (!$errors && !captcha_passed('register')) $errors['captcha'] = 'Please complete the security check.';
+    if (!$errors && ($bad = find_banned_word($d['name'], $d['username'])) !== null) $errors['name'] = 'Please choose a different name.';
 
     if (!$errors) {
         $id = db_insert('users', $d + [
@@ -35,8 +37,15 @@ if (is_post() && !$closed) {
             'verified' => 0,
             'created_at' => now(),
         ]);
-        login_user(q_one('SELECT * FROM users WHERE id = ?', [$id]));
-        flash('success', 'Your account is ready. Welcome to ' . setting('site_name') . '!');
+        $user = q_one('SELECT * FROM users WHERE id = ?', [$id]);
+        login_user($user);
+        send_template('welcome', $user['email'], ['name' => $user['name'], 'action_url' => full_url('dashboard/edit.php')]);
+        if (setting('require_email_verification') === '1') {
+            send_verification_email($user);
+            flash('success', 'Your account is ready! We sent a confirmation link to ' . $user['email'] . ' — click it to start posting.');
+        } else {
+            flash('success', 'Your account is ready. Welcome to ' . setting('site_name') . '!');
+        }
         header('Location: ' . intended_url('dashboard/'));
         exit;
     }
@@ -56,6 +65,7 @@ require __DIR__ . '/includes/header.php';
       <?= csrf_field() ?>
       <h1>Create your account</h1>
       <p class="muted">It's free and takes less than a minute.</p>
+      <?= social_buttons('Sign up') ?>
       <div class="form-grid">
         <div class="field<?= isset($errors['name']) ? ' has-error' : '' ?>"><label for="name">Full name</label><input id="name" name="name" value="<?= e($d['name']) ?>" autocomplete="name" required><?= $err('name') ?></div>
         <div class="field<?= isset($errors['username']) ? ' has-error' : '' ?>"><label for="username">Username</label><input id="username" name="username" value="<?= e($d['username']) ?>" autocomplete="username" required><?= $err('username') ?></div>
@@ -70,8 +80,9 @@ require __DIR__ . '/includes/header.php';
         <div class="field<?= isset($errors['password_confirm']) ? ' has-error' : '' ?>"><label for="password_confirm">Confirm password</label><div class="input-icon"><?= icon('lock') ?><input id="password_confirm" type="password" name="password_confirm" autocomplete="new-password" required></div><?= $err('password_confirm') ?></div>
       </div>
       <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-      <label class="check<?= isset($errors['terms']) ? ' has-error' : '' ?>"><input type="checkbox" name="terms" value="1" <?= !empty($_POST['terms']) ? 'checked' : '' ?>><span>I agree to the <a href="<?= e(url('page.php?slug=terms')) ?>" target="_blank">terms</a> and <a href="<?= e(url('page.php?slug=privacy')) ?>" target="_blank">privacy policy</a></span></label>
+      <label class="check<?= isset($errors['terms']) ? ' has-error' : '' ?>"><input type="checkbox" name="terms" value="1" <?= !empty($_POST['terms']) ? 'checked' : '' ?>><span>I agree to the <a href="<?= e(page_url('terms')) ?>" target="_blank">terms</a> and <a href="<?= e(page_url('privacy')) ?>" target="_blank">privacy policy</a></span></label>
       <?= $err('terms') ?>
+      <?= captcha_widget('register') ?><?= $err('captcha') ?>
       <button class="btn btn-primary btn-block btn-lg" type="submit">Create account</button>
       <p class="center muted">Already have an account? <a href="<?= e(url('login.php')) ?>">Sign in</a></p>
     </form>

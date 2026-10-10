@@ -19,29 +19,20 @@ if (!$isLive && $l['status'] !== 'sold' && !$canManage) {
 if (is_post()) {
     $action = input('action');
     if (!$me) {
-        $_SESSION['intended'] = url('listing.php?id=' . $id);
+        $_SESSION['intended'] = listing_url($l);
         flash('info', 'Please sign in first.');
         redirect('login.php');
     }
     if ($action === 'message' && !$isOwner) {
-        $body = trim((string) ($_POST['body'] ?? ''));
-        if (mb_strlen($body) < 2) {
-            flash('error', 'Please write a message.');
-            redirect('listing.php?id=' . $id . '#contact');
-        }
-        $conv = q_one('SELECT * FROM conversations WHERE listing_id = ? AND buyer_id = ?', [$id, $me['id']]);
-        $convId = $conv ? (int) $conv['id'] : db_insert('conversations', [
-            'listing_id' => $id, 'buyer_id' => $me['id'], 'seller_id' => $l['user_id'],
-            'buyer_unread' => 0, 'seller_unread' => 0, 'last_message_at' => now(), 'created_at' => now(),
-        ]);
-        db_insert('messages', ['conversation_id' => $convId, 'sender_id' => $me['id'], 'body' => mb_substr($body, 0, 4000), 'created_at' => now()]);
-        q('UPDATE conversations SET seller_unread = seller_unread + 1, last_message_at = ? WHERE id = ?', [now(), $convId]);
-        if (setting('notify_new_message') === '1' && $seller) {
-            send_mail($seller['email'], 'New message about "' . $l['title'] . '"',
-                "Hi {$seller['name']},\n\n{$me['name']} sent you a message about your ad \"{$l['title']}\":\n\n$body\n\nReply here: " . full_url('dashboard/messages.php?c=' . $convId) . "\n\n— " . setting('site_name'));
+        require_verified_email(ltrim(substr(listing_url($l), strlen(BASE_PATH)), '/'));
+        $res = post_message($id, $me, (string) ($_POST['body'] ?? ''));
+        if (is_string($res)) {
+            flash('error', $res);
+            header('Location: ' . listing_url($l) . '#contact');
+            exit;
         }
         flash('success', 'Message sent! You can follow the conversation in your inbox.');
-        redirect('dashboard/messages.php?c=' . $convId);
+        redirect('dashboard/messages.php?c=' . $res);
     }
     if ($action === 'report') {
         $reason = input('reason');
@@ -52,11 +43,12 @@ if (is_post()) {
         db_insert('reports', ['listing_id' => $id, 'user_id' => $me['id'], 'reason' => $reason,
             'details' => mb_substr(input('details'), 0, 2000), 'status' => 'open', 'created_at' => now()]);
         flash('success', 'Thanks for letting us know. Our team will review this ad.');
-        redirect('listing.php?id=' . $id);
     }
-    redirect('listing.php?id=' . $id);
+    header('Location: ' . listing_url($l));
+    exit;
 }
 
+remember_view($id);
 if (!$canManage && empty($_SESSION['viewed'][$id])) {
     $_SESSION['viewed'][$id] = 1;
     q('UPDATE listings SET views = views + 1 WHERE id = ?', [$id]);
@@ -74,19 +66,46 @@ $favs = favorite_ids();
 $isFav = isset($favs[$id]);
 $showPhone = $l['show_phone'] && $l['phone'] !== '' && ($me || setting('show_phone_to_guests') === '1');
 $tags = array_filter(array_map('trim', explode(',', (string) $l['tags'])));
-$shareUrl = full_url('listing.php?id=' . $id);
+$shareUrl = abs_url(listing_url($l));
+$fieldValues = listing_field_values($id);
+$specFields = [];
+foreach (fields_for_category((int) $l['category_id']) as $fid => $f) {
+    if (isset($fieldValues[$fid]) && $fieldValues[$fid] !== '') {
+        $specFields[] = [$f['label'], format_field_value($f, $fieldValues[$fid])];
+    }
+}
+$blockedByMe = $me && is_blocked((int) $me['id'], (int) $l['user_id']);
+$blockedMe = $me && is_blocked((int) $l['user_id'], (int) $me['id']);
 $tips = array_filter(array_map('trim', explode("\n", setting('safety_tips'))));
 
 $pageTitle = $l['title'];
 $metaDesc = excerpt((string) $l['description'], 160);
-$ogImage = $images ? full_url($images[0]['path']) : null;
+$canonical = $shareUrl;
+$ogType = 'product';
+if (setting('share_cards') === '1' && function_exists('imagecreatetruecolor')) {
+    $ogImage = abs_url(clean_urls() ? url('ad/' . $id . '/card.jpg') : url('share-card.php?id=' . $id));
+    $ogImageSize = [1200, 630];
+} else {
+    $ogImage = $images ? abs_url(url($images[0]['path'])) : null;
+}
+$jsonLd = [
+    '@context' => 'https://schema.org', '@type' => 'Product', 'name' => $l['title'],
+    'description' => excerpt((string) $l['description'], 300), 'url' => $shareUrl,
+    'image' => array_map(fn($i) => abs_url(url($i['path'])), array_slice($images, 0, 5)),
+    'category' => $cat['name'] ?? null,
+];
+if (in_array($l['price_type'], ['fixed', 'negotiable'], true)) {
+    $jsonLd['offers'] = ['@type' => 'Offer', 'price' => number_format((float) $l['price'], 2, '.', ''), 'priceCurrency' => setting('currency_code', 'USD'),
+        'availability' => $l['status'] === 'sold' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock', 'url' => $shareUrl];
+    $ogPrice = number_format((float) $l['price'], 2, '.', '');
+}
 require __DIR__ . '/includes/header.php';
 ?>
 <section class="container section-sm">
   <nav class="breadcrumb">
     <a href="<?= e(url()) ?>">Home</a><?= icon('chevron-right') ?>
-    <?php if ($parentCat): ?><a href="<?= e(url('listings.php?category=' . $parentCat['id'])) ?>"><?= e($parentCat['name']) ?></a><?= icon('chevron-right') ?><?php endif; ?>
-    <?php if ($cat): ?><a href="<?= e(url('listings.php?category=' . $cat['id'])) ?>"><?= e($cat['name']) ?></a><?= icon('chevron-right') ?><?php endif; ?>
+    <?php if ($parentCat): ?><a href="<?= e(category_url((int) $parentCat['id'])) ?>"><?= e($parentCat['name']) ?></a><?= icon('chevron-right') ?><?php endif; ?>
+    <?php if ($cat): ?><a href="<?= e(category_url((int) $cat['id'])) ?>"><?= e($cat['name']) ?></a><?= icon('chevron-right') ?><?php endif; ?>
     <span><?= e(excerpt($l['title'], 40)) ?></span>
   </nav>
 
@@ -141,6 +160,7 @@ require __DIR__ . '/includes/header.php';
         <dl class="spec-grid">
           <?php if ($cat): ?><div><dt>Category</dt><dd><?= e($cat['name']) ?></dd></div><?php endif; ?>
           <?php if ($l['item_condition']): ?><div><dt>Condition</dt><dd><?= e(condition_label($l['item_condition'])) ?></dd></div><?php endif; ?>
+          <?php foreach ($specFields as [$lbl, $val]): ?><div><dt><?= e($lbl) ?></dt><dd><?= e($val) ?></dd></div><?php endforeach; ?>
           <div><dt>Posted on</dt><dd><?= e(format_date($l['created_at'])) ?></dd></div>
           <div><dt>Ad ID</dt><dd>#<?= (int) $l['id'] ?></dd></div>
         </dl>
@@ -150,7 +170,7 @@ require __DIR__ . '/includes/header.php';
 
         <?php if ($tags): ?>
           <div class="tag-row">
-            <?php foreach ($tags as $t): ?><a class="tag" href="<?= e(url('listings.php?q=' . urlencode($t))) ?>">#<?= e($t) ?></a><?php endforeach; ?>
+            <?php foreach ($tags as $t): ?><a class="tag" href="<?= e(search_url(['q' => $t])) ?>">#<?= e($t) ?></a><?php endforeach; ?>
           </div>
         <?php endif; ?>
 
@@ -161,7 +181,8 @@ require __DIR__ . '/includes/header.php';
           <span class="share-links">
             <a href="https://www.facebook.com/sharer/sharer.php?u=<?= urlencode($shareUrl) ?>" target="_blank" rel="noopener" aria-label="Share on Facebook"><?= icon('facebook') ?></a>
             <a href="https://twitter.com/intent/tweet?url=<?= urlencode($shareUrl) ?>&text=<?= urlencode($l['title']) ?>" target="_blank" rel="noopener" aria-label="Share on X"><?= icon('twitter') ?></a>
-            <a href="https://wa.me/?text=<?= urlencode($l['title'] . ' ' . $shareUrl) ?>" target="_blank" rel="noopener" aria-label="Share on WhatsApp"><?= icon('whatsapp') ?></a>
+            <a href="https://wa.me/?text=<?= rawurlencode($l['title'] . ' – ' . listing_price($l) . "\n" . $shareUrl) ?>" target="_blank" rel="noopener" aria-label="Share on WhatsApp"><?= icon('whatsapp') ?></a>
+            <a href="https://t.me/share/url?url=<?= rawurlencode($shareUrl) ?>&text=<?= rawurlencode($l['title']) ?>" target="_blank" rel="noopener" aria-label="Share on Telegram"><?= icon('send') ?></a>
           </span>
         </div>
       </div>
@@ -191,7 +212,7 @@ require __DIR__ . '/includes/header.php';
       <?php endif; ?>
 
       <div class="card side-card seller-card">
-        <a class="seller-head" href="<?= e(url('profile.php?id=' . $l['user_id'])) ?>">
+        <a class="seller-head" href="<?= e(profile_url((int) $l['user_id'], $seller['username'] ?? null)) ?>">
           <?= avatar_html($seller, 'lg') ?>
           <span>
             <strong><?= e($seller['name'] ?? 'Unknown') ?><?php if (!empty($seller['verified'])): ?><span class="verified" title="Verified seller"><?= icon('shield') ?></span><?php endif; ?></strong>
@@ -199,7 +220,7 @@ require __DIR__ . '/includes/header.php';
             <?php if ($ratingCount): ?><span class="rating-line"><?= stars($rating) ?><small><?= $rating ?> (<?= $ratingCount ?>)</small></span><?php endif; ?>
           </span>
         </a>
-        <div class="seller-stats"><span><strong><?= $sellerAds ?></strong> active ads</span><a href="<?= e(url('profile.php?id=' . $l['user_id'])) ?>">View profile<?= icon('arrow-right') ?></a></div>
+        <div class="seller-stats"><span><strong><?= $sellerAds ?></strong> active ads</span><a href="<?= e(profile_url((int) $l['user_id'], $seller['username'] ?? null)) ?>">View profile<?= icon('arrow-right') ?></a></div>
 
         <?php if ($l['show_phone'] && $l['phone'] !== ''): ?>
           <?php if ($showPhone): ?>
@@ -211,7 +232,9 @@ require __DIR__ . '/includes/header.php';
           <?php endif; ?>
         <?php endif; ?>
 
-        <?php if (!$isOwner): ?>
+        <?php if (!$isOwner && ($blockedByMe || $blockedMe)): ?>
+          <p class="muted small blocked-note" id="contact"><?= icon('ban') ?><?= $blockedByMe ? 'You blocked this seller. Unblock them from your account settings to send messages.' : 'This seller is not accepting messages from you.' ?></p>
+        <?php elseif (!$isOwner): ?>
           <form method="post" class="contact-form" id="contact">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="message">
@@ -240,7 +263,7 @@ require __DIR__ . '/includes/header.php';
 
   <?php if ($related): ?>
     <div class="section-head mt-xl"><div><h2>Similar ads</h2></div>
-      <?php if ($cat): ?><a class="link-arrow" href="<?= e(url('listings.php?category=' . $cat['id'])) ?>">More in <?= e($cat['name']) ?><?= icon('arrow-right') ?></a><?php endif; ?></div>
+      <?php if ($cat): ?><a class="link-arrow" href="<?= e(category_url((int) $cat['id'])) ?>">More in <?= e($cat['name']) ?><?= icon('arrow-right') ?></a><?php endif; ?></div>
     <div class="listing-grid">
       <?php foreach ($related as $l) { include __DIR__ . '/includes/partials/listing-card.php'; } ?>
     </div>

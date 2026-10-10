@@ -31,15 +31,49 @@ $groups = [
         ['enable_reviews', 'Allow seller reviews', 'toggle'],
         ['show_phone_to_guests', 'Show phone numbers to visitors who are not signed in', 'toggle'],
         ['enable_map', 'Show a map on ad pages', 'toggle'],
-        ['notify_new_message', 'Email users when they get a new message', 'toggle'],
+        ['enable_saved_searches', 'Let members save searches and get email alerts', 'toggle'],
         ['currency_symbol', 'Currency symbol', 'text'],
+        ['currency_code', 'Currency code (ISO, for Google)', 'text', 'e.g. USD, EUR, BDT, INR, AED'],
         ['currency_position', 'Currency position', 'select', '', ['before' => 'Before amount ($100)', 'after' => 'After amount (100 $)']],
         ['currency_decimals', 'Decimals', 'select', '', ['0' => '0 (100)', '2' => '2 (100.00)']],
         ['listings_per_page', 'Ads per page', 'number'],
         ['listing_expiry_days', 'Ads expire after (days)', 'number', '0 = never expire.'],
         ['max_images', 'Max photos per ad', 'number'],
+        ['max_ads_per_day', 'Max new ads per member per day', 'number', 'Stops spam floods. 0 = unlimited. Admins are never limited.'],
         ['max_image_mb', 'Max photo size (MB)', 'number', 'Server limit: ' . ini_get('upload_max_filesize') . ' per file, ' . ini_get('post_max_size') . ' per request.'],
         ['safety_tips', 'Safety tips (one per line)', 'textarea'],
+    ]],
+    'accounts' => ['Sign-up & login', 'user', [
+        ['require_email_verification', 'Members must confirm their email before posting ads or sending messages', 'toggle'],
+        ['_note_verify', '', 'info', 'Make sure emails are delivered first (Admin → Emails & SMTP → Send test). Existing members are already treated as confirmed.'],
+        ['social_login', 'Enable social login buttons', 'toggle'],
+        ['google_login', 'Sign in with Google', 'toggle'],
+        ['google_client_id', 'Google Client ID', 'text'],
+        ['google_client_secret', 'Google Client secret', 'secret'],
+        ['_note_google', '', 'info', 'Create credentials at console.cloud.google.com → APIs & Services → Credentials → OAuth client ID (Web application). Authorised redirect URI: ' . full_url('oauth.php?provider=google')],
+        ['facebook_login', 'Sign in with Facebook', 'toggle'],
+        ['facebook_app_id', 'Facebook App ID', 'text'],
+        ['facebook_app_secret', 'Facebook App secret', 'secret'],
+        ['_note_facebook', '', 'info', 'Create an app at developers.facebook.com → Facebook Login. Valid OAuth redirect URI: ' . full_url('oauth.php?provider=facebook')],
+    ]],
+    'security' => ['Spam protection', 'shield', [
+        ['captcha_provider', 'Captcha', 'select', 'Free keys: google.com/recaptcha (choose v2 “I’m not a robot”) or dash.cloudflare.com → Turnstile.', ['none' => 'Off', 'recaptcha' => 'Google reCAPTCHA v2', 'turnstile' => 'Cloudflare Turnstile']],
+        ['captcha_site_key', 'Site key', 'text'],
+        ['captcha_secret_key', 'Secret key', 'secret'],
+        ['captcha_on_register', 'Use captcha on sign-up', 'toggle'],
+        ['captcha_on_post', 'Use captcha when posting an ad', 'toggle'],
+        ['captcha_on_contact', 'Use captcha on the contact form', 'toggle'],
+        ['captcha_on_forgot', 'Use captcha on “forgot password”', 'toggle'],
+        ['captcha_on_login', 'Use captcha on sign-in', 'toggle'],
+        ['banned_words', 'Banned words & phrases', 'textarea', 'One per line (or comma separated). Checked in ads, messages, reviews and names. Whole words only, not case-sensitive.'],
+        ['banned_words_action', 'When an ad contains a banned word', 'select', '', ['review' => 'Send it to admin review (pending)', 'block' => 'Block it and ask the seller to edit']],
+    ]],
+    'seo' => ['SEO, URLs & app', 'globe', [
+        ['clean_urls', 'Clean URLs (e.g. /ad/12-iphone-15 instead of listing.php?id=12)', 'toggle', 'Needs Apache/LiteSpeed with mod_rewrite (most hosts) — we test it before switching on. On Nginx add the rule from README.'],
+        ['share_cards', 'Generate share images for ads (WhatsApp, Facebook, X previews)', 'toggle'],
+        ['pwa_enabled', 'Installable app (PWA) — “Add to home screen” and offline page', 'toggle'],
+        ['pwa_short_name', 'App name on the home screen', 'text', 'Short, up to 12 characters. Defaults to the site name.'],
+        ['_note_sitemap', '', 'info', 'Sitemap for Google Search Console: ' . abs_url(clean_urls() ? url('sitemap.xml') : url('sitemap.php'))],
     ]],
     'social' => ['Social', 'share', [
         ['social_facebook', 'Facebook URL', 'url'],
@@ -59,6 +93,9 @@ $groups = [
         ['mail_from', 'Send emails from', 'email', 'Leave blank to use no-reply@yourdomain.'],
         ['cookie_notice', 'Show cookie notice', 'toggle'],
         ['cookie_text', 'Cookie notice text', 'text'],
+        ['pseudo_cron', 'Run scheduled jobs automatically during visits', 'toggle', 'Expires old ads and sends saved-search alerts. For exact timing set up a real cron job instead (see below).'],
+        ['_note_cron', '', 'info', 'Cron job (every 15 minutes): php ' . APP_ROOT . '/cron.php — or URL: ' . full_url('cron.php?key=' . setting('cron_key'))],
+        ['activity_log_days', 'Keep the activity log for (days)', 'number', '0 = keep forever.'],
         ['maintenance_mode', 'Maintenance mode (only admins can use the site)', 'toggle'],
         ['maintenance_message', 'Maintenance message', 'textarea'],
     ]],
@@ -69,6 +106,17 @@ if (is_post()) {
     foreach ($groups as [, , $fields]) {
         foreach ($fields as $f) {
             [$key, , $type] = $f;
+            if ($type === 'info') {
+                continue;
+            }
+            if ($type === 'secret') {
+                if ((string) ($_POST[$key] ?? '') !== '') {
+                    $values[$key] = trim((string) $_POST[$key]);
+                } elseif (!empty($_POST['clear_' . $key])) {
+                    $values[$key] = '';
+                }
+                continue;
+            }
             if ($type === 'toggle') {
                 $values[$key] = empty($_POST[$key]) ? '0' : '1';
             } elseif ($type === 'image') {
@@ -102,7 +150,12 @@ if (is_post()) {
     if (isset($values['max_images'])) $values['max_images'] = (string) max(1, min(30, (int) $values['max_images']));
     if (isset($values['max_image_mb'])) $values['max_image_mb'] = (string) max(1, (int) $values['max_image_mb']);
     if (isset($values['site_name']) && $values['site_name'] === '') $values['site_name'] = 'Bazaarly';
+    if (setting('cron_key') === '') {
+        $values['cron_key'] = bin2hex(random_bytes(12));
+    }
+    $changed = array_keys(array_filter($values, fn($v, $k) => (string) setting($k) !== (string) $v && !str_contains($k, 'secret') && !str_contains($k, 'password'), ARRAY_FILTER_USE_BOTH));
     save_settings($values);
+    log_activity('settings.update', $changed ? 'Changed: ' . implode(', ', array_slice($changed, 0, 15)) : 'No changes');
     flash('success', 'Settings saved.');
     redirect('admin/settings.php' . (input('tab') ? '#' . preg_replace('/[^a-z]/', '', input('tab')) : ''));
 }
@@ -125,8 +178,16 @@ require APP_ROOT . '/includes/admin-top.php';
         <h2><?= e($label) ?></h2>
         <?php if ($gk === 'advanced'): ?><span id="maintenance"></span><?php endif; ?>
         <?php foreach ($fields as $f): [$key, $flabel, $type] = $f; $help = $f[3] ?? ''; $val = setting($key); ?>
-          <?php if ($type === 'toggle'): ?>
-            <label class="switch setting-toggle"><input type="checkbox" name="<?= $key ?>" value="1" <?= $val === '1' ? 'checked' : '' ?>><span class="switch-ui"></span><span><?= e($flabel) ?></span></label>
+          <?php if ($type === 'info'): ?>
+            <p class="setting-note"><?= icon('info') ?><span><?= e($help) ?></span></p>
+          <?php elseif ($type === 'secret'): ?>
+            <div class="field">
+              <label for="s-<?= $key ?>"><?= e($flabel) ?></label>
+              <input id="s-<?= $key ?>" type="password" name="<?= $key ?>" value="" autocomplete="new-password" placeholder="<?= $val !== '' ? '•••••••• saved — leave blank to keep' : 'Not set' ?>">
+              <?php if ($val !== ''): ?><label class="check small"><input type="checkbox" name="clear_<?= $key ?>" value="1"><span>Remove saved value</span></label><?php endif; ?>
+            </div>
+          <?php elseif ($type === 'toggle'): ?>
+            <label class="switch setting-toggle"><input type="checkbox" name="<?= $key ?>" value="1" <?= $val === '1' ? 'checked' : '' ?><?= $key === 'clean_urls' ? ' data-rewrite-test="' . e(url('rewrite-test')) . '"' : '' ?>><span class="switch-ui"></span><span><?= e($flabel) ?><?php if ($help): ?><small class="help block"><?= e($help) ?></small><?php endif; ?></span></label>
           <?php else: ?>
             <div class="field">
               <label for="s-<?= $key ?>"><?= e($flabel) ?></label>

@@ -18,6 +18,6 @@ require APP_ROOT . '/includes/dash-top.php';
   </div>
   <?= pagination_links($page, $pages) ?>
 <?php else: ?>
-  <div class="card empty-state"><?= icon('heart') ?><h3>No saved ads yet</h3><p>Tap the heart on any ad to save it for later.</p><a class="btn btn-primary" href="<?= e(url('listings.php')) ?>">Browse ads</a></div>
+  <div class="card empty-state"><?= icon('heart') ?><h3>No saved ads yet</h3><p>Tap the heart on any ad to save it for later.</p><a class="btn btn-primary" href="<?= e(search_url([])) ?>">Browse ads</a></div>
 <?php endif; ?>
 <?php require APP_ROOT . '/includes/dash-bottom.php';

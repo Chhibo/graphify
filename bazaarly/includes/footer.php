@@ -28,7 +28,7 @@ $socials = ['facebook', 'twitter', 'instagram', 'youtube', 'linkedin'];
       <h4>Categories</h4>
       <ul>
         <?php foreach ($footerCats as $id => $c): ?>
-          <li><a href="<?= e(url('listings.php?category=' . $id)) ?>"><?= e($c['name']) ?></a></li>
+          <li><a href="<?= e(category_url((int) $id)) ?>"><?= e($c['name']) ?></a></li>
         <?php endforeach; ?>
       </ul>
     </div>
@@ -36,7 +36,7 @@ $socials = ['facebook', 'twitter', 'instagram', 'youtube', 'linkedin'];
       <h4>Information</h4>
       <ul>
         <?php foreach ($footerPages as $p): ?>
-          <li><a href="<?= e(url('page.php?slug=' . $p['slug'])) ?>"><?= e($p['title']) ?></a></li>
+          <li><a href="<?= e(page_url($p['slug'])) ?>"><?= e($p['title']) ?></a></li>
         <?php endforeach; ?>
         <li><a href="<?= e(url('contact.php')) ?>">Contact us</a></li>
       </ul>
@@ -48,6 +48,7 @@ $socials = ['facebook', 'twitter', 'instagram', 'youtube', 'linkedin'];
         <li><a href="<?= e(url('dashboard/listings.php')) ?>">My ads</a></li>
         <li><a href="<?= e(url('dashboard/favorites.php')) ?>">Saved ads</a></li>
         <li><a href="<?= e(url('dashboard/messages.php')) ?>">Messages</a></li>
+        <li data-install-app hidden><a href="#" data-install-btn>Install the app</a></li>
       </ul>
     </div>
   </div>
@@ -58,11 +59,11 @@ $socials = ['facebook', 'twitter', 'instagram', 'youtube', 'linkedin'];
 </footer>
 <?php if (setting('cookie_notice') === '1'): ?>
 <div class="cookie-bar" id="cookieBar" hidden>
-  <p><?= e(setting('cookie_text')) ?> <a href="<?= e(url('page.php?slug=privacy')) ?>">Learn more</a></p>
+  <p><?= e(setting('cookie_text')) ?> <a href="<?= e(page_url('privacy')) ?>">Learn more</a></p>
   <button class="btn btn-primary btn-sm" type="button" data-cookie-accept>Got it</button>
 </div>
 <?php endif; ?>
-<script>window.BZR={base:<?= json_encode(BASE_PATH) ?>,csrf:<?= json_encode(csrf_token()) ?>};</script>
+<script>window.BZR={base:<?= json_encode(BASE_PATH) ?>,csrf:<?= json_encode(csrf_token()) ?>,pwa:<?= setting('pwa_enabled') === '1' ? 'true' : 'false' ?>};</script>
 <script src="<?= e(asset('js/app.js')) ?>" defer></script>
 </body>
 </html>

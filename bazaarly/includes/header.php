@@ -19,7 +19,17 @@ $current = basename($_SERVER['SCRIPT_NAME'] ?? '');
 <meta property="og:site_name" content="<?= e($siteName) ?>">
 <meta property="og:title" content="<?= e($title) ?>">
 <meta property="og:description" content="<?= e(excerpt($desc, 160)) ?>">
-<?php if (!empty($ogImage)): ?><meta property="og:image" content="<?= e($ogImage) ?>"><?php endif; ?>
+<meta property="og:type" content="<?= e($ogType ?? 'website') ?>">
+<meta property="og:url" content="<?= e($canonical ?? abs_url($_SERVER['REQUEST_URI'] ?? url())) ?>">
+<?php if (!empty($canonical)): ?><link rel="canonical" href="<?= e($canonical) ?>"><?php endif; ?>
+<?php if (!empty($ogImage)): ?><meta property="og:image" content="<?= e($ogImage) ?>">
+<?php if (!empty($ogImageSize)): ?><meta property="og:image:width" content="<?= (int) $ogImageSize[0] ?>"><meta property="og:image:height" content="<?= (int) $ogImageSize[1] ?>"><?php endif; ?>
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="<?= e($ogImage) ?>"><?php endif; ?>
+<meta name="twitter:title" content="<?= e($title) ?>">
+<?php if (!empty($ogPrice)): ?><meta property="product:price:amount" content="<?= e($ogPrice) ?>"><meta property="product:price:currency" content="<?= e(setting('currency_code', 'USD')) ?>"><?php endif; ?>
+<?php if (!empty($jsonLd)): ?><script type="application/ld+json"><?= json_encode(array_filter($jsonLd, fn($x) => $x !== null && $x !== []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?></script><?php endif; ?>
+<?php if (setting('pwa_enabled') === '1'): ?><link rel="manifest" href="<?= e(clean_urls() ? url('manifest.webmanifest') : url('manifest.php')) ?>">
+<link rel="apple-touch-icon" href="<?= e(url('icon.php?s=192')) ?>"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><?php endif; ?>
 <meta name="theme-color" content="<?= e($brand) ?>">
 <?php if (setting('favicon')): ?><link rel="icon" href="<?= e(upload_url(setting('favicon'))) ?>"><?php else: ?><link rel="icon" href="<?= e(asset('img/favicon.svg')) ?>" type="image/svg+xml"><?php endif; ?>
 <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
@@ -42,10 +52,10 @@ $current = basename($_SERVER['SCRIPT_NAME'] ?? '');
 
     <nav class="main-nav" id="mainNav" aria-label="Main">
       <a href="<?= e(url()) ?>" class="<?= $current === 'index.php' ? 'active' : '' ?>">Home</a>
-      <a href="<?= e(url('listings.php')) ?>" class="<?= $current === 'listings.php' ? 'active' : '' ?>">Browse ads</a>
+      <a href="<?= e(search_url([])) ?>" class="<?= $current === 'listings.php' ? 'active' : '' ?>">Browse ads</a>
       <a href="<?= e(url('categories.php')) ?>" class="<?= $current === 'categories.php' ? 'active' : '' ?>">Categories</a>
       <?php foreach ($headerPages as $hp): ?>
-        <a href="<?= e(url('page.php?slug=' . $hp['slug'])) ?>"><?= e($hp['title']) ?></a>
+        <a href="<?= e(page_url($hp['slug'])) ?>"><?= e($hp['title']) ?></a>
       <?php endforeach; ?>
       <a href="<?= e(url('contact.php')) ?>" class="<?= $current === 'contact.php' ? 'active' : '' ?>">Contact</a>
       <div class="mobile-only nav-mobile-extra">
@@ -67,6 +77,7 @@ $current = basename($_SERVER['SCRIPT_NAME'] ?? '');
             <a href="<?= e(url('dashboard/')) ?>"><?= icon('layout') ?>Dashboard</a>
             <a href="<?= e(url('dashboard/listings.php')) ?>"><?= icon('package') ?>My ads</a>
             <a href="<?= e(url('dashboard/favorites.php')) ?>"><?= icon('heart') ?>Saved ads</a>
+            <?php if (setting('enable_saved_searches', '1') === '1'): ?><a href="<?= e(url('dashboard/searches.php')) ?>"><?= icon('bell') ?>Saved searches</a><?php endif; ?>
             <a href="<?= e(url('dashboard/messages.php')) ?>"><?= icon('message') ?>Messages<?php if ($unread): ?><span class="badge badge-brand"><?= $unread ?></span><?php endif; ?></a>
             <a href="<?= e(url('dashboard/settings.php')) ?>"><?= icon('settings') ?>Account settings</a>
             <?php if ($me['role'] === 'admin'): ?><a href="<?= e(url('admin/')) ?>"><?= icon('shield') ?>Admin panel</a><?php endif; ?>
@@ -81,5 +92,11 @@ $current = basename($_SERVER['SCRIPT_NAME'] ?? '');
     </div>
   </div>
 </header>
+<?php if ($me && needs_email_verification($me)): ?>
+<div class="verify-bar"><div class="container">
+  <?= icon('mail') ?><span>Please confirm your email address (<strong><?= e($me['email']) ?></strong>) to post ads and send messages.</span>
+  <form method="post" action="<?= e(url('verify.php')) ?>"><?= csrf_field() ?><input type="hidden" name="action" value="resend"><button class="btn btn-sm btn-light" type="submit">Resend email</button></form>
+</div></div>
+<?php endif; ?>
 <main id="main">
 <?= render_flashes() ?>

@@ -1,52 +1,19 @@
 <?php
 require __DIR__ . '/includes/bootstrap.php';
 
-[$where, $params] = visible_listing_where();
-$q = input('q');
-$categoryId = (int) input('category');
-$location = input('location');
-$min = input('min');
-$max = input('max');
-$condition = input('condition');
-$posted = input('posted');
-$featuredOnly = input('featured') === '1';
+$search = listing_search($_GET);
+$v = $search['values'];
+$where = $search['where'];
+$params = $search['params'];
+$category = $search['category'];
+$categoryId = $v['category'];
 $sort = input('sort', 'newest');
 $view = input('view') === 'list' ? 'list' : 'grid';
 
-if ($q !== '') {
-    $where .= ' AND (l.title LIKE ? OR l.description LIKE ? OR l.tags LIKE ?)';
-    $like = '%' . $q . '%';
-    array_push($params, $like, $like, $like);
+if (!$category && input('category_slug') !== '') {
+    not_found('This category does not exist.');
 }
-$category = $categoryId ? (categories_all()[$categoryId] ?? null) : null;
-if ($category) {
-    $ids = category_ids_with_children($categoryId);
-    $where .= ' AND l.category_id IN (' . implode(',', array_map('intval', $ids)) . ')';
-}
-if ($location !== '') {
-    $where .= ' AND l.location LIKE ?';
-    $params[] = '%' . $location . '%';
-}
-if ($min !== '' && is_numeric($min)) {
-    $where .= " AND l.price >= ? AND l.price_type IN ('fixed','negotiable')";
-    $params[] = (float) $min;
-}
-if ($max !== '' && is_numeric($max)) {
-    $where .= " AND l.price <= ? AND l.price_type <> 'contact'";
-    $params[] = (float) $max;
-}
-if (in_array($condition, ['new', 'like_new', 'used', 'refurbished'], true)) {
-    $where .= ' AND l.item_condition = ?';
-    $params[] = $condition;
-}
-$postedMap = ['today' => 1, 'week' => 7, 'month' => 30];
-if (isset($postedMap[$posted])) {
-    $where .= ' AND l.created_at >= ?';
-    $params[] = date('Y-m-d H:i:s', time() - $postedMap[$posted] * 86400);
-}
-if ($featuredOnly) {
-    $where .= ' AND l.featured = 1';
-}
+
 $orders = [
     'newest' => 'l.featured DESC, l.created_at DESC',
     'oldest' => 'l.created_at ASC',
@@ -63,55 +30,92 @@ $rows = q_all(listing_select() . " WHERE $where ORDER BY $order LIMIT $perPage O
 
 $tree = category_tree();
 $counts = category_counts();
-$activeFilters = array_filter([$q, $categoryId ?: '', $location, $min, $max, $condition, $posted, $featuredOnly ? '1' : '']);
+$activeFilters = $search['active'];
+$query = search_query($v);
+$listMode = location_list_mode();
+$filterFields = array_filter($search['fields'], fn($f) => $f['filterable']);
+$savedOn = setting('enable_saved_searches', '1') === '1';
+$alreadySaved = $savedOn && is_logged_in() && $query
+    ? (bool) q_val('SELECT id FROM saved_searches WHERE user_id = ? AND query = ?', [user_id(), http_build_query($query)])
+    : false;
 
-$heading = $category ? $category['name'] : ($q !== '' ? 'Results for “' . $q . '”' : 'All ads');
+$heading = $category ? $category['name'] : ($v['q'] !== '' ? 'Results for “' . $v['q'] . '”' : 'All ads');
 $pageTitle = $heading;
+if ($category && $category['description']) {
+    $metaDesc = $category['description'];
+}
 require __DIR__ . '/includes/header.php';
 
-function qs_with(array $changes): string
-{
-    $qs = array_merge($_GET, $changes);
-    unset($qs['page']);
-    return '?' . http_build_query(array_filter($qs, fn($v) => $v !== '' && $v !== null));
-}
+$qs = function (array $changes) use ($query, $sort, $view): string {
+    $all = array_merge($query, ['sort' => $sort === 'newest' ? '' : $sort, 'view' => $view === 'grid' ? '' : $view], $changes);
+    return search_url($all);
+};
 ?>
 <section class="container section-sm">
-  <nav class="breadcrumb"><a href="<?= e(url()) ?>">Home</a><?= icon('chevron-right') ?><a href="<?= e(url('listings.php')) ?>">Ads</a>
+  <nav class="breadcrumb"><a href="<?= e(url()) ?>">Home</a><?= icon('chevron-right') ?><a href="<?= e(search_url([])) ?>">Ads</a>
+    <?php if ($category && (int) $category['parent_id'] && isset($tree[(int) $category['parent_id']])): ?><?= icon('chevron-right') ?><a href="<?= e(category_url((int) $category['parent_id'])) ?>"><?= e($tree[(int) $category['parent_id']]['name']) ?></a><?php endif; ?>
     <?php if ($category): ?><?= icon('chevron-right') ?><span><?= e($category['name']) ?></span><?php endif; ?></nav>
 
   <div class="browse-layout">
     <aside class="filters" id="filters">
-      <form method="get" class="card filter-card">
+      <form method="get" action="<?= e(url('listings.php')) ?>" class="card filter-card">
         <div class="filter-head"><h2><?= icon('filter') ?>Filters</h2>
-          <?php if ($activeFilters): ?><a class="small-link" href="<?= e(url('listings.php')) ?>">Clear all</a><?php endif; ?>
+          <?php if ($activeFilters): ?><a class="small-link" href="<?= e(search_url([])) ?>">Clear all</a><?php endif; ?>
           <button type="button" class="icon-btn mobile-only" data-close-filters aria-label="Close filters"><?= icon('x') ?></button>
         </div>
         <div class="field">
           <label for="f-q">Keyword</label>
-          <div class="input-icon"><?= icon('search') ?><input id="f-q" type="search" name="q" value="<?= e($q) ?>" placeholder="e.g. iPhone, sofa"></div>
+          <div class="input-icon suggest-wrap"><?= icon('search') ?><input id="f-q" type="search" name="q" value="<?= e($v['q']) ?>" placeholder="e.g. iPhone, sofa" autocomplete="off" data-suggest></div>
         </div>
         <div class="field">
           <label for="f-cat">Category</label>
-          <select id="f-cat" name="category"><option value="">All categories</option><?= category_options($categoryId) ?></select>
+          <select id="f-cat" name="category" data-autosubmit><option value="">All categories</option><?= category_options($categoryId) ?></select>
         </div>
         <div class="field">
           <label for="f-loc">Location</label>
-          <div class="input-icon"><?= icon('map-pin') ?><input id="f-loc" type="text" name="location" value="<?= e($location) ?>" placeholder="City or area"></div>
+          <?php if ($listMode): ?>
+            <select id="f-loc" name="loc"><option value="">Everywhere</option><?= location_options($v['loc']) ?></select>
+          <?php else: ?>
+            <div class="input-icon"><?= icon('map-pin') ?><input id="f-loc" type="text" name="location" value="<?= e($v['location']) ?>" placeholder="City or area"></div>
+          <?php endif; ?>
         </div>
         <div class="field">
           <label>Price (<?= e(setting('currency_symbol')) ?>)</label>
           <div class="range-row">
-            <input type="number" name="min" min="0" step="any" value="<?= e($min) ?>" placeholder="Min" aria-label="Minimum price">
+            <input type="number" name="min" min="0" step="any" value="<?= e($v['min']) ?>" placeholder="Min" aria-label="Minimum price">
             <span>–</span>
-            <input type="number" name="max" min="0" step="any" value="<?= e($max) ?>" placeholder="Max" aria-label="Maximum price">
+            <input type="number" name="max" min="0" step="any" value="<?= e($v['max']) ?>" placeholder="Max" aria-label="Maximum price">
           </div>
         </div>
+
+        <?php foreach ($filterFields as $fid => $f): ?>
+          <div class="field">
+            <?php if ($f['type'] === 'number'): ?>
+              <label><?= e($f['label']) ?><?= $f['unit'] !== '' ? ' <small class="muted">(' . e($f['unit']) . ')</small>' : '' ?></label>
+              <div class="range-row">
+                <input type="number" step="any" name="fmin[<?= $fid ?>]" value="<?= e($v['fmin'][$fid] ?? '') ?>" placeholder="Min" aria-label="<?= e($f['label']) ?> minimum">
+                <span>–</span>
+                <input type="number" step="any" name="fmax[<?= $fid ?>]" value="<?= e($v['fmax'][$fid] ?? '') ?>" placeholder="Max" aria-label="<?= e($f['label']) ?> maximum">
+              </div>
+            <?php elseif ($f['type'] === 'select'): ?>
+              <label for="ff<?= $fid ?>"><?= e($f['label']) ?></label>
+              <select id="ff<?= $fid ?>" name="f[<?= $fid ?>]"><option value="">Any</option>
+                <?php foreach (field_options($f) as $o): ?><option <?= ($v['f'][$fid] ?? '') === $o ? 'selected' : '' ?>><?= e($o) ?></option><?php endforeach; ?>
+              </select>
+            <?php elseif ($f['type'] === 'checkbox'): ?>
+              <label class="check"><input type="checkbox" name="f[<?= $fid ?>]" value="1" <?= !empty($v['f'][$fid]) ? 'checked' : '' ?>><span><?= e($f['label']) ?></span></label>
+            <?php else: ?>
+              <label for="ff<?= $fid ?>"><?= e($f['label']) ?></label>
+              <input id="ff<?= $fid ?>" name="f[<?= $fid ?>]" value="<?= e($v['f'][$fid] ?? '') ?>">
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
+
         <div class="field">
           <label>Condition</label>
           <div class="pill-options">
             <?php foreach (['' => 'Any', 'new' => 'New', 'like_new' => 'Like new', 'used' => 'Used', 'refurbished' => 'Refurbished'] as $val => $lbl): ?>
-              <label class="pill-opt"><input type="radio" name="condition" value="<?= e($val) ?>" <?= $condition === $val ? 'checked' : '' ?>><span><?= e($lbl) ?></span></label>
+              <label class="pill-opt"><input type="radio" name="condition" value="<?= e($val) ?>" <?= $v['condition'] === $val ? 'checked' : '' ?>><span><?= e($lbl) ?></span></label>
             <?php endforeach; ?>
           </div>
         </div>
@@ -119,13 +123,13 @@ function qs_with(array $changes): string
           <label>Date posted</label>
           <div class="pill-options">
             <?php foreach (['' => 'Any time', 'today' => 'Today', 'week' => 'This week', 'month' => 'This month'] as $val => $lbl): ?>
-              <label class="pill-opt"><input type="radio" name="posted" value="<?= e($val) ?>" <?= $posted === $val ? 'checked' : '' ?>><span><?= e($lbl) ?></span></label>
+              <label class="pill-opt"><input type="radio" name="posted" value="<?= e($val) ?>" <?= $v['posted'] === $val ? 'checked' : '' ?>><span><?= e($lbl) ?></span></label>
             <?php endforeach; ?>
           </div>
         </div>
-        <label class="check"><input type="checkbox" name="featured" value="1" <?= $featuredOnly ? 'checked' : '' ?>><span>Featured ads only</span></label>
-        <input type="hidden" name="sort" value="<?= e($sort) ?>">
-        <input type="hidden" name="view" value="<?= e($view) ?>">
+        <label class="check"><input type="checkbox" name="featured" value="1" <?= $v['featured'] ? 'checked' : '' ?>><span>Featured ads only</span></label>
+        <?php if ($sort !== 'newest'): ?><input type="hidden" name="sort" value="<?= e($sort) ?>"><?php endif; ?>
+        <?php if ($view !== 'grid'): ?><input type="hidden" name="view" value="<?= e($view) ?>"><?php endif; ?>
         <button class="btn btn-primary btn-block" type="submit">Show results</button>
       </form>
 
@@ -134,7 +138,7 @@ function qs_with(array $changes): string
         <h3>Categories</h3>
         <ul class="cat-list">
           <?php foreach ($tree as $id => $c): ?>
-            <li><a href="<?= e(qs_with(['category' => $id])) ?>"><?= icon($c['icon']) ?><span><?= e($c['name']) ?></span><small><?= $counts[$id] ?? 0 ?></small></a></li>
+            <li><a href="<?= e($qs(['category' => $id, 'f' => [], 'fmin' => [], 'fmax' => []])) ?>"><?= icon($c['icon']) ?><span><?= e($c['name']) ?></span><small><?= $counts[$id] ?? 0 ?></small></a></li>
           <?php endforeach; ?>
         </ul>
       </div>
@@ -143,7 +147,7 @@ function qs_with(array $changes): string
         <h3><?= e($category['name']) ?></h3>
         <ul class="cat-list">
           <?php foreach ($tree[$categoryId]['children'] as $cid => $ch): ?>
-            <li><a href="<?= e(qs_with(['category' => $cid])) ?>"><?= icon($ch['icon']) ?><span><?= e($ch['name']) ?></span><small><?= $counts[$cid] ?? 0 ?></small></a></li>
+            <li><a href="<?= e($qs(['category' => $cid])) ?>"><?= icon($ch['icon']) ?><span><?= e($ch['name']) ?></span><small><?= $counts[$cid] ?? 0 ?></small></a></li>
           <?php endforeach; ?>
         </ul>
       </div>
@@ -155,13 +159,23 @@ function qs_with(array $changes): string
       <div class="results-bar">
         <div>
           <h1 class="results-title"><?= e($heading) ?></h1>
-          <p class="muted"><?= number_format($total) ?> ad<?= $total === 1 ? '' : 's' ?> found</p>
+          <p class="muted"><?= number_format($total) ?> ad<?= $total === 1 ? '' : 's' ?> found<?= $activeFilters ? ' · ' . e(search_summary($v)) : '' ?></p>
         </div>
         <div class="results-tools">
-          <button class="btn btn-ghost mobile-only" type="button" data-open-filters><?= icon('filter') ?>Filters<?php if ($activeFilters): ?><span class="badge badge-brand"><?= count($activeFilters) ?></span><?php endif; ?></button>
-          <form method="get" class="sort-form">
-            <?php foreach ($_GET as $k => $v): if (in_array($k, ['sort', 'page'], true) || !is_string($v)) continue; ?>
-              <input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>">
+          <button class="btn btn-ghost mobile-only" type="button" data-open-filters><?= icon('filter') ?>Filters<?php if ($activeFilters): ?><span class="badge badge-brand"><?= $activeFilters ?></span><?php endif; ?></button>
+          <?php if ($savedOn && $query): ?>
+            <?php if ($alreadySaved): ?>
+              <a class="btn btn-ghost" href="<?= e(url('dashboard/searches.php')) ?>" title="Saved"><?= icon('check') ?><span class="hide-xs">Saved</span></a>
+            <?php else: ?>
+              <form method="post" action="<?= e(url('dashboard/searches.php')) ?>">
+                <?= csrf_field() ?><input type="hidden" name="action" value="save"><input type="hidden" name="query" value="<?= e(http_build_query($query)) ?>"><input type="hidden" name="name" value="<?= e($heading) ?>">
+                <button class="btn btn-ghost" type="submit" title="Get an email when new ads match"><?= icon('bell') ?><span class="hide-xs">Save search</span></button>
+              </form>
+            <?php endif; ?>
+          <?php endif; ?>
+          <form method="get" action="<?= e(url('listings.php')) ?>" class="sort-form">
+            <?php foreach (explode('&', http_build_query($query + ($view !== 'grid' ? ['view' => $view] : []))) as $pair): if ($pair === '') continue; [$k, $val] = array_pad(explode('=', $pair, 2), 2, ''); ?>
+              <input type="hidden" name="<?= e(urldecode($k)) ?>" value="<?= e(urldecode($val)) ?>">
             <?php endforeach; ?>
             <select name="sort" aria-label="Sort by" data-autosubmit>
               <?php foreach (['newest' => 'Newest first', 'oldest' => 'Oldest first', 'price_asc' => 'Price: low to high', 'price_desc' => 'Price: high to low', 'popular' => 'Most viewed'] as $k => $lbl): ?>
@@ -170,8 +184,8 @@ function qs_with(array $changes): string
             </select>
           </form>
           <div class="seg">
-            <a href="<?= e(qs_with(['view' => 'grid'])) ?>" class="<?= $view === 'grid' ? 'on' : '' ?>" aria-label="Grid view"><?= icon('grid') ?></a>
-            <a href="<?= e(qs_with(['view' => 'list'])) ?>" class="<?= $view === 'list' ? 'on' : '' ?>" aria-label="List view"><?= icon('list') ?></a>
+            <a href="<?= e($qs(['view' => ''])) ?>" class="<?= $view === 'grid' ? 'on' : '' ?>" aria-label="Grid view"><?= icon('grid') ?></a>
+            <a href="<?= e($qs(['view' => 'list'])) ?>" class="<?= $view === 'list' ? 'on' : '' ?>" aria-label="List view"><?= icon('list') ?></a>
           </div>
         </div>
       </div>
@@ -182,7 +196,7 @@ function qs_with(array $changes): string
         </div>
         <?= pagination_links($page, $pages) ?>
       <?php else: ?>
-        <div class="empty-state"><?= icon('search') ?><h3>No ads match your search</h3><p>Try removing a filter or searching for something broader.</p><a class="btn btn-ghost" href="<?= e(url('listings.php')) ?>">Reset filters</a></div>
+        <div class="empty-state"><?= icon('search') ?><h3>No ads match your search</h3><p>Try removing a filter or searching for something broader.<?= $savedOn && $query && !$alreadySaved ? ' Or save this search and we\'ll email you when something turns up.' : '' ?></p><a class="btn btn-ghost" href="<?= e(search_url([])) ?>">Reset filters</a></div>
       <?php endif; ?>
     </div>
   </div>

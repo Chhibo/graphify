@@ -1,21 +1,44 @@
 <?php
 require __DIR__ . '/includes/bootstrap.php';
 
-$id = (int) input('id');
-$seller = q_one("SELECT * FROM users WHERE id = ?", [$id]);
+$seller = input('username') !== ''
+    ? q_one('SELECT * FROM users WHERE username = ?', [input('username')])
+    : q_one('SELECT * FROM users WHERE id = ?', [(int) input('id')]);
+$id = (int) ($seller['id'] ?? 0);
 if (!$seller || ($seller['status'] !== 'active' && !is_admin())) {
     not_found('This member could not be found.');
 }
 $me = current_user();
 $reviewsOn = setting('enable_reviews') === '1';
 
+$selfUrl = profile_url($id, $seller['username'] ?? null);
+if (is_post() && $me && in_array(input('action'), ['block', 'unblock'], true) && (int) $me['id'] !== $id) {
+    if (input('action') === 'block') {
+        if (!is_blocked((int) $me['id'], $id)) {
+            db_insert('user_blocks', ['user_id' => $me['id'], 'blocked_id' => $id, 'created_at' => now()]);
+        }
+        flash('success', $seller['name'] . ' is blocked and can no longer message you.');
+    } else {
+        q('DELETE FROM user_blocks WHERE user_id = ? AND blocked_id = ?', [$me['id'], $id]);
+        flash('success', $seller['name'] . ' is unblocked.');
+    }
+    header('Location: ' . $selfUrl);
+    exit;
+}
 if (is_post() && input('action') === 'review' && $reviewsOn) {
     if (!$me) {
         redirect('login.php');
     }
+    require_verified_email();
+    if (($bad = find_banned_word(input('comment'))) !== null && $me['role'] !== 'admin') {
+        flash('error', 'Your review contains a word or phrase that is not allowed (“' . $bad . '”).');
+        header('Location: ' . $selfUrl . '#reviews');
+        exit;
+    }
     if ((int) $me['id'] === $id) {
         flash('error', 'You cannot review yourself.');
-        redirect('profile.php?id=' . $id);
+        header('Location: ' . $selfUrl);
+        exit;
     }
     $rating = max(1, min(5, (int) input('rating')));
     $comment = mb_substr(input('comment'), 0, 1000);
@@ -27,7 +50,8 @@ if (is_post() && input('action') === 'review' && $reviewsOn) {
         db_insert('reviews', ['seller_id' => $id, 'reviewer_id' => $me['id'], 'rating' => $rating, 'comment' => $comment, 'created_at' => now()]);
         flash('success', 'Thanks for your review!');
     }
-    redirect('profile.php?id=' . $id . '#reviews');
+    header('Location: ' . $selfUrl . '#reviews');
+    exit;
 }
 
 [$where, $params] = visible_listing_where();
@@ -56,6 +80,12 @@ require __DIR__ . '/includes/header.php';
         <?php if ($ratingCount): ?><span><?= stars($rating) ?><?= $rating ?> · <?= $ratingCount ?> review<?= $ratingCount > 1 ? 's' : '' ?></span><?php endif; ?>
       </div>
     </div>
+    <?php if ($me && (int) $me['id'] !== $id): $iBlocked = is_blocked((int) $me['id'], $id); ?>
+      <form method="post" class="profile-block" <?= $iBlocked ? '' : 'data-confirm="Block this member? They won\'t be able to message you."' ?>>
+        <?= csrf_field() ?><input type="hidden" name="action" value="<?= $iBlocked ? 'unblock' : 'block' ?>">
+        <button class="btn btn-ghost btn-sm<?= $iBlocked ? '' : ' danger' ?>" type="submit"><?= icon('ban') ?><?= $iBlocked ? 'Unblock' : 'Block' ?></button>
+      </form>
+    <?php endif; ?>
     <div class="profile-stats">
       <div><strong><?= $total ?></strong><span>Active ads</span></div>
       <div><strong><?= $sold ?></strong><span>Sold</span></div>

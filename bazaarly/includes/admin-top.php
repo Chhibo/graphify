@@ -13,6 +13,8 @@ $adminNav = [
     'Marketplace' => [
         'listings' => ['admin/listings.php', 'package', 'Ads'],
         'categories' => ['admin/categories.php', 'folder', 'Categories'],
+        'locations' => ['admin/locations.php', 'map-pin', 'Locations'],
+        'import' => ['admin/import.php', 'upload', 'Import ads (CSV)'],
         'reports' => ['admin/reports.php', 'flag', 'Reports'],
         'reviews' => ['admin/reviews.php', 'star', 'Reviews'],
     ],
@@ -22,7 +24,12 @@ $adminNav = [
     ],
     'Website' => [
         'pages' => ['admin/pages.php', 'file', 'Pages'],
+        'emails' => ['admin/emails.php', 'mail', 'Emails & SMTP'],
         'settings' => ['admin/settings.php', 'settings', 'Settings'],
+    ],
+    'System' => [
+        'activity' => ['admin/activity.php', 'activity', 'Activity log'],
+        'backup' => ['admin/backup.php', 'database', 'Backup'],
     ],
 ];
 $brand = valid_color(setting('primary_color'), '#0d9488');
@@ -44,11 +51,11 @@ $brand = valid_color(setting('primary_color'), '#0d9488');
   <aside class="admin-side" id="adminSide">
     <a class="admin-logo" href="<?= e(url('admin/')) ?>"><span class="logo-mark"><?= icon('store') ?></span><span><?= e(setting('site_name')) ?><small>Admin</small></span></a>
     <nav>
-      <?php foreach ($adminNav as $group => $items): ?>
-        <div class="admin-nav-group"><?= e($group) ?></div>
-        <?php foreach ($items as $key => [$href, $ic, $label]): ?>
-          <a href="<?= e(url($href)) ?>" class="<?= ($adminActive ?? '') === $key ? 'active' : '' ?>"><?= icon($ic) ?><span><?= e($label) ?></span>
-            <?php if (!empty($badges[$key])): ?><span class="nav-count"><?= $badges[$key] ?></span><?php endif; ?></a>
+      <?php foreach ($adminNav as $_navGroup => $_navItems): ?>
+        <div class="admin-nav-group"><?= e($_navGroup) ?></div>
+        <?php foreach ($_navItems as $_navKey => [$_navHref, $_navIcon, $_navLabel]): ?>
+          <a href="<?= e(url($_navHref)) ?>" class="<?= ($adminActive ?? '') === $_navKey ? 'active' : '' ?>"><?= icon($_navIcon) ?><span><?= e($_navLabel) ?></span>
+            <?php if (!empty($badges[$_navKey])): ?><span class="nav-count"><?= $badges[$_navKey] ?></span><?php endif; ?></a>
         <?php endforeach; ?>
       <?php endforeach; ?>
     </nav>

@@ -5,6 +5,7 @@ require_admin();
 if (is_post()) {
     $id = (int) input('id');
     if (input('action') === 'delete') {
+        log_activity('contact.delete', 'Contact message #' . $id, 'contact', $id);
         q('DELETE FROM contact_messages WHERE id = ?', [$id]);
         flash('success', 'Message deleted.');
     } elseif (input('action') === 'unread') {

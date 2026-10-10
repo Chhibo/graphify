@@ -5,10 +5,12 @@
 declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.0.0');
+define('APP_VERSION', '1.1.0');
 
 require APP_ROOT . '/includes/functions.php';
 require APP_ROOT . '/includes/icons.php';
+require APP_ROOT . '/includes/mailer.php';
+require APP_ROOT . '/includes/features.php';
 
 $configFile = APP_ROOT . '/config.php';
 $GLOBALS['config'] = is_file($configFile) ? require $configFile : null;
@@ -25,6 +27,11 @@ if (!empty($GLOBALS['config']['debug'])) {
     error_reporting(E_ALL);
 } else {
     ini_set('display_errors', '0');
+}
+
+// Upgrade the database automatically after the files are updated.
+if (setting('db_version') !== DB_VERSION) {
+    run_migrations();
 }
 
 $tz = setting('timezone', 'UTC');
@@ -54,8 +61,11 @@ if (is_post()) {
     }
 }
 
-if (mt_rand(1, 25) === 1) {
-    expire_listings();
+maybe_pseudo_cron();
+
+// remember the public URL so command-line cron jobs can build links
+if (is_admin() && !is_post() && setting('site_url') !== full_url()) {
+    save_settings(['site_url' => full_url()]);
 }
 
 if (setting('maintenance_mode') === '1' && !is_admin() && !defined('ALLOW_IN_MAINTENANCE')) {

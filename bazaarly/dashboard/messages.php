@@ -22,17 +22,23 @@ if (is_post() && $conv) {
         flash('success', 'Conversation deleted.');
         redirect('dashboard/messages.php');
     }
-    $body = trim((string) ($_POST['body'] ?? ''));
-    if ($body !== '') {
-        db_insert('messages', ['conversation_id' => $conv['id'], 'sender_id' => $uid, 'body' => mb_substr($body, 0, 4000), 'created_at' => now()]);
-        $col = (int) $conv['buyer_id'] === $uid ? 'seller_unread' : 'buyer_unread';
-        q("UPDATE conversations SET $col = $col + 1, last_message_at = ? WHERE id = ?", [now(), $conv['id']]);
-        $otherId = (int) $conv['buyer_id'] === $uid ? $conv['seller_id'] : $conv['buyer_id'];
-        $other = q_one('SELECT name, email FROM users WHERE id = ?', [$otherId]);
-        if ($other && setting('notify_new_message') === '1') {
-            send_mail($other['email'], 'New reply about "' . $conv['title'] . '"',
-                "Hi {$other['name']},\n\n{$me['name']} replied:\n\n$body\n\nOpen the conversation: " . full_url('dashboard/messages.php?c=' . $conv['id']) . "\n\n— " . setting('site_name'));
+    $otherId = (int) $conv['buyer_id'] === $uid ? (int) $conv['seller_id'] : (int) $conv['buyer_id'];
+    if (input('action') === 'block') {
+        if (!is_blocked($uid, $otherId)) {
+            db_insert('user_blocks', ['user_id' => $uid, 'blocked_id' => $otherId, 'created_at' => now()]);
         }
+        flash('success', 'Member blocked. They can no longer message you.');
+        redirect('dashboard/messages.php?c=' . $conv['id']);
+    }
+    if (input('action') === 'unblock') {
+        q('DELETE FROM user_blocks WHERE user_id = ? AND blocked_id = ?', [$uid, $otherId]);
+        flash('success', 'Member unblocked.');
+        redirect('dashboard/messages.php?c=' . $conv['id']);
+    }
+    require_verified_email('dashboard/messages.php?c=' . $conv['id']);
+    $res = post_message((int) $conv['listing_id'], $me, (string) ($_POST['body'] ?? ''), $conv);
+    if (is_string($res)) {
+        flash('error', $res);
     }
     redirect('dashboard/messages.php?c=' . $conv['id'] . '#bottom');
 }
@@ -53,9 +59,13 @@ $convs = q_all('SELECT c.*, l.title, CASE WHEN c.buyer_id = ? THEN c.buyer_unrea
 
 $messages = [];
 $other = null;
+$iBlocked = $theyBlocked = false;
 if ($conv) {
     $messages = q_all('SELECT * FROM messages WHERE conversation_id = ? ORDER BY id', [$conv['id']]);
-    $other = q_one('SELECT id, name, avatar, verified FROM users WHERE id = ?', [(int) $conv['buyer_id'] === $uid ? $conv['seller_id'] : $conv['buyer_id']]);
+    $other = q_one('SELECT id, name, username, avatar, verified FROM users WHERE id = ?', [(int) $conv['buyer_id'] === $uid ? $conv['seller_id'] : $conv['buyer_id']])
+        ?? ['id' => 0, 'name' => 'Deleted member', 'username' => null, 'avatar' => '', 'verified' => 0];
+    $iBlocked = is_blocked($uid, (int) $other['id']);
+    $theyBlocked = is_blocked((int) $other['id'], $uid);
 }
 
 $dashActive = 'messages';
@@ -86,8 +96,9 @@ require APP_ROOT . '/includes/dash-top.php';
       <div class="thread-head">
         <a class="icon-btn mobile-only" href="<?= e(url('dashboard/messages.php')) ?>" aria-label="Back"><?= icon('chevron-left') ?></a>
         <?= avatar_html($other) ?>
-        <div class="thread-who"><a href="<?= e(url('profile.php?id=' . $other['id'])) ?>"><strong><?= e($other['name']) ?></strong></a>
-          <a class="small-link" href="<?= e(url('listing.php?id=' . $conv['listing_id'])) ?>"><?= e(excerpt($conv['title'], 50)) ?> · <?= e(listing_price($conv)) ?></a></div>
+        <div class="thread-who"><a href="<?= e(profile_url((int) $other['id'], $other['username'])) ?>"><strong><?= e($other['name']) ?></strong></a>
+          <a class="small-link" href="<?= e(listing_url(['id' => $conv['listing_id'], 'title' => $conv['title']])) ?>"><?= e(excerpt($conv['title'], 50)) ?> · <?= e(listing_price($conv)) ?></a></div>
+        <form method="post" <?= $iBlocked ? '' : 'data-confirm="Block this member? They won\'t be able to message you any more."' ?>><?= csrf_field() ?><input type="hidden" name="c" value="<?= (int) $conv['id'] ?>"><input type="hidden" name="action" value="<?= $iBlocked ? 'unblock' : 'block' ?>"><button class="icon-btn" type="submit" aria-label="<?= $iBlocked ? 'Unblock member' : 'Block member' ?>" title="<?= $iBlocked ? 'Unblock member' : 'Block member' ?>"><?= icon('ban') ?></button></form>
         <form method="post" data-confirm="Delete this conversation for both participants?"><?= csrf_field() ?><input type="hidden" name="c" value="<?= (int) $conv['id'] ?>"><input type="hidden" name="action" value="delete"><button class="icon-btn" type="submit" aria-label="Delete conversation"><?= icon('trash') ?></button></form>
       </div>
       <div class="thread-messages" data-scroll-bottom>
@@ -100,12 +111,16 @@ require APP_ROOT . '/includes/dash-top.php';
         <?php endforeach; ?>
         <span id="bottom"></span>
       </div>
+      <?php if ($iBlocked || $theyBlocked || !$other['id']): ?>
+      <div class="thread-blocked"><?= icon('ban') ?><?= !$other['id'] ? 'This member has left.' : ($iBlocked ? 'You blocked this member. Unblock them to reply.' : 'This member is not accepting messages from you.') ?></div>
+      <?php else: ?>
       <form method="post" class="thread-reply">
         <?= csrf_field() ?>
         <input type="hidden" name="c" value="<?= (int) $conv['id'] ?>">
         <textarea name="body" rows="1" placeholder="Write a message…" required maxlength="4000" data-autogrow data-enter-submit></textarea>
         <button class="btn btn-primary" type="submit" aria-label="Send"><?= icon('send') ?></button>
       </form>
+      <?php endif; ?>
     <?php else: ?>
       <div class="thread-empty"><?= icon('message') ?><p>Select a conversation to read it.</p></div>
     <?php endif; ?>

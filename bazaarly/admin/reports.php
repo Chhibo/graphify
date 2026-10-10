@@ -6,6 +6,7 @@ if (is_post()) {
     $id = (int) input('id');
     $r = q_one('SELECT * FROM reports WHERE id = ?', [$id]);
     if ($r) {
+        log_activity('report.' . input('action'), $r['reason'] . ' (ad #' . $r['listing_id'] . ')', 'listing', (int) $r['listing_id']);
         switch (input('action')) {
             case 'resolve':
                 q("UPDATE reports SET status = 'resolved' WHERE id = ?", [$id]);

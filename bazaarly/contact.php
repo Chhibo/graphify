@@ -14,10 +14,14 @@ if (is_post()) {
     if ($data['subject'] === '') $errors[] = 'Please add a subject.';
     if (mb_strlen($data['message']) < 10) $errors[] = 'Your message is a little short.';
     if (input('website') !== '') $errors[] = 'Spam detected.'; // honeypot
+    if (!$errors && !captcha_passed('contact')) $errors[] = 'Please complete the security check.';
     if (!$errors) {
         db_insert('contact_messages', $data + ['is_read' => 0, 'created_at' => now()]);
         if (setting('contact_email')) {
-            send_mail(setting('contact_email'), '[Contact] ' . $data['subject'], "From: {$data['name']} <{$data['email']}>\n\n{$data['message']}");
+            send_template('contact_form', setting('contact_email'), [
+                'sender_name' => $data['name'], 'sender_email' => $data['email'], 'subject' => $data['subject'],
+                'message' => $data['message'], 'action_url' => full_url('admin/messages.php'),
+            ]);
         }
         flash('success', 'Thanks! Your message has been sent. We will get back to you soon.');
         redirect('contact.php');
@@ -49,6 +53,7 @@ require __DIR__ . '/includes/header.php';
       <div class="field"><label for="c-subject">Subject</label><input id="c-subject" name="subject" value="<?= e($data['subject']) ?>" required></div>
       <div class="field"><label for="c-msg">Message</label><textarea id="c-msg" name="message" rows="6" required><?= e($data['message']) ?></textarea></div>
       <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <?= captcha_widget('contact') ?>
       <button class="btn btn-primary" type="submit"><?= icon('send') ?>Send message</button>
     </form>
   </div>

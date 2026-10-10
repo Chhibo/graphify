@@ -9,6 +9,7 @@ if (!$listing) {
     redirect('admin/listings.php');
 }
 if (is_post() && input('action') === 'delete') {
+    log_activity('listing.delete', $listing['title'], 'listing', (int) $listing['id']);
     delete_listing((int) $listing['id']);
     flash('success', 'Ad deleted.');
     redirect('admin/listings.php');
@@ -19,6 +20,7 @@ if (is_post()) {
     $errors = listing_form_save($listing, true, 'admin/listing-edit.php?id={id}');
     $d = array_merge($d, array_intersect_key($_POST, $d));
 }
+$fieldValues = is_post() ? array_filter((array) ($_POST['cf'] ?? []), 'is_string') : ($listing ? listing_field_values((int) $listing['id']) : []);
 $images = q_all('SELECT * FROM listing_images WHERE listing_id = ? ORDER BY sort_order, id', [$listing['id']]);
 $owner = q_one('SELECT * FROM users WHERE id = ?', [$listing['user_id']]);
 
@@ -33,5 +35,5 @@ require APP_ROOT . '/includes/admin-top.php';
   <a class="btn btn-ghost btn-sm" href="<?= e(listing_url($listing)) ?>" target="_blank"><?= icon('eye') ?>View</a>
   <form method="post" data-confirm="Delete this ad permanently?"><?= csrf_field() ?><input type="hidden" name="action" value="delete"><button class="btn btn-sm btn-danger" type="submit"><?= icon('trash') ?>Delete</button></form>
 </div>
-<?php render_listing_form($d, $images, $errors, true, url('admin/listings.php')); ?>
+<?php render_listing_form($d, $images, $errors, true, url('admin/listings.php'), $fieldValues); ?>
 <?php require APP_ROOT . '/includes/admin-bottom.php';

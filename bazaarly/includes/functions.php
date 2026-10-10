@@ -35,8 +35,22 @@ function url(string $path = ''): string
 
 function full_url(string $path = ''): string
 {
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    return (is_https() ? 'https://' : 'http://') . $host . url($path);
+    return abs_url(url($path));
+}
+
+/** Turns a site-relative URL (from url()) into an absolute one. Works from CLI cron using the saved site URL. */
+function abs_url(string $u): string
+{
+    if (preg_match('~^https?://~i', $u)) {
+        return $u;
+    }
+    if (empty($_SERVER['HTTP_HOST'])) {
+        $site = rtrim((string) setting('site_url'), '/');
+        if ($site !== '') {
+            return $site . '/' . ltrim(substr($u, strlen(BASE_PATH)), '/');
+        }
+    }
+    return (is_https() ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $u;
 }
 
 function asset(string $path): string
@@ -164,6 +178,7 @@ function default_settings(): array
         'hero_title' => 'Buy & sell anything, right around the corner',
         'hero_subtitle' => 'Thousands of local deals on cars, phones, furniture, property and more. Posting an ad takes less than two minutes.',
         'currency_symbol' => '$',
+        'currency_code' => 'USD',
         'currency_position' => 'before',
         'currency_decimals' => '2',
         'timezone' => 'UTC',
@@ -197,6 +212,42 @@ function default_settings(): array
         'custom_head_code' => '',
         'cookie_notice' => '1',
         'cookie_text' => 'We use cookies to keep you signed in and to improve your experience.',
+        'require_email_verification' => '0',
+        'social_login' => '0',
+        'google_login' => '0',
+        'google_client_id' => '',
+        'google_client_secret' => '',
+        'facebook_login' => '0',
+        'facebook_app_id' => '',
+        'facebook_app_secret' => '',
+        'captcha_provider' => 'none',
+        'captcha_site_key' => '',
+        'captcha_secret_key' => '',
+        'captcha_on_register' => '1',
+        'captcha_on_contact' => '1',
+        'captcha_on_forgot' => '1',
+        'captcha_on_login' => '0',
+        'captcha_on_post' => '0',
+        'banned_words' => '',
+        'banned_words_action' => 'review',
+        'max_ads_per_day' => '20',
+        'location_input' => 'text',
+        'clean_urls' => '0',
+        'enable_saved_searches' => '1',
+        'pseudo_cron' => '1',
+        'cron_key' => '',
+        'activity_log_days' => '180',
+        'pwa_enabled' => '1',
+        'pwa_short_name' => '',
+        'share_cards' => '1',
+        'mail_driver' => 'mail',
+        'mail_from_name' => '',
+        'smtp_host' => '',
+        'smtp_port' => '587',
+        'smtp_encryption' => 'tls',
+        'smtp_username' => '',
+        'smtp_password' => '',
+        'site_url' => '',
         'maintenance_mode' => '0',
         'maintenance_message' => 'We are doing some quick maintenance. Please check back soon.',
     ];
@@ -473,7 +524,7 @@ function time_ago(?string $dt): string
 function slugify(string $text): string
 {
     $text = strtolower(trim($text));
-    $text = preg_replace('~[^\pL\pN]+~u', '-', $text) ?? '';
+    $text = preg_replace('~[^\pL\pM\pN]+~u', '-', $text) ?? '';
     $text = trim($text, '-');
     return $text !== '' ? $text : 'item';
 }
@@ -634,19 +685,19 @@ function category_options(int $selected = 0, bool $parentsSelectable = true): st
     $out = '';
     foreach (category_tree() as $id => $c) {
         if (empty($c['children'])) {
-            $out .= '<option value="' . $id . '"' . ($id === $selected ? ' selected' : '') . '>' . e($c['name']) . '</option>';
+            $out .= '<option value="' . $id . '" data-parent="0"' . ($id === $selected ? ' selected' : '') . '>' . e($c['name']) . '</option>';
             continue;
         }
         if ($parentsSelectable) {
-            $out .= '<option value="' . $id . '"' . ($id === $selected ? ' selected' : '') . '>' . e($c['name']) . '</option>';
+            $out .= '<option value="' . $id . '" data-parent="0"' . ($id === $selected ? ' selected' : '') . '>' . e($c['name']) . '</option>';
             foreach ($c['children'] as $cid => $ch) {
-                $out .= '<option value="' . $cid . '"' . ($cid === $selected ? ' selected' : '') . '>&nbsp;&nbsp;&nbsp;' . e($ch['name']) . '</option>';
+                $out .= '<option value="' . $cid . '" data-parent="' . $id . '"' . ($cid === $selected ? ' selected' : '') . '>&nbsp;&nbsp;&nbsp;' . e($ch['name']) . '</option>';
             }
         } else {
             $out .= '<optgroup label="' . e($c['name']) . '">';
-            $out .= '<option value="' . $id . '"' . ($id === $selected ? ' selected' : '') . '>' . e($c['name']) . ' (general)</option>';
+            $out .= '<option value="' . $id . '" data-parent="0"' . ($id === $selected ? ' selected' : '') . '>' . e($c['name']) . ' (general)</option>';
             foreach ($c['children'] as $cid => $ch) {
-                $out .= '<option value="' . $cid . '"' . ($cid === $selected ? ' selected' : '') . '>' . e($ch['name']) . '</option>';
+                $out .= '<option value="' . $cid . '" data-parent="' . $id . '"' . ($cid === $selected ? ' selected' : '') . '>' . e($ch['name']) . '</option>';
             }
             $out .= '</optgroup>';
         }
@@ -684,16 +735,47 @@ function visible_listing_where(string $alias = 'l'): array
 
 function listing_select(): string
 {
-    return 'SELECT l.*, c.name AS category_name, c.icon AS category_icon, u.name AS seller_name, u.verified AS seller_verified,
+    return 'SELECT l.*, c.name AS category_name, c.icon AS category_icon, u.name AS seller_name, u.username AS seller_username, u.verified AS seller_verified,
         (SELECT thumb FROM listing_images i WHERE i.listing_id = l.id ORDER BY i.sort_order, i.id LIMIT 1) AS cover
         FROM listings l
         JOIN users u ON u.id = l.user_id
         LEFT JOIN categories c ON c.id = l.category_id';
 }
 
+function clean_urls(): bool
+{
+    return setting('clean_urls') === '1';
+}
+
 function listing_url(array $l): string
 {
-    return url('listing.php?id=' . (int) $l['id']);
+    $id = (int) $l['id'];
+    if (clean_urls() && isset($l['title'])) {
+        return url('ad/' . $id . '-' . rawurlencode(mb_substr(slugify((string) $l['title']), 0, 70)));
+    }
+    return url('listing.php?id=' . $id);
+}
+
+function category_url(int $id): string
+{
+    $slug = categories_all()[$id]['slug'] ?? '';
+    return clean_urls() && $slug !== '' ? url('category/' . rawurlencode($slug)) : url('listings.php?category=' . $id);
+}
+
+function profile_url(int $id, ?string $username = null): string
+{
+    return clean_urls() && $username ? url('user/' . rawurlencode($username)) : url('profile.php?id=' . $id);
+}
+
+function page_url(string $slug): string
+{
+    return clean_urls() ? url('page/' . rawurlencode($slug)) : url('page.php?slug=' . rawurlencode($slug));
+}
+
+function search_url(array $query): string
+{
+    $query = array_filter($query, fn($v) => $v !== '' && $v !== null && $v !== []);
+    return url(clean_urls() ? 'ads' : 'listings.php') . ($query ? '?' . http_build_query($query) : '');
 }
 
 function favorite_ids(): array
@@ -717,6 +799,10 @@ function delete_listing(int $id): void
         delete_upload($img['thumb']);
     }
     q('DELETE FROM listing_images WHERE listing_id = ?', [$id]);
+    q('DELETE FROM listing_field_values WHERE listing_id = ?', [$id]);
+    foreach (glob(APP_ROOT . '/uploads/cards/' . $id . '-*.jpg') ?: [] as $card) {
+        @unlink($card);
+    }
     q('DELETE FROM favorites WHERE listing_id = ?', [$id]);
     q('DELETE FROM reports WHERE listing_id = ?', [$id]);
     foreach (q_all('SELECT id FROM conversations WHERE listing_id = ?', [$id]) as $c) {
@@ -743,6 +829,10 @@ function delete_user_account(int $id): void
     q('DELETE FROM reviews WHERE seller_id = ? OR reviewer_id = ?', [$id, $id]);
     q('UPDATE reports SET user_id = 0 WHERE user_id = ?', [$id]);
     q('DELETE FROM password_resets WHERE user_id = ?', [$id]);
+    q('DELETE FROM user_tokens WHERE user_id = ?', [$id]);
+    q('DELETE FROM user_social WHERE user_id = ?', [$id]);
+    q('DELETE FROM user_blocks WHERE user_id = ? OR blocked_id = ?', [$id, $id]);
+    q('DELETE FROM saved_searches WHERE user_id = ?', [$id]);
     q('DELETE FROM users WHERE id = ?', [$id]);
 }
 
@@ -806,7 +896,7 @@ function normalize_files(?array $files): array
  * Validate, resize and store an uploaded image.
  * Returns ['path' => ..., 'thumb' => ...] on success or an error string.
  */
-function store_image(array $file, string $folder, int $maxW = 1600, int $thumbW = 520): array|string
+function store_image(array $file, string $folder, int $maxW = 1600, int $thumbW = 520, bool $trusted = false): array|string
 {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
         return match ($file['error'] ?? 0) {
@@ -818,7 +908,7 @@ function store_image(array $file, string $folder, int $maxW = 1600, int $thumbW 
     if ($file['size'] > $maxBytes) {
         return 'The image "' . $file['name'] . '" is larger than ' . setting('max_image_mb', '5') . ' MB.';
     }
-    if (!is_uploaded_file($file['tmp_name']) && !defined('BZR_TESTING')) {
+    if (!$trusted && !is_uploaded_file($file['tmp_name']) && !defined('BZR_TESTING')) {
         return 'Invalid upload.';
     }
     $info = @getimagesize($file['tmp_name']);
@@ -915,25 +1005,6 @@ function delete_upload(?string $rel): void
     if (is_file($path)) {
         @unlink($path);
     }
-}
-
-/* -------------------------------------------------------------------- mail */
-
-function send_mail(string $to, string $subject, string $body): bool
-{
-    if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
-        return false;
-    }
-    $host = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? 'localhost');
-    $from = setting('mail_from') ?: ('no-reply@' . $host);
-    $name = str_replace(["\r", "\n", '"'], '', setting('site_name'));
-    $headers = [
-        'From: "' . $name . '" <' . $from . '>',
-        'MIME-Version: 1.0',
-        'Content-Type: text/plain; charset=UTF-8',
-    ];
-    $subject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
-    return @mail($to, $subject, $body, implode("\r\n", $headers));
 }
 
 /* ------------------------------------------------------------------- misc */

@@ -24,6 +24,7 @@ function schema_tables(): array
                 'verified {INT} NOT NULL DEFAULT 0',
                 'created_at DATETIME NOT NULL',
                 'last_login DATETIME NULL',
+                'email_verified_at DATETIME NULL',
             ],
             'unique' => ['ux_users_email' => 'email', 'ux_users_username' => 'username'],
         ],
@@ -51,6 +52,7 @@ function schema_tables(): array
                 "price_type VARCHAR(20) NOT NULL DEFAULT 'fixed'",
                 "item_condition VARCHAR(20) NOT NULL DEFAULT ''",
                 "location VARCHAR(150) NOT NULL DEFAULT ''",
+                'location_id {INT} NOT NULL DEFAULT 0',
                 "phone VARCHAR(40) NOT NULL DEFAULT ''",
                 'show_phone {INT} NOT NULL DEFAULT 1',
                 "tags VARCHAR(255) NOT NULL DEFAULT ''",
@@ -66,6 +68,7 @@ function schema_tables(): array
                 'ix_listings_status' => 'status, created_at',
                 'ix_listings_user' => 'user_id',
                 'ix_listings_category' => 'category_id',
+                'ix_listings_location' => 'location_id',
             ],
         ],
         'listing_images' => [
@@ -173,6 +176,94 @@ function schema_tables(): array
             ],
             'index' => ['ix_resets_token' => 'token_hash'],
         ],
+        'category_fields' => [
+            'cols' => [
+                'id {ID}',
+                'category_id {INT} NOT NULL',
+                'label VARCHAR(100) NOT NULL',
+                "type VARCHAR(20) NOT NULL DEFAULT 'text'",
+                'options TEXT NULL',
+                "unit VARCHAR(30) NOT NULL DEFAULT ''",
+                'required {INT} NOT NULL DEFAULT 0',
+                'filterable {INT} NOT NULL DEFAULT 1',
+                'sort_order INT NOT NULL DEFAULT 0',
+            ],
+            'index' => ['ix_fields_category' => 'category_id'],
+        ],
+        'listing_field_values' => [
+            'cols' => [
+                'id {ID}',
+                'listing_id {INT} NOT NULL',
+                'field_id {INT} NOT NULL',
+                'value VARCHAR(191) NOT NULL',
+            ],
+            'index' => ['ix_lfv_listing' => 'listing_id', 'ix_lfv_field' => 'field_id, value'],
+        ],
+        'locations' => [
+            'cols' => [
+                'id {ID}',
+                'parent_id {INT} NOT NULL DEFAULT 0',
+                'name VARCHAR(100) NOT NULL',
+                'slug VARCHAR(120) NOT NULL',
+                'sort_order INT NOT NULL DEFAULT 0',
+            ],
+            'index' => ['ix_locations_parent' => 'parent_id'],
+        ],
+        'saved_searches' => [
+            'cols' => [
+                'id {ID}',
+                'user_id {INT} NOT NULL',
+                'name VARCHAR(150) NOT NULL',
+                'query TEXT NOT NULL',
+                'alerts {INT} NOT NULL DEFAULT 1',
+                'last_alert_at DATETIME NULL',
+                'created_at DATETIME NOT NULL',
+            ],
+            'index' => ['ix_saved_user' => 'user_id'],
+        ],
+        'user_tokens' => [
+            'cols' => [
+                'id {ID}',
+                'user_id {INT} NOT NULL',
+                'type VARCHAR(20) NOT NULL',
+                'token_hash VARCHAR(64) NOT NULL',
+                'expires_at DATETIME NOT NULL',
+            ],
+            'index' => ['ix_tokens_hash' => 'token_hash'],
+        ],
+        'user_social' => [
+            'cols' => [
+                'id {ID}',
+                'user_id {INT} NOT NULL',
+                'provider VARCHAR(20) NOT NULL',
+                'provider_uid VARCHAR(191) NOT NULL',
+                'created_at DATETIME NOT NULL',
+            ],
+            'unique' => ['ux_social' => 'provider, provider_uid'],
+            'index' => ['ix_social_user' => 'user_id'],
+        ],
+        'user_blocks' => [
+            'cols' => [
+                'id {ID}',
+                'user_id {INT} NOT NULL',
+                'blocked_id {INT} NOT NULL',
+                'created_at DATETIME NOT NULL',
+            ],
+            'unique' => ['ux_blocks' => 'user_id, blocked_id'],
+        ],
+        'activity_log' => [
+            'cols' => [
+                'id {ID}',
+                'user_id {INT} NOT NULL DEFAULT 0',
+                'action VARCHAR(60) NOT NULL',
+                "subject_type VARCHAR(30) NOT NULL DEFAULT ''",
+                'subject_id {INT} NOT NULL DEFAULT 0',
+                'details TEXT NULL',
+                "ip VARCHAR(45) NOT NULL DEFAULT ''",
+                'created_at DATETIME NOT NULL',
+            ],
+            'index' => ['ix_activity_created' => 'created_at', 'ix_activity_user' => 'user_id'],
+        ],
         'login_attempts' => [
             'cols' => [
                 'id {ID}',
@@ -182,6 +273,20 @@ function schema_tables(): array
             'index' => ['ix_attempts_ip' => 'ip, created_at'],
         ],
     ];
+}
+
+/** Columns added after v1 — [table, column, definition]. Used to upgrade existing installs. */
+function schema_added_columns(): array
+{
+    return [
+        ['users', 'email_verified_at', 'DATETIME NULL'],
+        ['listings', 'location_id', '{INT} NOT NULL DEFAULT 0'],
+    ];
+}
+
+function column_definition(string $def, string $driver): string
+{
+    return strtr($def, $driver === 'mysql' ? ['{INT}' => 'INT UNSIGNED'] : ['{INT}' => 'INTEGER']);
 }
 
 function schema_statements(string $driver): array

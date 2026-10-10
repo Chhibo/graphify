@@ -24,14 +24,44 @@ No frameworks, no Composer, no Node — upload it and run the installer.
 
 **Admin panel (at `/admin/`) — controls everything**
 - Dashboard with stats and a 14-day chart, pending ads to approve in one click
-- Ads: search/filter, bulk approve / reject (with reason) / feature / delete, edit any ad, set expiry
+- Ads: search/filter, bulk approve / reject (with reason) / feature / delete, edit any ad, set expiry — owners get an email when approved or rejected
 - Categories: two levels, icons, ordering; delete safely by moving ads
-- Users: add, edit, verify (badge), ban, promote to admin, reset password, delete with all content
-- Reports from users, reviews moderation, contact-form inbox
-- Pages editor (show in header/footer)
-- Settings: site name, logo, favicon, brand colours, default theme, home texts, currency, date format, timezone,
-  registration on/off, ad approval on/off, ad expiry, photos per ad, photo size, reviews, maps, phone privacy,
-  social links, **ad spaces** (AdSense/banners), custom `<head>` code, maintenance mode
+- **Custom fields per category** (Brand, Year, Mileage, Bedrooms…): text, number, dropdown or yes/no; required or optional; shown as search filters
+- **Locations list** (cities › areas) with “add many at once”, or let sellers type freely
+- **Bulk import ads from CSV** (Excel / Google Sheets), including custom fields and photo URLs
+- Users: add, edit, verify (badge), confirm email, ban, promote to admin, reset password, delete with all content
+- Reports, reviews moderation, contact-form inbox, pages editor
+- **Emails & SMTP**: send through your mail server, edit every email template with live preview, send a test email
+- **Activity log**: who did what and when (approvals, edits, deletions, settings, sign-ins…)
+- **One-click backup**: database + config + photos in a single zip, download from the browser
+- Settings: branding, colours, texts, currency, approval, expiry, photo limits, ads per day, reviews, maps, phone privacy,
+  sign-up & email verification, Google/Facebook login, captcha, banned words, clean URLs, PWA, ad spaces, cron, maintenance mode
+
+## What's new in 1.1
+
+| Feature | Where to turn it on |
+|---|---|
+| Category-specific fields + filters | Admin → Categories → *Fields* icon |
+| Saved searches with email alerts | On by default (Admin → Settings → Ads & users) |
+| Locations list | Admin → Locations |
+| Search suggestions + recently viewed | Automatic |
+| Email verification on sign-up | Admin → Settings → Sign-up & login |
+| Google & Facebook sign-in (optional) | Admin → Settings → Sign-up & login |
+| Spam protection (reCAPTCHA / Turnstile, ads-per-day limit) | Admin → Settings → Spam protection |
+| Banned words filter | Admin → Settings → Spam protection |
+| Block a member from messaging you | Member's profile, a conversation, or Account settings |
+| Clean URLs + sitemap | Admin → Settings → SEO, URLs & app |
+| Installable app (PWA) | Admin → Settings → SEO, URLs & app (on by default, needs https) |
+| Share images for WhatsApp/Facebook + rich previews | Automatic |
+| Email templates editor + SMTP | Admin → Emails & SMTP |
+| One-click backup | Admin → Backup |
+| Activity log | Admin → Activity log |
+| CSV import | Admin → Import ads (CSV) |
+
+### Upgrading from 1.0
+1. **Make a backup** of your files and database (or download them with your hosting File Manager / phpMyAdmin).
+2. Upload the new files over the old ones. **Do not** upload `install/` if you already deleted it, and keep your `config.php`, `data/` and `uploads/` folders.
+3. Open your website — the database upgrades itself automatically on the first visit. Nothing else to do.
 
 ## Requirements
 
@@ -64,12 +94,40 @@ Apache/LiteSpeed protection is already included through `.htaccess` files. On Ng
 ```nginx
 location ~ ^/(config\.php|includes/|data/) { deny all; }
 location ~ ^/uploads/.*\.(php|phtml|phar)$ { deny all; }
+location / { try_files $uri $uri/ /router.php?$query_string; }   # clean URLs
 client_max_body_size 64M;
 ```
 
-### Emails
-Password-reset and new-message emails use PHP's `mail()`. Most hosts support it out of the box.
-Set a “Send emails from” address on your domain in **Admin → Settings → Advanced** for best delivery.
+### Emails (important for email verification)
+By default emails are sent with PHP's `mail()`. For reliable delivery go to **Admin → Emails & SMTP**, choose **SMTP** and
+enter the details of an email account (your hosting email, Gmail with an App Password, Brevo, Mailgun, SendGrid…),
+then click **Send test**. Only switch on *email verification* once the test email arrives.
+
+### Scheduled jobs (cron)
+Expiring old ads and sending saved-search alerts happen automatically while people visit your site.
+For exact timing, add a cron job in your hosting panel (cPanel → Cron Jobs) to run every 15 minutes:
+
+```
+php /home/USER/public_html/cron.php
+```
+or, if your host only allows URLs: `https://your-domain.com/cron.php?key=YOUR_KEY` (the exact line is shown in
+Admin → Settings → Advanced). Then you can switch off “Run scheduled jobs automatically during visits”.
+
+### Google & Facebook sign-in
+1. **Google**: console.cloud.google.com → APIs & Services → Credentials → *Create OAuth client ID* → Web application.
+   Add the redirect URL shown in Admin → Settings → Sign-up & login (`https://your-domain.com/oauth.php?provider=google`).
+2. **Facebook**: developers.facebook.com → Create app → add *Facebook Login* → set the redirect URL
+   (`https://your-domain.com/oauth.php?provider=facebook`). Switch the app to *Live* mode.
+3. Paste the IDs/secrets in Admin → Settings → Sign-up & login and switch on *Enable social login*.
+The buttons appear on the sign-in and sign-up pages only when social login is enabled and the keys are filled in.
+
+### Captcha
+Get free keys from google.com/recaptcha (choose **reCAPTCHA v2 – “I'm not a robot” checkbox**) or Cloudflare
+Turnstile, paste them in Admin → Settings → Spam protection, and choose which forms use it.
+
+### Clean URLs
+Turn on in Admin → Settings → SEO, URLs & app. The switch tests your server first. Works out of the box on Apache and
+LiteSpeed thanks to the included `.htaccess`. Submit `https://your-domain.com/sitemap.xml` to Google Search Console.
 
 ### Bigger photo uploads
 If photo uploads fail, raise `upload_max_filesize` and `post_max_size` in your hosting PHP settings
@@ -84,12 +142,20 @@ install/     web installer (delete after installing)
 includes/    core code, layouts, database schema
 assets/      css, js, images
 uploads/     user photos, logo (writable)
-data/        SQLite database & sessions (writable, private)
+data/        SQLite database, sessions & backups (writable, private)
+router.php   clean-URL router · cron.php scheduled jobs · sw.js app service worker
 ```
 
 ## Security
 Passwords hashed with `password_hash`, prepared statements everywhere, CSRF protection on every form,
-output escaping, sign-in rate limiting, uploaded images validated and re-encoded, PHP execution disabled in `uploads/`.
+output escaping, sign-in rate limiting, uploaded images validated and re-encoded, PHP execution disabled in `uploads/`,
+optional captcha, banned-words filter, ads-per-day limit, member blocking and an admin activity log.
+
+### Local testing
+`php -S localhost:8000 router.php` from inside this folder (needs PHP 8.1+), then open http://localhost:8000/install/.
+
+## Credits
+Icons based on Lucide (ISC). Share-image font: DejaVu Sans (see `assets/fonts/LICENSE-DejaVu.txt`).
 
 ## Troubleshooting
 - **White page / error 500**: set `'debug' => true` in `config.php` to see the error, then set it back to `false`.

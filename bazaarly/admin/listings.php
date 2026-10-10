@@ -7,13 +7,28 @@ if (is_post()) {
     $bulk = input('bulk');
     if ($ids && $bulk) {
         $in = implode(',', $ids);
+        $before = [];
+        foreach (q_all("SELECT id, title, status FROM listings WHERE id IN ($in)") as $r) {
+            $before[(int) $r['id']] = $r;
+        }
+        log_activity('listing.bulk_' . $bulk, count($ids) . ' ad(s): ' . implode(', ', array_map(fn($r) => '#' . $r['id'] . ' ' . $r['title'], array_slice($before, 0, 10))), 'listing', count($ids) === 1 ? (int) $ids[0] : 0);
         switch ($bulk) {
             case 'approve':
                 q("UPDATE listings SET status = 'active', reject_reason = '', updated_at = ?, expires_at = CASE WHEN expires_at IS NULL OR expires_at <= ? THEN ? ELSE expires_at END WHERE id IN ($in)", [now(), now(), new_expiry()]);
+                foreach ($before as $lid => $r) {
+                    if ($r['status'] !== 'active') {
+                        notify_listing_status($lid, 'active');
+                    }
+                }
                 flash('success', count($ids) . ' ad(s) approved.');
                 break;
             case 'reject':
                 q("UPDATE listings SET status = 'rejected', reject_reason = ?, updated_at = ? WHERE id IN ($in)", [input('reason') ?: 'Does not follow our posting rules.', now()]);
+                foreach ($before as $lid => $r) {
+                    if ($r['status'] !== 'rejected') {
+                        notify_listing_status($lid, 'rejected', input('reason') ?: 'Does not follow our posting rules.');
+                    }
+                }
                 flash('success', count($ids) . ' ad(s) rejected.');
                 break;
             case 'feature':

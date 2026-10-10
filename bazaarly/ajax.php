@@ -6,6 +6,35 @@ require __DIR__ . '/includes/bootstrap.php';
 
 header('Content-Type: application/json');
 
+if (input('action') === 'suggest' && !is_post()) {
+    $term = mb_substr(input('q'), 0, 60);
+    $out = ['ads' => [], 'categories' => []];
+    if (mb_strlen($term) >= 2) {
+        [$where, $params] = visible_listing_where();
+        $like = '%' . $term . '%';
+        foreach (q_all(listing_select() . " WHERE $where AND l.title LIKE ? ORDER BY l.featured DESC, l.views DESC LIMIT 6", array_merge($params, [$like])) as $l) {
+            $out['ads'][] = [
+                'title' => $l['title'], 'url' => listing_url($l), 'price' => listing_price($l),
+                'thumb' => $l['cover'] ? upload_url($l['cover']) : '', 'category' => (string) $l['category_name'],
+            ];
+        }
+        $needle = mb_strtolower($term);
+        foreach (categories_all() as $cid => $c) {
+            if (str_contains(mb_strtolower($c['name']), $needle)) {
+                $parent = (int) $c['parent_id'] ? (categories_all()[(int) $c['parent_id']]['name'] ?? '') : '';
+                $out['categories'][] = ['name' => $c['name'], 'parent' => $parent, 'url' => category_url($cid)];
+            }
+            if (count($out['categories']) >= 3) {
+                break;
+            }
+        }
+    }
+    $out['search_url'] = search_url(['q' => $term]);
+    header('Cache-Control: private, max-age=60');
+    echo json_encode($out);
+    exit;
+}
+
 if (!is_post()) {
     http_response_code(405);
     echo json_encode(['ok' => false]);

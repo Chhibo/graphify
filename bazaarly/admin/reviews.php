@@ -3,6 +3,7 @@ require dirname(__DIR__) . '/includes/bootstrap.php';
 require_admin();
 
 if (is_post() && input('action') === 'delete') {
+    log_activity('review.delete', 'Review #' . (int) input('id'), 'review', (int) input('id'));
     q('DELETE FROM reviews WHERE id = ?', [(int) input('id')]);
     flash('success', 'Review deleted.');
     back('admin/reviews.php');

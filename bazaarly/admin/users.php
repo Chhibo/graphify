@@ -10,6 +10,9 @@ if (is_post()) {
         back('admin/users.php');
     }
     $self = $id === (int) $admin['id'];
+    if (!$self || !in_array(input('action'), ['ban', 'role', 'delete'], true)) {
+        log_activity('user.' . input('action'), $u['name'] . ' <' . $u['email'] . '>', 'user', $id);
+    }
     switch (input('action')) {
         case 'ban':
             if ($self) { flash('error', "You can't ban yourself."); break; }
@@ -83,7 +86,7 @@ require APP_ROOT . '/includes/admin-top.php';
               <summary class="icon-btn sm" aria-label="Actions"><?= icon('settings') ?></summary>
               <div class="dropdown-panel">
                 <a href="<?= e(url('admin/user-edit.php?id=' . $u['id'])) ?>"><?= icon('edit') ?>Edit</a>
-                <a href="<?= e(url('profile.php?id=' . $u['id'])) ?>" target="_blank"><?= icon('eye') ?>Public profile</a>
+                <a href="<?= e(profile_url((int) $u['id'], $u['username'])) ?>" target="_blank"><?= icon('eye') ?>Public profile</a>
                 <?php foreach (['verify' => [$u['verified'] ? 'Remove verification' : 'Verify', 'shield'], 'role' => [$u['role'] === 'admin' ? 'Make regular user' : 'Make admin', 'users'], 'ban' => [$u['status'] === 'banned' ? 'Unban' : 'Ban', 'ban']] as $act => [$lbl, $ic]): ?>
                   <form method="post"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int) $u['id'] ?>"><input type="hidden" name="action" value="<?= $act ?>"><button type="submit"><?= icon($ic) ?><?= e($lbl) ?></button></form>
                 <?php endforeach; ?>

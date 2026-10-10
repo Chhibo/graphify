@@ -8,6 +8,7 @@ $tree = category_tree();
 $counts = category_counts();
 $totalAds = (int) q_val("SELECT COUNT(*) FROM listings l JOIN users u ON u.id = l.user_id WHERE $where", $params);
 $totalUsers = (int) q_val("SELECT COUNT(*) FROM users WHERE status = 'active'");
+$recent = recently_viewed(4);
 
 $pageTitle = '';
 require __DIR__ . '/includes/header.php';
@@ -19,21 +20,34 @@ require __DIR__ . '/includes/header.php';
       <h1><?= e(setting('hero_title')) ?></h1>
       <p class="lead"><?= e(setting('hero_subtitle')) ?></p>
     </div>
-    <form class="search-panel" action="<?= e(url('listings.php')) ?>" method="get" role="search">
-      <label class="sp-field sp-q"><?= icon('search') ?><input type="search" name="q" placeholder="What are you looking for?" aria-label="Keyword"></label>
-      <label class="sp-field"><?= icon('map-pin') ?><input type="text" name="location" placeholder="City or area" aria-label="Location"></label>
+    <form class="search-panel" action="<?= e(search_url([])) ?>" method="get" role="search">
+      <label class="sp-field sp-q suggest-wrap"><?= icon('search') ?><input type="search" name="q" placeholder="What are you looking for?" aria-label="Keyword" autocomplete="off" data-suggest></label>
+      <?php if (location_list_mode()): ?>
+        <label class="sp-field"><?= icon('map-pin') ?><select name="loc" aria-label="Location"><option value="">Everywhere</option><?= location_options() ?></select></label>
+      <?php else: ?>
+        <label class="sp-field"><?= icon('map-pin') ?><input type="text" name="location" placeholder="City or area" aria-label="Location"></label>
+      <?php endif; ?>
       <label class="sp-field"><?= icon('folder') ?><select name="category" aria-label="Category"><option value="">All categories</option><?= category_options() ?></select></label>
       <button class="btn btn-primary btn-lg" type="submit"><?= icon('search') ?>Search</button>
     </form>
     <div class="hero-chips">
       <?php foreach (array_slice($tree, 0, 6, true) as $id => $c): ?>
-        <a class="chip-link" href="<?= e(url('listings.php?category=' . $id)) ?>"><?= icon($c['icon']) ?><?= e($c['name']) ?></a>
+        <a class="chip-link" href="<?= e(category_url((int) $id)) ?>"><?= icon($c['icon']) ?><?= e($c['name']) ?></a>
       <?php endforeach; ?>
     </div>
   </div>
 </section>
 
 <?= ad_slot('header') ? '<div class="container">' . ad_slot('header') . '</div>' : '' ?>
+
+<?php if ($recent): ?>
+<section class="container section">
+  <div class="section-head"><div><h2>Recently viewed</h2><p class="muted">Pick up where you left off.</p></div></div>
+  <div class="listing-grid">
+    <?php foreach ($recent as $l) { include __DIR__ . '/includes/partials/listing-card.php'; } ?>
+  </div>
+</section>
+<?php endif; ?>
 
 <section class="container section">
   <div class="section-head">
@@ -42,7 +56,7 @@ require __DIR__ . '/includes/header.php';
   </div>
   <div class="cat-grid">
     <?php foreach ($tree as $id => $c): ?>
-      <a class="cat-tile" href="<?= e(url('listings.php?category=' . $id)) ?>">
+      <a class="cat-tile" href="<?= e(category_url((int) $id)) ?>">
         <span class="cat-icon"><?= icon($c['icon']) ?></span>
         <span class="cat-name"><?= e($c['name']) ?></span>
         <span class="cat-count"><?= ($n = $counts[$id] ?? 0) === 1 ? "1 ad" : number_format($n) . " ads" ?></span>
@@ -55,7 +69,7 @@ require __DIR__ . '/includes/header.php';
 <section class="container section">
   <div class="section-head">
     <div><h2>Featured ads</h2><p class="muted">Hand-picked deals from trusted sellers.</p></div>
-    <a class="link-arrow" href="<?= e(url('listings.php?featured=1')) ?>">See all<?= icon('arrow-right') ?></a>
+    <a class="link-arrow" href="<?= e(search_url(['featured' => 1])) ?>">See all<?= icon('arrow-right') ?></a>
   </div>
   <div class="listing-grid">
     <?php foreach ($featured as $l) { include __DIR__ . '/includes/partials/listing-card.php'; } ?>
@@ -66,7 +80,7 @@ require __DIR__ . '/includes/header.php';
 <section class="container section">
   <div class="section-head">
     <div><h2>Fresh recommendations</h2><p class="muted">The newest ads posted by our community.</p></div>
-    <a class="link-arrow" href="<?= e(url('listings.php')) ?>">Browse all<?= icon('arrow-right') ?></a>
+    <a class="link-arrow" href="<?= e(search_url([])) ?>">Browse all<?= icon('arrow-right') ?></a>
   </div>
   <?php if ($latest): ?>
     <div class="listing-grid">
