@@ -93,6 +93,7 @@ function schema_statements(string $driver): array
             coupon_code VARCHAR(40) NOT NULL DEFAULT '',
             discount DECIMAL(10,2) NOT NULL DEFAULT 0,
             shipping_method VARCHAR(120) NOT NULL DEFAULT '',
+            customer_id $fk NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL
         )$tail",
@@ -139,7 +140,7 @@ function schema_statements(string $driver): array
             email VARCHAR(190) NOT NULL UNIQUE,
             created_at DATETIME NOT NULL
         )$tail",
-    ], v3_tables_sql($pk, $fk, $tail));
+    ], v3_tables_sql($pk, $fk, $tail), [customers_sql($pk, $tail)]);
 }
 
 /** Size/color combinations of a product (used by Printful products). */
@@ -160,7 +161,29 @@ function product_variants_sql(string $pk, string $fk, string $tail): string
 }
 
 /** Current database version. Bump it and add a step to run_migrations() when the schema changes. */
-const DB_VERSION = 3;
+const DB_VERSION = 4;
+
+/** Version 4: customer accounts. */
+function customers_sql(string $pk, string $tail): string
+{
+    return "CREATE TABLE IF NOT EXISTS customers (
+        id $pk,
+        name VARCHAR(150) NOT NULL,
+        email VARCHAR(190) NOT NULL UNIQUE,
+        phone VARCHAR(40) NOT NULL DEFAULT '',
+        password VARCHAR(255) NOT NULL,
+        address VARCHAR(255) NOT NULL DEFAULT '',
+        city VARCHAR(120) NOT NULL DEFAULT '',
+        state VARCHAR(120) NOT NULL DEFAULT '',
+        zip VARCHAR(30) NOT NULL DEFAULT '',
+        country_code VARCHAR(2) NOT NULL DEFAULT '',
+        active TINYINT NOT NULL DEFAULT 1,
+        reset_token VARCHAR(100) NOT NULL DEFAULT '',
+        reset_expires DATETIME NULL,
+        last_login DATETIME NULL,
+        created_at DATETIME NOT NULL
+    )$tail";
+}
 
 /** Tables added in version 3: coupons, product reviews, contact messages, shipping methods. */
 function v3_tables_sql(string $pk, string $fk, string $tail): array
@@ -207,5 +230,29 @@ function v3_tables_sql(string $pk, string $fk, string $tail): array
             active TINYINT NOT NULL DEFAULT 1,
             sort_order INT NOT NULL DEFAULT 0
         )$tail",
+    ];
+}
+
+/** Settings added in version 4 (also used by the installer). */
+function default_v4_settings(): array
+{
+    return [
+        'accounts_enabled' => '1',
+        'guest_checkout' => '1',
+        'mail_driver' => 'mail',
+        'smtp_host' => '',
+        'smtp_port' => '465',
+        'smtp_encryption' => 'ssl',
+        'smtp_username' => '',
+        'smtp_password' => '',
+        'mail_from_email' => '',
+        'mail_from_name' => '',
+        'admin_notify_email' => '',
+        'notify_admin_order' => '1',
+        'notify_admin_message' => '1',
+        'notify_admin_review' => '1',
+        'notify_customer_order' => '1',
+        'notify_customer_status' => '1',
+        'notify_customer_welcome' => '1',
     ];
 }

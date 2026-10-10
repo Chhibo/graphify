@@ -75,6 +75,19 @@ When the cart contains a Printful product, checkout asks for a postal / ZIP code
 - **Menus** (Admin → Menus): edit the header menu (with your own dropdowns, or automatic Categories/Brands dropdowns), the top bar links, the footer columns and the copyright line.
 - **Back to top** button on every page.
 
+## Customer accounts & emails
+
+- **Accounts**: customers can register, log in, reset a forgotten password and use **My account** (orders with status and tracking, account details, saved address, password). Their details are filled in automatically at checkout. You can see them in **Admin → Customers**, where you can disable an account or set a new password.
+- **Guest checkout**: Settings → General → *Allow guest checkout*. When it is off, customers must log in or create an account before they can order. You can also turn customer accounts off completely.
+- **Email (SMTP)**: Settings → **Email**. Choose *SMTP* and enter your hosting email account (cPanel → Email Accounts → Connect Devices shows the values):
+  - Host: usually `mail.yourdomain.com`
+  - Encryption **SSL** with port **465** (or TLS with port 587)
+  - Username: your full email address, plus its password
+  - Sender email: the same address
+
+  Click **Send test email** to check the settings. If something is wrong, the server's answer is shown.
+- **Notifications** (each can be turned off): order confirmation to the customer, new order to you, order status changes to the customer (also when Printful ships), welcome email, password reset, contact messages and new reviews to you.
+
 ## What you can manage in the admin
 
 - **Orders:** view, change status (pending → processing → shipped → delivered), mark as paid, message the customer on WhatsApp

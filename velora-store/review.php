@@ -40,5 +40,10 @@ $_SESSION['last_review'] = time();
 if ($approved) {
     refresh_product_rating((int) $p['id']);
 }
+if (setting_on('notify_admin_review') && admin_email() !== '') {
+    send_template(admin_email(), 'New review for ' . $p['name'], 'New ' . $rating . '★ review',
+        '<p><b>' . e($name) . '</b> reviewed <b>' . e($p['name']) . '</b>:</p><p>' . nl2br(e($comment)) . '</p>'
+        . ($approved ? '' : '<p>It is waiting for your approval.</p>'), 'Open reviews', full_url('admin/reviews.php'));
+}
 flash('success', $approved ? 'Thank you! Your review has been published.' : 'Thank you! Your review will appear after it is approved.');
 redirect($back);

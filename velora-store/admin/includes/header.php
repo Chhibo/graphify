@@ -11,6 +11,7 @@ $counts = [
 $menu = [
     'dashboard.php' => ['Dashboard', 'package'],
     'orders.php' => ['Orders', 'cart'],
+    'customers.php' => ['Customers', 'user'],
     'products.php' => ['Products', 'heart'],
     'categories.php' => ['Categories', 'menu'],
     'coupons.php' => ['Coupons', 'tag'],

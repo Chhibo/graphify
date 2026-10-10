@@ -283,27 +283,4 @@ function initials(string $name): string
 }
 
 /* ===================== Email ===================== */
-
-/** Send a plain text email with PHP mail(). Returns false when the server cannot send email. */
-function send_mail(string $to, string $subject, string $body, string $replyTo = ''): bool
-{
-    if (!filter_var($to, FILTER_VALIDATE_EMAIL) || !function_exists('mail')) {
-        return false;
-    }
-    $from = setting('store_email');
-    $host = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? 'localhost');
-    if (!filter_var($from, FILTER_VALIDATE_EMAIL)) {
-        $from = 'no-reply@' . $host;
-    }
-    $name = str_replace(["\r", "\n", '"'], '', setting('store_name', 'Store'));
-    $headers = [
-        'From: "' . $name . '" <' . $from . '>',
-        'MIME-Version: 1.0',
-        'Content-Type: text/plain; charset=UTF-8',
-    ];
-    if ($replyTo !== '' && filter_var($replyTo, FILTER_VALIDATE_EMAIL)) {
-        $headers[] = 'Reply-To: ' . $replyTo;
-    }
-    $subject = '=?UTF-8?B?' . base64_encode(str_replace(["\r", "\n"], ' ', $subject)) . '?=';
-    return @mail($to, $subject, $body, implode("\r\n", $headers));
-}
+// Sending is done by includes/mailer.php (PHP mail() or your SMTP server, see Admin > Settings > Email).

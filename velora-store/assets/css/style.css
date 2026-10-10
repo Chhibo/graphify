@@ -462,7 +462,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--primary); }
   .cat-slider { grid-auto-columns: calc((100% - 14px) / 2); }
   .nav-promo { font-size: 13px; padding: 0 12px; } .nav-promo span { display: none; }
   .logo { font-size: 21px; }
-  .header-icons a.circle-btn[aria-label="Track my order"] { display: none; }
+
   .countdown div { width: 54px; height: 54px; }
   .grid-2 { grid-template-columns: 1fr; }
   .footer-grid { grid-template-columns: 1fr 1fr; }
@@ -605,3 +605,53 @@ a.pc-rating:hover span { text-decoration: underline; }
   .to-top { right: 14px; bottom: 84px; }
 }
 .page-contact .site-footer { margin-top: 0; }
+
+/* ---------- Customer accounts ---------- */
+.alert-info { background: #eaf2fb; color: #1f4b7a; }
+.badge-dot { position: absolute; top: 2px; right: 2px; width: 10px; height: 10px; border-radius: 50%; background: #22c55e; border: 2px solid var(--bg); }
+.auth-wrap { display: flex; justify-content: center; padding: 30px 16px 60px; }
+.auth-card { width: 100%; max-width: 480px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 36px; box-shadow: var(--shadow); }
+.auth-card h1 { font-size: 30px; margin-bottom: 6px; }
+.auth-card > p.muted { margin: 0 0 20px; }
+.auth-row { display: flex; justify-content: space-between; font-size: 14px; margin: -4px 0 14px; }
+.auth-row a, .auth-switch a { color: var(--primary); font-weight: 600; }
+.auth-switch { text-align: center; margin: 18px 0 0; color: var(--muted); }
+.checkout-login { display: flex; align-items: center; gap: 10px; padding: 14px 18px; margin-bottom: 18px; border: 1px dashed var(--primary); border-radius: 12px; background: var(--primary-soft); font-size: 15px; }
+.checkout-login a { color: var(--primary); font-weight: 600; text-decoration: underline; }
+.account-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 28px; align-items: start; padding-bottom: 50px; }
+.account-nav { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; background: var(--card); position: sticky; top: 20px; }
+.account-user { display: flex; align-items: center; gap: 12px; padding: 8px 8px 16px; border-bottom: 1px solid var(--line); margin-bottom: 8px; min-width: 0; }
+.account-user .avatar { width: 46px; height: 46px; font-size: 16px; }
+.account-user b { display: block; } .account-user small { color: var(--muted); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-user > div { min-width: 0; }
+.account-nav a, .account-nav button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 12px; border-radius: 10px; border: 0; background: none; font-size: 15px; color: var(--text); cursor: pointer; text-align: left; }
+.account-nav a:hover, .account-nav button:hover { background: var(--bg-soft); }
+.account-nav a.active { background: var(--primary); color: #fff; }
+.account-nav form { margin: 0; }
+.account-main { border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; background: var(--card); min-height: 320px; }
+.account-main h3 { font-family: var(--font); font-size: 18px; margin: 26px 0 12px; }
+.acc-title { font-family: var(--font); font-size: 22px; margin-bottom: 18px; }
+.acc-form { max-width: 640px; }
+.account-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 20px; }
+.account-stats div { padding: 18px; border-radius: 14px; background: var(--bg-soft); }
+.account-stats strong { display: block; font-size: 24px; } .account-stats span { color: var(--muted); font-size: 14px; }
+.order-list { display: grid; gap: 10px; }
+.order-row { display: grid; grid-template-columns: 1.3fr 1fr auto auto; gap: 14px; align-items: center; padding: 14px 18px; border: 1px solid var(--line); border-radius: 12px; }
+.order-row:hover { border-color: var(--primary); }
+.order-row span { color: var(--muted); font-size: 14px; }
+.status-pill { padding: 3px 12px; border-radius: 999px; font-size: 12px !important; font-weight: 600; background: var(--bg-soft); color: var(--text) !important; }
+.status-pill.st-pending { background: #fff3d6; color: #8a5a00 !important; } .status-pill.st-processing { background: #e3eefc; color: #1f4b7a !important; }
+.status-pill.st-shipped { background: #efe6fb; color: #5b2a91 !important; } .status-pill.st-delivered { background: #e3f4ea; color: #1d6b40 !important; }
+.status-pill.st-cancelled { background: #fdecea; color: #b42318 !important; }
+.small-empty { padding: 30px 10px; }
+@media (max-width: 900px) {
+  .account-layout { grid-template-columns: 1fr; }
+  .account-nav { position: static; display: flex; flex-wrap: wrap; gap: 4px; }
+  .account-user { width: 100%; }
+  .account-nav a, .account-nav button, .account-nav form { width: auto; }
+}
+@media (max-width: 560px) {
+  .auth-card, .account-main { padding: 22px 18px; }
+  .order-row { grid-template-columns: 1fr auto; }
+  .account-stats { grid-template-columns: 1fr 1fr; }
+}

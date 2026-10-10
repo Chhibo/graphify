@@ -138,7 +138,7 @@ if ($step === '3' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->exec($sql);
             }
             // Fresh install: clear tables in case a previous attempt stopped half way.
-            foreach (['order_items', 'orders', 'reviews', 'product_variants', 'products', 'coupons', 'messages', 'shipping_methods', 'categories', 'testimonials', 'pages', 'subscribers', 'admins', 'settings'] as $t) {
+            foreach (['order_items', 'orders', 'customers', 'reviews', 'product_variants', 'products', 'coupons', 'messages', 'shipping_methods', 'categories', 'testimonials', 'pages', 'subscribers', 'admins', 'settings'] as $t) {
                 $pdo->exec('DELETE FROM ' . $t);
             }
 

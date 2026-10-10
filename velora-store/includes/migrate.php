@@ -102,6 +102,25 @@ function run_migrations(): void
         }
     }
 
+    if ($version < 4) {
+        // Version 4: customer accounts + email (SMTP) settings.
+        foreach (["ALTER TABLE orders ADD COLUMN customer_id $fk NULL", customers_sql($pk, $tail)] as $sql) {
+            try {
+                db()->exec($sql);
+            } catch (PDOException $ex) {
+                if (stripos($ex->getMessage(), 'duplicate') === false) {
+                    throw $ex;
+                }
+            }
+        }
+        foreach (default_v4_settings() as $k => $v) {
+            if (!array_key_exists($k, settings_all())) {
+                set_setting($k, $v);
+            }
+        }
+    }
+
     set_setting('db_version', (string) DB_VERSION);
     settings_all(true);
 }
+

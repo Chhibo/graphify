@@ -15,9 +15,9 @@ if (is_post()) {
             ? q_one('SELECT * FROM coupons WHERE id = ?', [(int) setting('popup_coupon_id')]) : null;
         if ($coupon && coupon_error($coupon, PHP_INT_MAX) === '') {
             // Send the popup coupon by email (needs a server that can send email) and apply it to the cart now.
-            $sent = send_mail($email, 'Your ' . setting('store_name') . ' coupon: ' . $coupon['code'],
-                "Thank you for subscribing!\n\nYour coupon code: " . $coupon['code'] . ' (' . coupon_label($coupon) . ")\n"
-                . "Use it at checkout: " . full_url('shop.php') . "\n\n" . setting('store_name'));
+            $sent = send_template($email, 'Your ' . setting('store_name') . ' coupon: ' . $coupon['code'], 'Thank you for subscribing!',
+                '<p>Here is your coupon code (' . e(coupon_label($coupon)) . '):</p><p style="font-size:24px;font-weight:bold;letter-spacing:2px">' . e($coupon['code']) . '</p><p>Enter it in your cart or at checkout.</p>',
+                'Shop now', full_url('shop.php'));
             $_SESSION['coupon'] = $coupon['code'];
             flash('success', 'Thank you for subscribing! Your code ' . $coupon['code'] . ' is applied to your cart' . ($sent ? ' and was sent to your email.' : '.'));
         } else {

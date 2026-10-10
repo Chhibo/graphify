@@ -370,6 +370,9 @@ function printful_apply_status(array $order, string $pfStatus, array $shipments)
     }
     q('UPDATE orders SET printful_status = ?, tracking_url = ?, status = ?, updated_at = ? WHERE id = ?',
         [$pfStatus !== '' ? $pfStatus : $order['printful_status'], mb_substr($tracking, 0, 255), $status, now(), $order['id']]);
+    if ($status !== $order['status'] && $status === 'shipped' && setting_on('notify_customer_status')) {
+        notify_order_status(q_one('SELECT * FROM orders WHERE id = ?', [$order['id']]));
+    }
 }
 
 /** Ask Printful to call our webhook when packages ship or orders change. */

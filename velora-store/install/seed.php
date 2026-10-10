@@ -94,6 +94,13 @@ function default_settings(array $store): array
 
         'footer_copyright' => '{store} © {year}, All Rights Reserved',
 
+        // Customer accounts & email (version 4)
+    ] + [
+        'mail_from_email' => $store['store_email'],
+        'mail_from_name' => $store['store_name'],
+        'admin_notify_email' => $store['store_email'],
+    ] + default_v4_settings() + [
+
         // Social
         'social_facebook' => '#', 'social_twitter' => '#', 'social_instagram' => '#', 'social_github' => '',
 

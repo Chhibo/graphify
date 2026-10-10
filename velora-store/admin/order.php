@@ -25,6 +25,12 @@ if (is_post()) {
         }
         redirect('admin/order.php?id=' . (int) $order['id']);
     }
+    if (($_POST['action'] ?? '') === 'resend') {
+        $ok = filter_var($order['email'], FILTER_VALIDATE_EMAIL) && send_template($order['email'], 'Your order ' . $order['order_number'] . ' - ' . setting('store_name'),
+            'Your order ' . $order['order_number'], '<p>Here are the details of your order.</p>' . order_email_html($order), 'Track your order', full_url('track.php'));
+        flash($ok ? 'success' : 'error', $ok ? 'Order email sent to ' . $order['email'] . '.' : 'Could not send the email' . ($order['email'] === '' ? ' (no customer email).' : ': ' . mail_last_error()));
+        redirect('admin/order.php?id=' . (int) $order['id']);
+    }
     if (($_POST['action'] ?? '') === 'address') {
         $cc = country_code((string) ($_POST['country_code'] ?? ''));
         q('UPDATE orders SET address = ?, city = ?, state = ?, zip = ?, country_code = ?, country = ?, updated_at = ? WHERE id = ?', [
@@ -59,7 +65,12 @@ if (is_post()) {
     if ($payment === 'paid' || $payment === 'cod') {
         order_reduce_stock((int) $order['id']);
     }
-    flash('success', 'Order updated.');
+    $msg = 'Order updated.';
+    if ($status !== $order['status'] && !empty($_POST['notify_customer'])) {
+        $msg .= notify_order_status(q_one('SELECT * FROM orders WHERE id = ?', [$order['id']]))
+            ? ' The customer was emailed.' : ' (Email to the customer could not be sent' . (mail_last_error() !== '' ? ': ' . mail_last_error() : '') . '.)';
+    }
+    flash('success', $msg);
     redirect('admin/order.php?id=' . (int) $order['id']);
 }
 
@@ -111,13 +122,14 @@ include __DIR__ . '/includes/header.php';
         </label>
       </div>
       <label>Notes<textarea name="notes" rows="3"><?= e($order['notes']) ?></textarea></label>
+      <label class="inline"><input type="checkbox" name="notify_customer" value="1" <?= setting_on('notify_customer_status') && $order['email'] !== '' ? 'checked' : '' ?> <?= $order['email'] === '' ? 'disabled' : '' ?>> Email the customer when the status changes<?= $order['email'] === '' ? ' (no email on this order)' : '' ?></label>
       <button class="btn btn-primary" type="submit">Save changes</button>
     </form>
   </div>
 
   <div>
     <div class="card">
-      <div class="card-head"><h2>Customer</h2></div>
+      <div class="card-head"><h2>Customer</h2><?php if (!empty($order['customer_id'])): ?><a href="customers.php?id=<?= (int) $order['customer_id'] ?>">Account →</a><?php else: ?><span class="muted small">Guest</span><?php endif; ?></div>
       <p><b><?= e($order['customer_name']) ?></b><br>
         <?= e($order['phone']) ?><br>
         <?php if ($order['email'] !== ''): ?><a href="mailto:<?= e($order['email']) ?>"><?= e($order['email']) ?></a><br><?php endif; ?>
@@ -140,6 +152,9 @@ include __DIR__ . '/includes/header.php';
         </form>
       </details>
       <a class="btn btn-wa btn-block" href="<?= e($customerWa) ?>" target="_blank" rel="noopener"><?= icon('whatsapp', 16) ?> Message customer</a>
+      <?php if ($order['email'] !== ''): ?>
+        <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="resend"><button class="btn btn-light btn-block" type="submit">Email order details to customer</button></form>
+      <?php endif; ?>
     </div>
     <div class="card">
       <div class="card-head"><h2>Details</h2></div>

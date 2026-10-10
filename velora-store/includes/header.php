@@ -37,7 +37,7 @@ $themeMode = setting('theme_mode', 'light');
 <div class="topbar" id="topbar">
   <div class="container topbar-inner">
     <nav class="topbar-links">
-      <?php foreach (menu('topbar') as $m): ?><a href="<?= e(menu_url((string) ($m['url'] ?? ''))) ?>"><?= e($m['label'] ?? '') ?></a><?php endforeach; ?>
+      <?php foreach (menu('topbar') as $navItem): ?><a href="<?= e(menu_url((string) ($navItem['url'] ?? ''))) ?>"><?= e($navItem['label'] ?? '') ?></a><?php endforeach; ?>
     </nav>
     <p><?= e(setting('announcement_text')) ?>
       <?php if (setting('announcement_link_text') !== ''): ?><a href="<?= url('shop.php?sale=1') ?>"><?= e(setting('announcement_link_text')) ?></a><?php endif; ?></p>
@@ -56,7 +56,11 @@ $themeMode = setting('theme_mode', 'light');
       <?php endif; ?>
     </a>
     <div class="header-icons">
-      <a class="circle-btn" href="<?= url('track.php') ?>" aria-label="Track my order" title="Track my order"><?= icon('user', 18) ?></a>
+      <?php if (accounts_enabled()): $me = current_customer(); ?>
+        <a class="circle-btn" href="<?= url($me ? 'account.php' : 'login.php') ?>" aria-label="<?= $me ? 'My account' : 'Log in' ?>" title="<?= $me ? 'My account (' . e($me['name']) . ')' : 'Log in / Register' ?>"><?= icon('user', 18) ?><?php if ($me): ?><span class="badge-dot"></span><?php endif; ?></a>
+      <?php else: ?>
+        <a class="circle-btn" href="<?= url('track.php') ?>" aria-label="Track my order" title="Track my order"><?= icon('user', 18) ?></a>
+      <?php endif; ?>
       <a class="circle-btn" href="<?= url('wishlist.php') ?>" aria-label="Wishlist" title="Wishlist"><?= icon('heart', 18) ?><?php if ($wishCount): ?><span class="badge-count"><?= $wishCount ?></span><?php endif; ?></a>
       <span class="divider"></span>
       <a class="header-cart" href="<?= url('cart.php') ?>" aria-label="Cart">
@@ -73,32 +77,32 @@ $themeMode = setting('theme_mode', 'light');
         <button class="nav-close" type="button" aria-label="Close menu" data-toggle-menu><?= icon('close', 20) ?></button>
         <?php
           $here = $_SERVER['REQUEST_URI'] ?? '';
-          foreach (menu('header') as $m):
-            $href = menu_url((string) ($m['url'] ?? ''));
-            $type = $m['type'] ?? 'link';
-            $children = array_filter((array) ($m['children'] ?? []), fn($c) => trim((string) ($c['label'] ?? '')) !== '');
+          foreach (menu('header') as $navItem):
+            $href = menu_url((string) ($navItem['url'] ?? ''));
+            $type = $navItem['type'] ?? 'link';
+            $children = array_filter((array) ($navItem['children'] ?? []), fn($navCat) => trim((string) ($navCat['label'] ?? '')) !== '');
             $isActive = $href === $here || ($href === url() && $current === 'index.php');
             $brandList = $type === 'brands' ? brands() : [];
             $hasDrop = $type === 'categories' || ($type === 'brands' && $brandList) || $children;
         ?>
           <?php if (!$hasDrop): ?>
-            <a href="<?= e($href) ?>" class="<?= $isActive ? 'active' : '' ?>"><?= e($m['label'] ?? '') ?></a>
+            <a href="<?= e($href) ?>" class="<?= $isActive ? 'active' : '' ?>"><?= e($navItem['label'] ?? '') ?></a>
           <?php else: ?>
             <div class="nav-item has-drop">
-              <a href="<?= e($href) ?>" class="<?= $isActive ? 'active' : '' ?>"><?= e($m['label'] ?? '') ?> <?= icon('chevron-down', 13) ?></a>
+              <a href="<?= e($href) ?>" class="<?= $isActive ? 'active' : '' ?>"><?= e($navItem['label'] ?? '') ?> <?= icon('chevron-down', 13) ?></a>
               <div class="dropdown">
                 <?php if ($type === 'categories'): ?>
                   <a href="<?= url('shop.php') ?>">All Products</a>
-                  <?php foreach (category_tree() as $c): ?>
-                    <a href="<?= url('shop.php?category=' . (int) $c['id']) ?>" class="<?= $c['children'] ? 'drop-parent' : '' ?>"><?= e($c['name']) ?></a>
-                    <?php foreach ($c['children'] as $sub): ?>
-                      <a href="<?= url('shop.php?category=' . (int) $sub['id']) ?>" class="drop-child"><?= e($sub['name']) ?></a>
+                  <?php foreach (category_tree() as $navCat): ?>
+                    <a href="<?= url('shop.php?category=' . (int) $navCat['id']) ?>" class="<?= $navCat['children'] ? 'drop-parent' : '' ?>"><?= e($navCat['name']) ?></a>
+                    <?php foreach ($navCat['children'] as $navSub): ?>
+                      <a href="<?= url('shop.php?category=' . (int) $navSub['id']) ?>" class="drop-child"><?= e($navSub['name']) ?></a>
                     <?php endforeach; ?>
                   <?php endforeach; ?>
                 <?php elseif ($type === 'brands'): ?>
-                  <?php foreach ($brandList as $b): ?><a href="<?= url('shop.php?brand=' . rawurlencode($b)) ?>"><?= e($b) ?></a><?php endforeach; ?>
+                  <?php foreach ($brandList as $navBrand): ?><a href="<?= url('shop.php?brand=' . rawurlencode($navBrand)) ?>"><?= e($navBrand) ?></a><?php endforeach; ?>
                 <?php endif; ?>
-                <?php foreach ($children as $c): ?><a href="<?= e(menu_url((string) ($c['url'] ?? ''))) ?>"><?= e($c['label']) ?></a><?php endforeach; ?>
+                <?php foreach ($children as $navCat): ?><a href="<?= e(menu_url((string) ($navCat['url'] ?? ''))) ?>"><?= e($navCat['label']) ?></a><?php endforeach; ?>
               </div>
             </div>
           <?php endif; ?>

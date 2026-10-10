@@ -5,6 +5,11 @@ require __DIR__ . '/includes/whatsapp.php';
 
 $items = cart_items();
 $totals = cart_totals($items);
+$customer = current_customer();
+// Guest checkout turned off in the admin: customers must log in or create an account first.
+if ($items && !$customer && !guest_checkout_allowed()) {
+    redirect('login.php?return=checkout.php');
+}
 $methods = enabled_payment_methods();
 // Printful needs a complete postal address (ZIP code) to ship.
 $hasPrintful = (bool) array_filter($items, fn($it) => !empty($it['variant']['printful_variant_id']));
@@ -13,6 +18,14 @@ $form = [
     'customer_name' => '', 'phone' => '', 'email' => '', 'address' => '', 'city' => '', 'state' => '', 'zip' => '',
     'country' => country_code(setting('country_default')), 'notes' => '', 'payment_method' => array_key_first($methods) ?? '',
 ];
+if ($customer) {
+    // Fill in the details saved in the customer's account.
+    $form = array_merge($form, array_filter([
+        'customer_name' => $customer['name'], 'phone' => $customer['phone'], 'email' => $customer['email'],
+        'address' => $customer['address'], 'city' => $customer['city'], 'state' => $customer['state'],
+        'zip' => $customer['zip'], 'country' => $customer['country_code'],
+    ], 'strlen'));
+}
 
 if (is_post() && $items) {
     verify_csrf();
@@ -27,6 +40,9 @@ if (is_post() && $items) {
     }
     foreach ($form as $k => $v) {
         $form[$k] = trim((string) ($_POST[$k] ?? ''));
+    }
+    if ($customer && $form['email'] === '') {
+        $form['email'] = $customer['email'];
     }
     if (mb_strlen($form['customer_name']) < 2) {
         $errors[] = 'Please enter your full name.';
@@ -79,6 +95,7 @@ if (is_post() && $items) {
                 'coupon_code' => $totals['coupon']['code'] ?? '',
                 'shipping' => $totals['shipping'],
                 'shipping_method' => mb_substr((string) ($totals['shipping_method']['name'] ?? ''), 0, 120),
+                'customer_id' => $customer ? (int) $customer['id'] : null,
                 'total' => $totals['total'],
                 'payment_method' => $form['payment_method'],
                 'payment_status' => $form['payment_method'] === 'cod' ? 'cod' : 'unpaid',
@@ -111,11 +128,17 @@ if (is_post() && $items) {
         }
 
         $order = q_one('SELECT * FROM orders WHERE id = ?', [$orderId]);
+        if ($customer && $customer['address'] === '') {
+            // First order: remember the address in the customer's account.
+            db_update('customers', (int) $customer['id'], ['address' => $order['address'], 'city' => $order['city'], 'state' => $order['state'],
+                'zip' => $order['zip'], 'country_code' => $order['country_code'], 'phone' => $customer['phone'] !== '' ? $customer['phone'] : $order['phone']]);
+        }
         $_SESSION['my_orders'][] = $orderNumber;
 
         if ($order['payment_method'] === 'cod') {
             order_reduce_stock($orderId);
             printful_auto_send($orderId);
+            notify_new_order($order);
             $_SESSION['wa_link'][$orderNumber] = whatsapp_notify_order($order);
             cart_clear();
             redirect('order-success.php?order=' . rawurlencode($orderNumber));
@@ -145,6 +168,11 @@ include __DIR__ . '/includes/header.php';
     <div class="alert alert-error">Checkout is not available right now: no payment method is enabled. (Store owner: enable one in Admin → Settings → Payments.)</div>
   <?php else: ?>
     <?php foreach ($errors as $err): ?><div class="alert alert-error"><?= e($err) ?></div><?php endforeach; ?>
+    <?php if (!$customer && accounts_enabled()): ?>
+      <div class="checkout-login">
+        <?= icon('user', 18) ?> <span>Have an account? <a href="<?= url('login.php?return=checkout.php') ?>">Log in</a> for faster checkout, or <a href="<?= url('register.php?return=checkout.php') ?>">create an account</a> to follow your orders.</span>
+      </div>
+    <?php endif; ?>
     <?php $couponFormPrinted = true; $couponBack = 'checkout'; ?>
     <form method="post" action="<?= url('cart.php') ?>" id="coupon-form"><?= csrf_field() ?><input type="hidden" name="back" value="checkout"></form>
     <form method="post" class="checkout-layout" id="checkout-form">

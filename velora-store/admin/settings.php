@@ -41,6 +41,9 @@ $tabs = [
         ['social_instagram', 'Instagram URL', 'text'],
         ['social_twitter', 'X / Twitter URL', 'text'],
         ['social_github', 'GitHub URL', 'text'],
+        ['', 'Customer accounts & checkout', 'heading'],
+        ['accounts_enabled', 'Customers can create an account and log in', 'checkbox', 'Customers get a “My account” page with their orders, address and password.'],
+        ['guest_checkout', 'Allow guest checkout (order without an account)', 'checkbox', 'When off, customers must log in or create an account before they can place an order.'],
         ['', 'Product reviews', 'heading'],
         ['reviews_enabled', 'Let customers write reviews on product pages', 'checkbox'],
         ['reviews_moderate', 'Approve reviews before they are published', 'checkbox', 'New reviews wait in Admin → Product reviews.'],
@@ -122,6 +125,29 @@ $tabs = [
         ['contact_hours_title', 'Opening hours title', 'text'],
         ['contact_hours', 'Opening hours', 'textarea'],
         ['contact_map', 'Google Maps embed link (optional)', 'text', 'Google Maps → Share → Embed a map → copy only the link inside src="..." (starts with https://www.google.com/maps/embed?)'],
+    ]],
+    'email' => ['Email', [
+        ['', 'How emails are sent', 'heading'],
+        ['mail_driver', 'Sending method', 'select', 'SMTP (recommended): emails are sent from your own domain email account, like a real mail program. Fewer emails end up in spam.', [
+            'smtp' => 'SMTP - my hosting / domain email account (recommended)',
+            'mail' => 'PHP mail() - server default (no setup, may land in spam)',
+        ]],
+        ['mail_from_email', 'Sender email (From)', 'text', 'Use an address on your domain, e.g. shop@yourdomain.com. With SMTP it should be the same as the SMTP username.'],
+        ['mail_from_name', 'Sender name', 'text'],
+        ['', 'SMTP server (from your hosting: cPanel → Email Accounts → Connect Devices)', 'heading'],
+        ['smtp_host', 'SMTP host', 'text', 'Usually mail.yourdomain.com (Gmail: smtp.gmail.com, Hostinger: smtp.hostinger.com)'],
+        ['smtp_encryption', 'Encryption', 'select', '', ['ssl' => 'SSL (port 465) - recommended', 'tls' => 'TLS / STARTTLS (port 587)', 'none' => 'None (port 25, not recommended)']],
+        ['smtp_port', 'Port', 'text', '465 for SSL, 587 for TLS'],
+        ['smtp_username', 'SMTP username', 'text', 'Usually your full email address'],
+        ['smtp_password', 'SMTP password', 'secret', 'The password of that email account (Gmail: an “App password”)'],
+        ['', 'Notifications', 'heading'],
+        ['admin_notify_email', 'Send store notifications to', 'text', 'Your email for new orders, messages and reviews'],
+        ['notify_admin_order', 'Email me when a new order is placed', 'checkbox'],
+        ['notify_admin_message', 'Email me new contact messages', 'checkbox'],
+        ['notify_admin_review', 'Email me new product reviews', 'checkbox'],
+        ['notify_customer_order', 'Send customers an order confirmation email', 'checkbox'],
+        ['notify_customer_status', 'Email customers when their order status changes (you can untick it per order)', 'checkbox'],
+        ['notify_customer_welcome', 'Send a welcome email when a customer creates an account', 'checkbox'],
     ]],
     'whatsapp' => ['WhatsApp', [
         ['', 'Where orders are sent', 'heading'],
@@ -219,6 +245,14 @@ if (is_post()) {
         flash('error', $err);
     }
     settings_all(true);
+    if (($_POST['action'] ?? '') === 'test_email') {
+        // Settings above were saved first, so the test uses what is in the form.
+        $to = trim((string) ($_POST['test_to'] ?? '')) ?: admin_email();
+        $ok = send_template($to, 'Test email from ' . setting('store_name'), 'It works! 🎉',
+            '<p>Your store can send emails. Sending method: <b>' . e(setting('mail_driver') === 'smtp' ? 'SMTP (' . setting('smtp_host') . ')' : 'PHP mail()') . '</b>.</p>');
+        flash($ok ? 'success' : 'error', $ok ? 'Test email sent to ' . $to . '. Check the inbox (and spam folder).' : 'Sending failed: ' . mail_last_error());
+        redirect('admin/settings.php?tab=email');
+    }
     if ($tab === 'payments' && !enabled_payment_methods()) {
         flash('error', 'Warning: no payment method is active. Enable at least one (PayPal needs Client ID + Secret, Stripe needs a Secret key).');
     } else {
@@ -285,6 +319,10 @@ include __DIR__ . '/includes/header.php';
   <?php endif; ?>
   <div class="form-actions">
     <button class="btn btn-primary" type="submit">Save settings</button>
+    <?php if ($k === 'email'): ?>
+      <input type="email" name="test_to" placeholder="Send test to (default: <?= e(admin_email() ?: 'your email') ?>)" style="max-width:320px;margin:0">
+      <button class="btn btn-light" type="submit" name="action" value="test_email" formnovalidate>Send test email</button>
+    <?php endif; ?>
     <?php if ($k === 'whatsapp' && setting('whatsapp_number') !== ''): ?>
       <button class="btn btn-light" type="submit" name="action" value="test_whatsapp" formtarget="<?= setting('whatsapp_mode', 'link') === 'link' ? '_blank' : '_self' ?>">Send test message</button>
     <?php endif; ?>

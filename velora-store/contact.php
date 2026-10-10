@@ -32,9 +32,12 @@ if (is_post()) {
             'created_at' => now(),
         ]);
         $_SESSION['last_contact'] = time();
-        $to = setting('contact_email') !== '' ? setting('contact_email') : setting('store_email');
-        send_mail($to, 'New message: ' . ($form['subject'] !== '' ? $form['subject'] : 'Contact form'),
-            "From: {$form['name']} <{$form['email']}>\n\n{$form['message']}", $form['email']);
+        $to = filter_var(setting('contact_email'), FILTER_VALIDATE_EMAIL) ? setting('contact_email') : admin_email();
+        if (setting_on('notify_admin_message') && $to !== '') {
+            send_template($to, 'New message: ' . ($form['subject'] !== '' ? $form['subject'] : 'Contact form'), 'New message from ' . $form['name'],
+                '<p><b>From:</b> ' . e($form['name']) . ' &lt;' . e($form['email']) . '&gt;</p><p>' . nl2br(e($form['message'])) . '</p>',
+                'Open messages', full_url('admin/messages.php'), $form['email']);
+        }
         flash('success', 'Thank you! Your message has been sent. We will get back to you soon.');
         redirect('contact.php');
     }
