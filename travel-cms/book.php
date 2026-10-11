@@ -17,7 +17,10 @@ if (strpos($back, base_url()) !== 0 && strpos($back, '/') !== 0) {
 $input = [
     'tour_id' => (int) post('tour_id'),
     'travel_date' => post('travel_date'),
-    'guests' => (int) post('guests'),
+    // Older cached forms only sent "guests": treat them as adults.
+    'adults' => post('adults') !== '' ? (int) post('adults') : (int) post('guests'),
+    'children' => max(0, (int) post('children')),
+    'infants' => max(0, (int) post('infants')),
     'name' => mb_substr(post('name'), 0, 150),
     'email' => mb_substr(post('email'), 0, 190),
     'phone' => mb_substr(post('phone'), 0, 60),
@@ -63,8 +66,18 @@ $blocked = lines(setting('blocked_dates', ''));
 if (in_array($input['travel_date'], $blocked, true)) {
     booking_fail('Sorry, we are fully booked on ' . format_date($input['travel_date']) . '. Please choose another date.', $input, $back);
 }
-if ($input['guests'] < 1 || $input['guests'] > (int) $tour['max_guests']) {
-    booking_fail('This experience accepts between 1 and ' . (int) $tour['max_guests'] . ' guests per booking.', $input, $back);
+if (!$tour['allow_children']) {
+    $input['children'] = 0;
+}
+if (!$tour['allow_infants']) {
+    $input['infants'] = 0;
+}
+$guests = $input['adults'] + $input['children'] + $input['infants'];
+if ($input['adults'] < 1) {
+    booking_fail('At least one adult is required per booking.', $input, $back);
+}
+if ($guests > (int) $tour['max_guests']) {
+    booking_fail('This experience accepts up to ' . (int) $tour['max_guests'] . ' guests per booking.', $input, $back);
 }
 if ($input['name'] === '' || !filter_var($input['email'], FILTER_VALIDATE_EMAIL) || !preg_match('/^[0-9 +().\-]{6,}$/', $input['phone'])) {
     booking_fail('Please enter your name, a valid email address and phone number.', $input, $back);
@@ -74,7 +87,7 @@ if ($input['name'] === '' || !filter_var($input['email'], FILTER_VALIDATE_EMAIL)
 $capacity = (int) setting('daily_capacity', 0);
 if ($capacity > 0) {
     $booked = (int) db_value('SELECT COALESCE(SUM(guests),0) FROM ' . tbl('bookings') . " WHERE tour_id = ? AND travel_date = ? AND status IN ('pending','confirmed')", [$tour['id'], $input['travel_date']]);
-    if ($booked + $input['guests'] > $capacity) {
+    if ($booked + $guests > $capacity) {
         $left = max(0, $capacity - $booked);
         booking_fail($left ? "Only {$left} spot(s) left on this date." : 'This date is fully booked. Please choose another date.', $input, $back);
     }
@@ -87,10 +100,10 @@ $booking = [
     'tour_id' => $tour['id'],
     'tour_title' => $tour['title'],
     'travel_date' => $input['travel_date'],
-    'guests' => $input['guests'],
-    'unit_price' => $tour['hide_price'] ? 0 : $tour['price'],
-    'total' => $tour['hide_price'] ? 0 : round((float) $tour['price'] * $input['guests'], 2),
-    'price_on_request' => $tour['hide_price'] ? 1 : 0,
+    'guests' => $guests,
+    'adults' => $input['adults'],
+    'children' => $input['children'],
+    'infants' => $input['infants'],
     'customer_name' => $input['name'],
     'customer_email' => $input['email'],
     'customer_phone' => $input['phone'],
@@ -100,6 +113,7 @@ $booking = [
     'created_at' => now(),
     'updated_at' => now(),
 ];
+$booking += booking_quote($tour, $input['adults'], $input['children'], $input['infants']);
 db_insert('bookings', $booking);
 
 // Notify the guest

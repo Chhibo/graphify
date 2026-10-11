@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
+require_permission('content');
 
 $type = ($_GET['type'] ?? 'trip') === 'activity' ? 'activity' : 'trip';
 $self = 'admin/tours.php?type=' . $type;
@@ -13,6 +14,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'delete':
                 db_exec('DELETE FROM ' . tbl('tours') . ' WHERE id = ?', [$id]);
                 delete_upload($tour['image']);
+                foreach (db_all('SELECT image FROM ' . tbl('tour_images') . ' WHERE tour_id = ?', [$id]) as $img) {
+                    delete_upload($img['image']);
+                }
+                db_exec('DELETE FROM ' . tbl('tour_images') . ' WHERE tour_id = ?', [$id]);
                 flash('success', '"' . $tour['title'] . '" deleted. Existing bookings are kept.');
                 break;
             case 'toggle':
@@ -29,13 +34,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tour['slug'] = unique_slug('tours', $tour['title']);
                 $tour['status'] = 'hidden';
                 $tour['created_at'] = $tour['updated_at'] = now();
-                // Give the copy its own image file so deleting one never breaks the other.
-                $src = APP_ROOT . '/uploads/' . basename((string) $tour['image']);
-                if ($tour['image'] !== '' && !preg_match('#^(https?:)?//#i', $tour['image']) && is_file($src)) {
-                    $copy = date('Ymd') . '-' . bin2hex(random_bytes(8)) . '.' . pathinfo($src, PATHINFO_EXTENSION);
-                    $tour['image'] = @copy($src, APP_ROOT . '/uploads/' . $copy) ? $copy : '';
-                }
+                // The copy gets its own image files so deleting one never breaks the other.
+                $tour['image'] = copy_upload((string) $tour['image']);
                 $newId = db_insert('tours', $tour);
+                foreach (db_all('SELECT image, caption, sort_order FROM ' . tbl('tour_images') . ' WHERE tour_id = ?', [$id]) as $img) {
+                    $img['image'] = copy_upload($img['image']);
+                    if ($img['image'] !== '') {
+                        db_insert('tour_images', $img + ['tour_id' => $newId]);
+                    }
+                }
                 flash('success', 'Duplicated as a hidden draft.');
                 redirect('admin/tour-edit.php?id=' . $newId);
         }
@@ -76,7 +83,7 @@ admin_header($label, $type === 'trip' ? 'trips' : 'activities');
                     </div>
                 </td>
                 <td><?= e($t['category_name'] ?? '—') ?></td>
-                <td class="font-semibold whitespace-nowrap"><?= e(money($t['price'])) ?><?= $t['hide_price'] ? '<div class="text-[10px] font-bold text-amber-600 uppercase">Hidden: on request</div>' : '' ?></td>
+                <td class="font-semibold whitespace-nowrap"><?= e(money($t['price'])) ?><?= $t['child_price'] !== null ? '<div class="text-[10px] font-normal text-slate-400">Child ' . e(money($t['child_price'])) . '</div>' : '' ?><?= $t['hide_price'] ? '<div class="text-[10px] font-bold text-amber-600 uppercase">Hidden: on request</div>' : '' ?></td>
                 <td class="whitespace-nowrap"><?= e($t['duration']) ?></td>
                 <td><a href="<?= e(url('admin/bookings.php?tour=' . $t['id'])) ?>" class="text-brand-600 font-bold"><?= (int) $t['bookings'] ?></a></td>
                 <td>

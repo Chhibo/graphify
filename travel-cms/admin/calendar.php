@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
+require_permission('bookings');
 
 $month = preg_match('/^\d{4}-\d{2}$/', $_GET['m'] ?? '') ? $_GET['m'] : date('Y-m');
 $first = strtotime($month . '-01');

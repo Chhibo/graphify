@@ -6,7 +6,13 @@ if (!$page) {
     http_response_code(404);
 }
 $pageTitle = $page ? $page['title'] : 'Page not found';
-$metaDescription = $page ? excerpt($page['content'], 160) : '';
+$metaDescription = $page ? ($page['meta_description'] ?: excerpt($page['content'], 160)) : '';
+$seoTitle = $page['seo_title'] ?? '';
+if ($page) {
+    $canonical = url('page.php?slug=' . urlencode($page['slug']));
+} else {
+    $noindex = true;
+}
 require APP_ROOT . '/includes/header.php';
 page_banner($pageTitle);
 ?>

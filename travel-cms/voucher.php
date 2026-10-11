@@ -33,6 +33,8 @@ unset($_SESSION['_just_booked']);
 $tour = $booking['tour_id'] ? db_one('SELECT slug, image, destination, duration FROM ' . tbl('tours') . ' WHERE id = ?', [$booking['tour_id']]) : null;
 
 $pageTitle = 'Voucher ' . $booking['reference'];
+$noindex = true;
+$noPopup = true;
 require APP_ROOT . '/includes/header.php';
 page_banner($justBooked ? 'Booking Confirmed!' : 'Your Reservation', $justBooked ? 'Your reservation code has been registered. No payment was charged.' : 'Reference ' . $booking['reference'], 'Pay On Arrival');
 ?>
@@ -61,11 +63,20 @@ page_banner($justBooked ? 'Booking Confirmed!' : 'Your Reservation', $justBooked
             <div class="grid grid-cols-2 gap-3 text-xs">
                 <div><span class="text-slate-400 block">Lead Guest</span><span class="font-semibold"><?= e($booking['customer_name']) ?></span></div>
                 <div><span class="text-slate-400 block">Travel Date</span><span class="font-semibold"><?= e(format_date($booking['travel_date'], 'D, M j, Y')) ?></span></div>
-                <div><span class="text-slate-400 block">Guests</span><span class="font-semibold"><?= (int) $booking['guests'] ?><?= $booking['price_on_request'] ? '' : ' × ' . e(money($booking['unit_price'])) ?></span></div>
+                <div><span class="text-slate-400 block">Guests</span><span class="font-semibold"><?= e(guests_summary($booking)) ?></span></div>
                 <div><span class="text-slate-400 block">Amount Due (On Arrival)</span><span class="font-bold text-emerald-600"><?= e(booking_total($booking)) ?></span></div>
                 <div><span class="text-slate-400 block">Phone</span><span class="font-semibold"><?= e($booking['customer_phone']) ?></span></div>
                 <div><span class="text-slate-400 block">Booked On</span><span class="font-semibold"><?= e(format_date($booking['created_at'])) ?></span></div>
             </div>
+            <?php if ($lines = booking_lines($booking)): ?>
+                <div class="text-xs border-t border-slate-200 pt-3 space-y-1">
+                    <?php foreach ($lines as [$label, $amount]): ?>
+                        <div class="flex justify-between"><span class="text-slate-500"><?= e($label) ?></span><span class="font-semibold"><?= e($amount) ?></span></div>
+                    <?php endforeach; ?>
+                </div>
+            <?php elseif ($booking['price_on_request']): ?>
+                <p class="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2"><i class="fa-solid fa-circle-info mr-1"></i> The price will be confirmed with you by our team before your trip.</p>
+            <?php endif; ?>
             <?php if ($booking['notes']): ?>
                 <div class="text-xs"><span class="text-slate-400 block">Special Requests</span><?= nl2br(e($booking['notes'])) ?></div>
             <?php endif; ?>

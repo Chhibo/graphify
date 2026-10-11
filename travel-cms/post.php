@@ -14,9 +14,23 @@ if (!$post) {
 }
 $more = db_all('SELECT * FROM ' . tbl('posts') . " WHERE status = 'published' AND published_at <= ? AND id <> ? ORDER BY published_at DESC LIMIT 3", [now(), $post['id']]);
 
+$link = url('post.php?slug=' . urlencode($post['slug']));
 $pageTitle = $post['title'];
-$metaDescription = excerpt($post['excerpt'] ?: $post['content'], 160);
+$seoTitle = $post['seo_title'];
+$metaDescription = $post['meta_description'] ?: excerpt($post['excerpt'] ?: $post['content'], 160);
 $ogImage = img_url($post['image']);
+$ogType = 'article';
+$canonical = $link;
+$jsonLd = [[
+    '@type' => 'BlogPosting',
+    'headline' => $post['title'],
+    'description' => $metaDescription,
+    'image' => $ogImage,
+    'datePublished' => date('c', strtotime($post['published_at'])),
+    'author' => ['@type' => 'Person', 'name' => $post['author'] ?: setting('site_name', 'WanderLuxe')],
+    'publisher' => ['@type' => 'Organization', 'name' => setting('site_name', 'WanderLuxe')],
+    'mainEntityOfPage' => $link,
+]];
 $activeNav = 'blog';
 require APP_ROOT . '/includes/header.php';
 page_banner($post['title'], '', $post['tag'], $post['image']);
@@ -28,6 +42,10 @@ page_banner($post['title'], '', $post['tag'], $post['image']);
         <?php if ($post['read_time']): ?><span>•</span><span><?= e($post['read_time']) ?></span><?php endif; ?>
     </div>
     <div class="prose-content"><?= rich_text($post['content']) ?></div>
+    <div class="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 py-4 mt-8">
+        <span class="text-sm font-bold text-slate-700">Share this story</span>
+        <?php share_buttons($link, $post['title']); ?>
+    </div>
     <div class="mt-10 p-6 rounded-2xl bg-gradient-to-r from-brand-700 to-brand-500 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
             <h3 class="font-serif text-xl font-bold">Ready for your own adventure?</h3>

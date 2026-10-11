@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
+require_permission('bookings');
 
 $statuses = booking_statuses();
 
@@ -10,7 +11,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = post('action');
     if ($ids) {
         $in = implode(',', array_fill(0, count($ids), '?'));
-        if ($action === 'delete') {
+        if ($action === 'delete' && !can('bookings_delete')) {
+            flash('error', 'Your account cannot delete bookings.');
+        } elseif ($action === 'delete') {
             db_exec('DELETE FROM ' . tbl('bookings') . " WHERE id IN ($in)", $ids);
             flash('success', count($ids) . ' booking(s) deleted.');
         } elseif (isset($statuses[$action])) {
@@ -72,9 +75,9 @@ if (($_GET['export'] ?? '') === 'csv') {
     header('Content-Disposition: attachment; filename="bookings-' . date('Y-m-d') . '.csv"');
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, ['Reference', 'Status', 'Experience', 'Travel date', 'Guests', 'Unit price', 'Total', 'Name', 'Email', 'Phone', 'Notes', 'Admin notes', 'Booked at']);
+    fputcsv($out, ['Reference', 'Status', 'Experience', 'Travel date', 'Guests', 'Adults', 'Children', 'Infants', 'Adult price', 'Child price', 'Infant price', 'Total', 'Name', 'Email', 'Phone', 'Notes', 'Admin notes', 'Booked at']);
     foreach ($rows as $r) {
-        $cells = [$r['reference'], $r['status'], $r['tour_title'], $r['travel_date'], $r['guests'], $r['price_on_request'] ? 'On request' : $r['unit_price'], $r['price_on_request'] ? 'On request' : $r['total'], $r['customer_name'], $r['customer_email'], $r['customer_phone'], $r['notes'], $r['admin_notes'], $r['created_at']];
+        $cells = [$r['reference'], $r['status'], $r['tour_title'], $r['travel_date'], $r['guests'], $r['adults'], $r['children'], $r['infants'], ...array_map(fn ($k) => $r['price_on_request'] ? 'On request' : $r[$k], ['unit_price', 'child_price', 'infant_price', 'total']), $r['customer_name'], $r['customer_email'], $r['customer_phone'], $r['notes'], $r['admin_notes'], $r['created_at']];
         // Neutralise spreadsheet formulas in user-provided values.
         $cells = array_map(fn ($c) => preg_match('/^[=@\t\r]|^[+\-](?![\d\s().\-]+$)/', (string) $c) ? "'" . $c : $c, $cells);
         fputcsv($out, $cells);
@@ -131,7 +134,7 @@ admin_header('Bookings', 'bookings');
         <span class="text-slate-500 font-semibold">With selected:</span>
         <select name="action" class="inp !w-auto !py-1.5">
             <?php foreach ($statuses as $key => [$label]): ?><option value="<?= $key ?>">Mark as <?= e($label) ?></option><?php endforeach; ?>
-            <option value="delete">Delete permanently</option>
+            <?php if (can('bookings_delete')): ?><option value="delete">Delete permanently</option><?php endif; ?>
         </select>
         <button class="btn btn-light !py-1.5">Apply</button>
         <span class="ml-auto text-slate-400"><?= $total ?> booking(s)</span>
@@ -147,7 +150,7 @@ admin_header('Bookings', 'bookings');
                     <td><div class="font-semibold"><?= e($r['customer_name']) ?></div><div class="text-xs text-slate-400"><?= e($r['customer_email']) ?> · <?= e($r['customer_phone']) ?></div></td>
                     <td class="max-w-[220px] truncate"><?= e($r['tour_title']) ?></td>
                     <td class="whitespace-nowrap"><?= e(format_date($r['travel_date'])) ?></td>
-                    <td><?= (int) $r['guests'] ?></td>
+                    <td class="whitespace-nowrap" title="<?= e(guests_summary($r)) ?>"><?= (int) $r['guests'] ?><?php if ($r['children'] || $r['infants']): ?> <span class="text-[10px] text-slate-400"><?= (int) $r['adults'] ?>A<?= $r['children'] ? ' ' . (int) $r['children'] . 'C' : '' ?><?= $r['infants'] ? ' ' . (int) $r['infants'] . 'I' : '' ?></span><?php endif; ?></td>
                     <td class="whitespace-nowrap font-semibold"><?= e(booking_total($r)) ?></td>
                     <td><?= status_badge($r['status']) ?></td>
                     <td class="text-xs text-slate-400 whitespace-nowrap"><?= e(time_ago($r['created_at'])) ?></td>

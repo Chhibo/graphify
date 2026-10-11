@@ -3,15 +3,25 @@ if (!defined('APP_ROOT')) {
     exit;
 }
 $siteName = setting('site_name', 'WanderLuxe');
-$pageTitle = isset($pageTitle) && $pageTitle !== '' ? $pageTitle . ' | ' . $siteName : $siteName . ' | ' . setting('site_tagline', 'Premium Travel Experiences & Adventures');
-$metaDescription = $metaDescription ?? setting('meta_description', '');
+// Pages may set: $pageTitle, $seoTitle (full title override), $metaDescription, $ogImage,
+// $ogType, $canonical, $noindex and $jsonLd (list of structured-data arrays).
+if (!empty($seoTitle)) {
+    $pageTitle = $seoTitle;
+} else {
+    $pageTitle = isset($pageTitle) && $pageTitle !== '' ? $pageTitle . ' | ' . $siteName : $siteName . ' | ' . setting('site_tagline', 'Premium Travel Experiences & Adventures');
+}
+$metaDescription = ($metaDescription ?? '') !== '' ? $metaDescription : setting('meta_description', '');
+$ogImage = !empty($ogImage) ? $ogImage : (setting('og_image') ? img_url(setting('og_image')) : '');
+$canonical = $canonical ?? current_url();
+$noindex = !empty($noindex) || setting('search_engines', '1') === '0';
+$wishlistCount = count(wishlist_ids());
 $logoFirst = setting('logo_text_1', 'Wander');
 $logoSecond = setting('logo_text_2', 'Luxe');
 $navLinks = [
     ['tours.php?type=trip', 'Trips & Tours', 'trips'],
     ['tours.php?type=activity', 'Activities', 'activities'],
+    ['destinations.php', 'Destinations', 'destinations'],
     ['blog.php', 'Travel Stories', 'blog'],
-    ['index.php#reviews', 'Reviews', 'reviews'],
     ['contact.php', 'Contact', 'contact'],
 ];
 $activeNav = $activeNav ?? '';
@@ -23,8 +33,17 @@ $activeNav = $activeNav ?? '';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($pageTitle) ?></title>
     <?php if ($metaDescription): ?><meta name="description" content="<?= e($metaDescription) ?>"><?php endif; ?>
+    <?php if ($noindex): ?><meta name="robots" content="noindex, nofollow"><?php endif; ?>
+    <link rel="canonical" href="<?= e($canonical) ?>">
+    <meta property="og:site_name" content="<?= e($siteName) ?>">
+    <meta property="og:type" content="<?= e($ogType ?? 'website') ?>">
     <meta property="og:title" content="<?= e($pageTitle) ?>">
-    <?php if (!empty($ogImage)): ?><meta property="og:image" content="<?= e($ogImage) ?>"><?php endif; ?>
+    <meta property="og:url" content="<?= e($canonical) ?>">
+    <?php if ($metaDescription): ?><meta property="og:description" content="<?= e($metaDescription) ?>"><?php endif; ?>
+    <?php if ($ogImage): ?><meta property="og:image" content="<?= e($ogImage) ?>"><?php endif; ?>
+    <meta name="twitter:card" content="<?= $ogImage ? 'summary_large_image' : 'summary' ?>">
+    <?php if (setting('google_verification')): ?><meta name="google-site-verification" content="<?= e(setting('google_verification')) ?>"><?php endif; ?>
+    <?php foreach ($jsonLd ?? [] as $ld) { echo json_ld($ld), "\n"; } ?>
     <?php if (setting('favicon')): ?><link rel="icon" href="<?= e(img_url(setting('favicon'))) ?>"><?php endif; ?>
     <?php require APP_ROOT . '/includes/tailwind.php'; ?>
     <?= setting('head_code') /* custom analytics / meta code from Settings */ ?>
@@ -45,20 +64,28 @@ $activeNav = $activeNav ?? '';
                 <span class="brand-text font-serif font-bold text-2xl tracking-tight text-white drop-shadow-md"><?= e($logoFirst) ?><span class="text-accent-400"><?= e($logoSecond) ?></span></span>
             </a>
 
-            <div class="hidden md:flex items-center space-x-8">
+            <div class="hidden lg:flex items-center space-x-7">
                 <?php foreach ($navLinks as [$href, $label, $key]): ?>
                     <a href="<?= e(url($href)) ?>" class="nav-link <?= $activeNav === $key ? 'text-accent-400' : 'text-slate-100' ?> hover:text-accent-400 font-medium transition-colors text-sm uppercase tracking-wider"><?= e($label) ?></a>
                 <?php endforeach; ?>
             </div>
 
-            <div class="hidden md:flex items-center space-x-4">
+            <div class="hidden lg:flex items-center space-x-3">
+                <a href="<?= e(url('wishlist.php')) ?>" class="nav-link relative w-10 h-10 rounded-full flex items-center justify-center <?= $activeNav === 'wishlist' ? 'text-accent-400' : 'text-slate-100' ?> hover:text-accent-400" title="Saved trips" aria-label="Saved trips">
+                    <i class="fa-solid fa-heart text-lg"></i>
+                    <span data-wishlist-count class="<?= $wishlistCount ? '' : 'hidden' ?> absolute -top-0.5 -right-0.5 bg-accent-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center"><?= $wishlistCount ?></span>
+                </a>
                 <button type="button" onclick="openBookingModal()" class="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 text-white rounded-full font-semibold shadow-lg shadow-accent-500/25 transition-all transform hover:-translate-y-0.5 flex items-center space-x-2 text-sm">
                     <i class="fa-solid fa-calendar-check"></i>
                     <span>Inquire / Book</span>
                 </button>
             </div>
 
-            <div class="md:hidden flex items-center">
+            <div class="lg:hidden flex items-center space-x-1">
+                <a href="<?= e(url('wishlist.php')) ?>" class="nav-link relative text-white p-2" aria-label="Saved trips">
+                    <i class="fa-solid fa-heart text-xl"></i>
+                    <span data-wishlist-count class="<?= $wishlistCount ? '' : 'hidden' ?> absolute top-0 right-0 bg-accent-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center"><?= $wishlistCount ?></span>
+                </a>
                 <button id="mobileMenuBtn" type="button" class="text-white p-2 rounded-lg hover:bg-white/10 focus:outline-none" aria-label="Menu">
                     <i class="fa-solid fa-bars text-2xl"></i>
                 </button>
@@ -66,10 +93,11 @@ $activeNav = $activeNav ?? '';
         </div>
     </nav>
 
-    <div id="mobileMenu" class="hidden md:hidden glass-panel border-b border-slate-200 px-4 pt-2 pb-6 space-y-1 shadow-xl">
+    <div id="mobileMenu" class="hidden lg:hidden glass-panel border-b border-slate-200 px-4 pt-2 pb-6 space-y-1 shadow-xl">
         <?php foreach ($navLinks as [$href, $label]): ?>
             <a href="<?= e(url($href)) ?>" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-brand-50"><?= e($label) ?></a>
         <?php endforeach; ?>
+        <a href="<?= e(url('wishlist.php')) ?>" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-brand-50">Saved Trips</a>
         <a href="<?= e(url('my-booking.php')) ?>" class="block px-3 py-2 rounded-md text-base font-medium hover:bg-brand-50">Manage My Booking</a>
         <button type="button" onclick="openBookingModal()" class="w-full mt-2 px-5 py-3 bg-accent-500 text-white rounded-xl font-semibold shadow-lg text-center flex items-center justify-center space-x-2">
             <i class="fa-solid fa-calendar-check"></i>
@@ -82,7 +110,7 @@ $activeNav = $activeNav ?? '';
 /** Dark image banner used at the top of inner pages so the transparent header stays readable. */
 function page_banner(string $title, string $subtitle = '', string $kicker = '', string $image = ''): void
 {
-    $image = $image ?: setting('banner_image', 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=2000&q=80');
+    $image = $image ?: setting('banner_image', 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=2000&q=80');
     ?>
     <section class="relative pt-36 pb-20 overflow-hidden">
         <div class="absolute inset-0 z-0">

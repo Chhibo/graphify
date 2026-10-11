@@ -2,6 +2,13 @@
 Options -Indexes
 DirectoryIndex index.php
 
+# SEO: serve /sitemap.xml and /robots.txt from PHP
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^sitemap\.xml$ sitemap.php [L]
+    RewriteRule ^robots\.txt$ robots.php [L]
+</IfModule>
+
 # Protect sensitive files
 <FilesMatch "^(config\.php|.*\.sql|.*\.md)$">
     <IfModule mod_authz_core.c>

@@ -5,8 +5,9 @@ require APP_ROOT . '/includes/cards.php';
 $type = in_array($_GET['type'] ?? '', ['trip', 'activity'], true) ? $_GET['type'] : '';
 $q = trim((string) ($_GET['q'] ?? ''));
 $category = trim((string) ($_GET['category'] ?? ''));
-$max = (int) ($_GET['max'] ?? 0);
-$sort = $_GET['sort'] ?? '';
+$allHidden = prices_hidden();
+$max = $allHidden ? 0 : (int) ($_GET['max'] ?? 0);
+$sort = $allHidden && in_array($_GET['sort'] ?? '', ['price_asc', 'price_desc'], true) ? '' : ($_GET['sort'] ?? '');
 $page = max(1, (int) ($_GET['page'] ?? 1));
 $perPage = 12;
 
@@ -17,9 +18,14 @@ if ($type) {
     $params[] = $type;
 }
 if ($q !== '') {
-    $where[] = '(t.title LIKE ? OR t.destination LIKE ? OR t.short_description LIKE ?)';
+    $where[] = '(t.title LIKE ? OR t.destination LIKE ? OR t.short_description LIKE ? OR d.name LIKE ? OR d.country LIKE ?)';
     $like = '%' . $q . '%';
-    array_push($params, $like, $like, $like);
+    array_push($params, $like, $like, $like, $like, $like);
+}
+$destination = trim((string) ($_GET['destination'] ?? ''));
+if ($destination !== '') {
+    $where[] = 'd.slug = ?';
+    $params[] = $destination;
 }
 if ($category !== '') {
     $where[] = 'c.slug = ?';
@@ -38,7 +44,7 @@ $orders = [
 $order = $orders[$sort] ?? 't.type DESC, t.sort_order, t.id';
 $whereSql = implode(' AND ', $where);
 
-$total = (int) db_value('SELECT COUNT(*) FROM ' . tbl('tours') . ' t LEFT JOIN ' . tbl('categories') . ' c ON c.id = t.category_id WHERE ' . $whereSql, $params);
+$total = (int) db_value('SELECT COUNT(*) FROM ' . tbl('tours') . ' t LEFT JOIN ' . tbl('categories') . ' c ON c.id = t.category_id LEFT JOIN ' . tbl('destinations') . " d ON d.id = t.destination_id AND d.status = 'active' WHERE " . $whereSql, $params);
 $pages = max(1, (int) ceil($total / $perPage));
 $page = min($page, $pages);
 $items = tours_query($whereSql, $params, $order . ' LIMIT ' . $perPage . ' OFFSET ' . (($page - 1) * $perPage));
@@ -50,6 +56,8 @@ $titles = [
 ];
 [$heading, $sub, $kicker, $activeNav] = $titles[$type];
 $pageTitle = $heading;
+$canonical = url('tours.php' . ($type ? '?type=' . $type : ''));
+$noindex = ($q !== '' || $category !== '' || $destination !== '' || $max || $sort || $page > 1);
 
 function page_link(array $overrides): string
 {
@@ -63,9 +71,9 @@ page_banner($heading, $sub, $kicker);
 ?>
 
 <section class="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <form method="get" class="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 grid grid-cols-1 md:grid-cols-6 gap-3 -mt-24 relative z-10 mb-10">
-        <div class="md:col-span-2">
-            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Destination / keyword</label>
+    <form method="get" class="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 -mt-24 relative z-10 mb-10">
+        <div class="col-span-2">
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Keyword</label>
             <input type="text" name="q" value="<?= e($q) ?>" placeholder="e.g., Bali" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
         </div>
         <div>
@@ -74,6 +82,15 @@ page_banner($heading, $sub, $kicker);
                 <option value="">All</option>
                 <option value="trip" <?= $type === 'trip' ? 'selected' : '' ?>>Trips</option>
                 <option value="activity" <?= $type === 'activity' ? 'selected' : '' ?>>Activities</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Destination</label>
+            <select name="destination" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-sm">
+                <option value="">All</option>
+                <?php foreach (destinations() as $d): ?>
+                    <option value="<?= e($d['slug']) ?>" <?= $destination === $d['slug'] ? 'selected' : '' ?>><?= e($d['name']) ?></option>
+                <?php endforeach; ?>
             </select>
         </div>
         <div>
@@ -89,8 +106,10 @@ page_banner($heading, $sub, $kicker);
             <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Sort by</label>
             <select name="sort" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 text-sm">
                 <option value="">Recommended</option>
+<?php if (!$allHidden): ?>
                 <option value="price_asc" <?= $sort === 'price_asc' ? 'selected' : '' ?>>Price: low to high</option>
                 <option value="price_desc" <?= $sort === 'price_desc' ? 'selected' : '' ?>>Price: high to low</option>
+                <?php endif; ?>
                 <option value="rating" <?= $sort === 'rating' ? 'selected' : '' ?>>Top rated</option>
                 <option value="newest" <?= $sort === 'newest' ? 'selected' : '' ?>>Newest</option>
             </select>
@@ -103,7 +122,7 @@ page_banner($heading, $sub, $kicker);
 
     <div class="flex items-center justify-between mb-6 text-sm text-slate-500">
         <span><?= $total ?> result<?= $total === 1 ? '' : 's' ?><?= $max ? ' under ' . e(money($max)) : '' ?></span>
-        <?php if ($q || $category || $max || $sort): ?><a href="<?= e(url('tours.php' . ($type ? '?type=' . $type : ''))) ?>" class="text-brand-600 font-semibold hover:underline">Clear filters</a><?php endif; ?>
+        <?php if ($q || $category || $destination || $max || $sort): ?><a href="<?= e(url('tours.php' . ($type ? '?type=' . $type : ''))) ?>" class="text-brand-600 font-semibold hover:underline">Clear filters</a><?php endif; ?>
     </div>
 
     <?php if (!$items): ?>

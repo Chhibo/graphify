@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = 'Manage My Booking';
+$noindex = true;
 require APP_ROOT . '/includes/header.php';
 page_banner('Manage My Booking', 'Find your reservation voucher using your booking reference and email.', 'Booking Lookup');
 ?>

@@ -16,6 +16,45 @@ function current_admin(): ?array
     return $user;
 }
 
+/**
+ * Staff roles. Admins can do everything; managers run the content and bookings
+ * but not settings or staff accounts; booking agents only handle bookings and messages.
+ */
+function admin_roles(): array
+{
+    return [
+        'admin' => ['Administrator', 'Full access, including settings and staff accounts.', ['*']],
+        'manager' => ['Manager', 'Bookings, trips, destinations, blog, pages, reviews, messages and subscribers. No settings or staff accounts.',
+            ['dashboard', 'bookings', 'bookings_delete', 'content', 'reviews', 'messages', 'subscribers']],
+        'agent' => ['Booking Agent', 'Bookings, calendar and contact messages only. Cannot delete bookings.',
+            ['dashboard', 'bookings', 'messages']],
+    ];
+}
+
+function role_label(string $role): string
+{
+    return admin_roles()[$role][0] ?? ucfirst($role);
+}
+
+/** Can the logged-in staff member use this part of the admin panel? */
+function can(string $permission): bool
+{
+    $user = current_admin();
+    if (!$user) {
+        return false;
+    }
+    $perms = admin_roles()[$user['role']][2] ?? [];
+    return in_array('*', $perms, true) || in_array($permission, $perms, true);
+}
+
+function require_permission(string $permission): void
+{
+    if (!can($permission)) {
+        flash('error', 'Your account does not have access to that section.');
+        redirect('admin/index.php');
+    }
+}
+
 function require_login(): array
 {
     $user = current_admin();

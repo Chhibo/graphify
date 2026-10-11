@@ -21,48 +21,86 @@
     // Close modals on backdrop click / Escape
     document.querySelectorAll('[data-modal]').forEach(function (modal) {
         modal.addEventListener('click', function (e) {
-            if (e.target === modal) closeModal(modal.id);
+            if (e.target === modal) modal.id === 'newsletterPopup' ? closeNewsletterPopup() : closeModal(modal.id);
         });
     });
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
-            document.querySelectorAll('[data-modal]').forEach(function (m) { closeModal(m.id); });
+            document.querySelectorAll('[data-modal]').forEach(function (m) {
+                m.id === 'newsletterPopup' ? closeNewsletterPopup() : closeModal(m.id);
+            });
+        }
+        if (document.getElementById('lightbox') && !document.getElementById('lightbox').classList.contains('hidden')) {
+            if (e.key === 'ArrowRight') lightboxStep(1);
+            if (e.key === 'ArrowLeft') lightboxStep(-1);
         }
     });
 
-    // Live price estimate in the booking form
+    /* ---------- Booking form: guests per category & live estimate ---------- */
     var select = document.getElementById('bookItemSelect');
-    var guests = document.getElementById('bookGuests');
     var estimate = document.getElementById('bookEstimate');
+    var fields = {
+        adults: document.getElementById('bookAdults'),
+        children: document.getElementById('bookChildren'),
+        infants: document.getElementById('bookInfants')
+    };
+    function fmt(amount) {
+        var formatted = amount.toLocaleString(undefined, { maximumFractionDigits: 2 });
+        var sym = estimate.getAttribute('data-symbol');
+        return estimate.getAttribute('data-position') === 'after' ? formatted + ' ' + sym : sym + formatted;
+    }
+    function num(el) { return el ? Math.max(0, parseInt(el.value || '0', 10) || 0) : 0; }
     function updateEstimate() {
-        if (!select || !guests || !estimate) return;
+        if (!select || !estimate || !fields.adults) return;
         var opt = select.options[select.selectedIndex];
         if (!opt) return;
+        ['children', 'infants'].forEach(function (key) {
+            var allowed = opt.getAttribute('data-' + key) !== '0';
+            var wrap = document.querySelector('[data-guest-field="' + key + '"]');
+            if (wrap) wrap.classList.toggle('opacity-40', !allowed);
+            fields[key].disabled = !allowed;
+            if (!allowed) fields[key].value = 0;
+        });
         var max = parseInt(opt.getAttribute('data-max') || '50', 10);
-        guests.max = max;
-        var n = Math.max(1, Math.min(max, parseInt(guests.value || '1', 10)));
-        if (opt.getAttribute('data-price') === '') {
+        var count = num(fields.adults) + num(fields.children) + num(fields.infants);
+        var err = document.getElementById('bookGuestsError');
+        if (err) {
+            err.textContent = count > max ? 'Maximum ' + max + ' guests per booking for this experience.' : '';
+            err.classList.toggle('hidden', count <= max);
+        }
+        var hidden = opt.getAttribute('data-price') === '';
+        var prices = { adult: parseFloat(opt.getAttribute('data-price') || '0'), child: parseFloat(opt.getAttribute('data-child') || '0'), infant: parseFloat(opt.getAttribute('data-infant') || '0') };
+        document.querySelectorAll('[data-price-label]').forEach(function (el) {
+            var p = prices[el.getAttribute('data-price-label')];
+            el.textContent = hidden ? '' : (p > 0 ? fmt(p) + ' each' : 'Free');
+        });
+        if (hidden) {
             estimate.textContent = estimate.getAttribute('data-hidden-text');
             return;
         }
-        var total = parseFloat(opt.getAttribute('data-price') || '0') * n;
-        var formatted = total.toLocaleString(undefined, { maximumFractionDigits: 2 });
-        var sym = estimate.getAttribute('data-symbol');
-        estimate.textContent = estimate.getAttribute('data-position') === 'after' ? formatted + ' ' + sym : sym + formatted;
+        estimate.textContent = fmt(num(fields.adults) * prices.adult + num(fields.children) * prices.child + num(fields.infants) * prices.infant);
     }
-    if (select) {
+    if (select && fields.adults) {
         select.addEventListener('change', updateEstimate);
-        guests.addEventListener('input', updateEstimate);
+        Object.keys(fields).forEach(function (k) { fields[k].addEventListener('input', updateEstimate); });
         updateEstimate();
+        document.getElementById('bookingForm').addEventListener('submit', function (e) {
+            var opt = select.options[select.selectedIndex];
+            var max = parseInt(opt.getAttribute('data-max') || '50', 10);
+            if (num(fields.adults) + num(fields.children) + num(fields.infants) > max) {
+                e.preventDefault();
+                updateEstimate();
+            }
+        });
     }
 
-    // Auto-hide flash toasts
+    /* ---------- Flash toasts ---------- */
     document.querySelectorAll('.flash-toast').forEach(function (t) {
         setTimeout(function () { t.style.transition = 'opacity .4s'; t.style.opacity = '0'; }, 4500);
         setTimeout(function () { t.remove(); }, 5000);
     });
 
-    // Category filter tabs on the home page (client-side, like the original design)
+    /* ---------- Homepage category tabs ---------- */
     document.querySelectorAll('[data-filter-btn]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var cat = btn.getAttribute('data-filter-btn');
@@ -84,6 +122,101 @@
             if (empty) empty.classList.toggle('hidden', shown > 0);
         });
     });
+
+    /* ---------- Wishlist (cookie "tcms_wishlist" = comma separated ids) ---------- */
+    function readWishlist() {
+        var m = document.cookie.match(/(?:^|;\s*)tcms_wishlist=([^;]*)/);
+        return m ? decodeURIComponent(m[1]).split(',').filter(Boolean) : [];
+    }
+    function writeWishlist(ids) {
+        var base = (window.TCMS && window.TCMS.base) || '/';
+        document.cookie = 'tcms_wishlist=' + encodeURIComponent(ids.join(',')) + ';path=' + base + ';max-age=31536000;samesite=lax';
+        document.querySelectorAll('[data-wishlist-count]').forEach(function (el) {
+            el.textContent = ids.length;
+            el.classList.toggle('hidden', ids.length === 0);
+        });
+    }
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-wishlist]');
+        if (!btn) return;
+        e.preventDefault();
+        var id = btn.getAttribute('data-wishlist');
+        var ids = readWishlist();
+        var on = ids.indexOf(id) === -1;
+        ids = on ? ids.concat([id]).slice(-50) : ids.filter(function (x) { return x !== id; });
+        writeWishlist(ids);
+        document.querySelectorAll('[data-wishlist="' + id + '"]').forEach(function (b) {
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+            b.classList.toggle('text-rose-500', on);
+            b.classList.toggle('text-slate-400', !on);
+            var label = b.querySelector('[data-wishlist-label]');
+            if (label) label.textContent = on ? 'Saved' : 'Save';
+        });
+        showToast(on ? 'Saved to your wishlist' : 'Removed from your wishlist');
+        if (!on && btn.hasAttribute('data-wishlist-remove-card')) {
+            var card = btn.closest('[data-wishlist-card]');
+            if (card) card.remove();
+            if (!document.querySelector('[data-wishlist-card]')) location.reload();
+        }
+    });
+
+    /* ---------- Share buttons ---------- */
+    document.querySelectorAll('[data-share-copy]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var link = btn.getAttribute('data-share-copy');
+            var done = function () { showToast('Link copied to clipboard'); };
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(link).then(done, function () { window.prompt('Copy this link:', link); });
+            } else {
+                window.prompt('Copy this link:', link);
+            }
+        });
+    });
+    document.querySelectorAll('[data-share-native]').forEach(function (btn) {
+        if (!navigator.share) { btn.classList.add('hidden'); return; }
+        btn.addEventListener('click', function () {
+            navigator.share({ title: btn.getAttribute('data-title'), url: btn.getAttribute('data-share-native') }).catch(function () {});
+        });
+    });
+
+    /* ---------- Newsletter forms (footer + popup) ---------- */
+    document.querySelectorAll('form[data-subscribe]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (!window.fetch || !window.FormData) return; // normal POST fallback
+            e.preventDefault();
+            var msg = form.querySelector('[data-subscribe-msg]');
+            var btn = form.querySelector('button');
+            btn.disabled = true;
+            fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'fetch', 'Accept': 'application/json' } })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (msg) { msg.textContent = data.message; msg.classList.remove('hidden'); }
+                    if (data.ok) {
+                        form.querySelectorAll('input[type=email], input[name=name], button').forEach(function (el) { el.classList.add('hidden'); });
+                        try { localStorage.setItem('tcms_nl_subscribed', '1'); } catch (err) {}
+                        if (form.closest('#newsletterPopup')) setTimeout(closeNewsletterPopup, 2500);
+                    }
+                })
+                .catch(function () { form.submit(); })
+                .finally(function () { btn.disabled = false; });
+        });
+    });
+
+    /* ---------- Newsletter popup ---------- */
+    var popup = document.getElementById('newsletterPopup');
+    if (popup) {
+        var hiddenUntil = 0, subscribed = false;
+        try {
+            hiddenUntil = parseInt(localStorage.getItem('tcms_nl_hidden_until') || '0', 10);
+            subscribed = localStorage.getItem('tcms_nl_subscribed') === '1';
+        } catch (err) {}
+        if (!subscribed && Date.now() > hiddenUntil) {
+            setTimeout(function () {
+                if (document.querySelector('[data-modal].flex')) return; // don't cover another open dialog
+                openModal('newsletterPopup');
+            }, Math.max(0, parseInt(popup.getAttribute('data-delay') || '8', 10)) * 1000);
+        }
+    }
 })();
 
 function openModal(id) {
@@ -102,9 +235,18 @@ function closeModal(id) {
     document.body.style.overflow = '';
 }
 
+function closeNewsletterPopup() {
+    var popup = document.getElementById('newsletterPopup');
+    if (!popup || popup.classList.contains('hidden')) return;
+    var days = parseInt(popup.getAttribute('data-days') || '7', 10);
+    try { localStorage.setItem('tcms_nl_hidden_until', String(Date.now() + days * 86400000)); } catch (err) {}
+    closeModal('newsletterPopup');
+}
+
 function openBookingModal(tourId) {
     var mobile = document.getElementById('mobileMenu');
     if (mobile) mobile.classList.add('hidden');
+    closeNewsletterPopup();
     var select = document.getElementById('bookItemSelect');
     if (select && tourId) {
         select.value = String(tourId);
@@ -115,4 +257,36 @@ function openBookingModal(tourId) {
 
 function quickBook(tourId) {
     openBookingModal(tourId);
+}
+
+function showToast(text) {
+    var t = document.getElementById('toast');
+    if (!t) return;
+    t.querySelector('[data-toast-text]').textContent = text;
+    t.classList.remove('hidden');
+    t.classList.add('flex');
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer = setTimeout(function () { t.classList.add('hidden'); t.classList.remove('flex'); }, 2500);
+}
+
+/* ---------- Gallery lightbox (tour pages) ---------- */
+var lightboxIndex = 0;
+function lightboxImages() {
+    return Array.prototype.slice.call(document.querySelectorAll('[data-gallery-item]'));
+}
+function openLightbox(index) {
+    var box = document.getElementById('lightbox');
+    if (!box) return;
+    lightboxIndex = index;
+    lightboxStep(0);
+    openModal('lightbox');
+}
+function lightboxStep(delta) {
+    var items = lightboxImages();
+    if (!items.length) return;
+    lightboxIndex = (lightboxIndex + delta + items.length) % items.length;
+    var item = items[lightboxIndex];
+    document.getElementById('lightboxImg').src = item.getAttribute('data-full');
+    document.getElementById('lightboxCaption').textContent = item.getAttribute('data-caption') || '';
+    document.getElementById('lightboxCounter').textContent = (lightboxIndex + 1) + ' / ' + items.length;
 }

@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
+require_permission('content');
 
 $id = (int) ($_GET['id'] ?? 0);
 $post = $id ? db_one('SELECT * FROM ' . tbl('posts') . ' WHERE id = ?', [$id]) : null;
@@ -7,7 +8,7 @@ if ($id && !$post) {
     flash('error', 'Post not found.');
     redirect('admin/posts.php');
 }
-$p = $post ?: ['title' => '', 'slug' => '', 'tag' => '', 'author' => $admin['name'], 'image' => '', 'excerpt' => '', 'content' => '', 'read_time' => '', 'status' => 'published', 'published_at' => now()];
+$p = $post ?: ['title' => '', 'slug' => '', 'tag' => '', 'author' => $admin['name'], 'image' => '', 'excerpt' => '', 'content' => '', 'read_time' => '', 'status' => 'published', 'published_at' => now(), 'seo_title' => '', 'meta_description' => ''];
 $self = 'admin/post-edit.php' . ($id ? '?id=' . $id : '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -24,6 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'read_time' => post('read_time') !== '' ? mb_substr(post('read_time'), 0, 30) : max(1, (int) ceil($words / 200)) . ' min read',
         'status' => post('status') === 'draft' ? 'draft' : 'published',
         'published_at' => date('Y-m-d H:i:s', $published),
+        'seo_title' => mb_substr(post('seo_title'), 0, 200),
+        'meta_description' => mb_substr(post('meta_description'), 0, 320),
     ];
     if ($data['title'] === '') {
         flash('error', 'Title is required.');
@@ -69,6 +72,11 @@ admin_header($post ? 'Edit post' : 'New post', 'posts');
             <?php f_input('Author', 'author', $p['author']); ?>
             <?php f_input('Read time', 'read_time', $p['read_time'], 'text', '', 'Leave empty to calculate automatically.'); ?>
             <?php f_input('URL slug', 'slug', $p['slug']); ?>
+        </div>
+        <div class="card p-6 space-y-4">
+            <h2 class="font-bold">Search engines (SEO)</h2>
+            <?php f_input('SEO title', 'seo_title', $p['seo_title'], 'text', 'maxlength="200"', 'Leave empty for "Title | Site name".'); ?>
+            <?php f_textarea('Meta description', 'meta_description', $p['meta_description'], 3, 'Leave empty to use the excerpt.', 'maxlength="320"'); ?>
         </div>
     </div>
 </form>

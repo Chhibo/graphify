@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
+require_permission('messages');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf('admin/messages.php');

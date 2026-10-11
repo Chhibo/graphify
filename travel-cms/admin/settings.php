@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
+require_permission('settings');
 
 $pageOptions = ['' => '— No terms checkbox —'];
 foreach (db_all('SELECT slug, title FROM ' . tbl('pages') . ' ORDER BY title') as $p) {
@@ -20,6 +21,7 @@ $groups = [
         'footer_about' => ['textarea', 'Footer about text', 'Creating memories that last a lifetime with personalized tours, local guides, and effortless online bookings.'],
         'copyright_text' => ['text', 'Copyright text (after © year)', '', 'Default: "<Site name> Travel Agency. All rights reserved."'],
         'currency_symbol' => ['text', 'Currency symbol', '$', 'e.g. $, €, £, AED, EGP'],
+        'currency_code' => ['text', 'Currency code (ISO)', 'USD', 'Used by Google for prices, e.g. USD, EUR, GBP, AED, EGP.'],
         'currency_position' => ['select', 'Currency position', 'before', '', ['before' => 'Before amount ($100)', 'after' => 'After amount (100 €)']],
         'date_format' => ['select', 'Date format', 'M j, Y', '', ['M j, Y' => date('M j, Y'), 'd/m/Y' => date('d/m/Y'), 'm/d/Y' => date('m/d/Y'), 'Y-m-d' => date('Y-m-d'), 'j F Y' => date('j F Y')]],
         'timezone' => ['select', 'Timezone', 'UTC', '', $tzOptions],
@@ -41,6 +43,10 @@ $groups = [
         'activities_title' => ['text', 'Activities section – title', 'Popular Outdoor Activities'],
         'activities_subtitle' => ['text', 'Activities section – subtitle', 'Elevate your vacation with thrilling half-day and full-day immersive experiences led by local experts.'],
         'home_activities_count' => ['number', 'Number of activities on homepage', '4'],
+        'home_show_destinations' => ['bool', 'Show the destinations section on the homepage', '1', 'Shows up to 5 destinations marked "Show on homepage".'],
+        'destinations_kicker' => ['text', 'Destinations section – small label', 'Where To Next?'],
+        'destinations_title' => ['text', 'Destinations section – title', 'Explore Destinations'],
+        'destinations_subtitle' => ['text', 'Destinations page – subtitle', 'Discover our handpicked destinations around the world and the trips and activities available in each one.'],
         'blog_kicker' => ['text', 'Blog section – small label', 'Insiders Guide'],
         'blog_title' => ['text', 'Blog section – title', 'Latest Travel Stories & Advice'],
         'blog_subtitle' => ['text', 'Blog section – subtitle', 'Read expert tips, destination highlights, and travel itineraries written by world explorers.'],
@@ -55,10 +61,11 @@ $groups = [
         'feature_3_icon' => ['text', 'Feature 3 – icon', 'fa-headset'],
         'feature_3_title' => ['text', 'Feature 3 – title', '24/7 Dedicated Support'],
         'feature_3_text' => ['textarea', 'Feature 3 – text', 'Our concierge desk is available round-the-clock on WhatsApp & phone to assist with trip customisations.'],
-        'banner_image' => ['image', 'Inner pages banner image', 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=2000&q=80'],
+        'banner_image' => ['image', 'Inner pages banner image', 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=2000&q=80'],
     ]],
     'booking' => ['Booking', 'fa-calendar-check', [
         'bookings_enabled' => ['bool', 'Accept online bookings', '1'],
+        'hide_all_prices' => ['bool', 'Hide all prices on the website (price on request)', '0', 'Every trip shows the text below instead of a price. Guests can still book; bookings show "To be confirmed" until you enter the agreed price.'],
         'auto_confirm' => ['bool', 'Auto-confirm new bookings', '0', 'Off: new bookings arrive as "Pending" so you can confirm them.'],
         'booking_prefix' => ['text', 'Booking reference prefix', 'WL', 'References look like WL-123456.'],
         'booking_min_days' => ['number', 'Minimum notice (days)', '1', '0 = same-day bookings allowed.'],
@@ -70,6 +77,8 @@ $groups = [
         'terms_page' => ['select', 'Booking terms page (checkbox in booking form)', '', '', $pageOptions],
         'booking_modal_text' => ['text', 'Booking form subtitle', 'Reserve your spot now & pay cash or card directly to your guide on arrival.'],
         'price_hidden_text' => ['text', 'Text shown instead of a hidden price', 'Price on request'],
+        'child_age_label' => ['text', 'Child age label', 'Ages 2-11', 'Shown next to the child price and in the booking form.'],
+        'infant_age_label' => ['text', 'Infant age label', 'Under 2'],
         'voucher_note' => ['textarea', 'Voucher note', 'Please present this voucher to your guide on arrival.'],
         'reviews_auto_approve' => ['bool', 'Publish visitor reviews without moderation', '0'],
     ]],
@@ -95,6 +104,27 @@ $groups = [
         'social_twitter' => ['text', 'X / Twitter URL', ''],
         'social_youtube' => ['text', 'YouTube URL', ''],
         'social_tiktok' => ['text', 'TikTok URL', ''],
+    ]],
+    'newsletter' => ['Newsletter', 'fa-paper-plane', [
+        'newsletter_enabled' => ['bool', 'Show the newsletter sign-up box in the footer', '1'],
+        'newsletter_title' => ['text', 'Footer box – title', 'Get Travel Deals & Stories'],
+        'newsletter_text' => ['text', 'Footer box – text', 'Exclusive offers, new trips and travel tips, straight to your inbox. No spam, unsubscribe anytime.'],
+        'newsletter_success' => ['text', 'Message after subscribing', 'Thanks for subscribing! Check your inbox soon.'],
+        'newsletter_popup' => ['bool', 'Enable the subscribe popup window', '0', 'A popup invites visitors to subscribe. It is never shown to people who already subscribed.'],
+        'newsletter_popup_delay' => ['number', 'Popup – show after (seconds)', '8'],
+        'newsletter_popup_days' => ['number', 'Popup – after closing, show again after (days)', '7'],
+        'newsletter_popup_title' => ['text', 'Popup – title', 'Unlock Exclusive Travel Deals'],
+        'newsletter_popup_text' => ['textarea', 'Popup – text', 'Join our travel club for members-only offers, new destinations and insider tips. No spam, unsubscribe anytime.'],
+        'newsletter_popup_button' => ['text', 'Popup – button text', 'Subscribe'],
+        'newsletter_popup_image' => ['image', 'Popup – image (optional, shown on the left)', ''],
+        'newsletter_welcome' => ['bool', 'Send a welcome email to new subscribers', '1'],
+        'newsletter_welcome_text' => ['textarea', 'Welcome email text', "Thanks for subscribing! You'll be the first to hear about new trips, exclusive offers and travel tips."],
+        'newsletter_notify' => ['bool', 'Email me when someone subscribes', '0'],
+    ]],
+    'seo' => ['SEO', 'fa-magnifying-glass-chart', [
+        'search_engines' => ['bool', 'Allow search engines to index this website', '1', 'Turn off while you are still building the site.'],
+        'og_image' => ['image', 'Default social sharing image', '', 'Shown when a page without its own image is shared on WhatsApp, Facebook or X. Recommended 1200×630.'],
+        'google_verification' => ['text', 'Google Search Console verification code', '', 'Only the content="…" value of the HTML tag.'],
     ]],
     'advanced' => ['Advanced', 'fa-code', [
         'head_code' => ['code', 'Custom code before </head>', '', 'Google Analytics, Meta Pixel, verification tags…'],
@@ -169,6 +199,14 @@ admin_header('Settings', 'settings');
     </div>
     <div class="flex justify-end mt-6 pt-6 border-t border-slate-100"><button class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save settings</button></div>
 </form>
+<?php if ($tab === 'seo'): ?>
+    <div class="card p-6 mt-4 text-sm text-slate-600 space-y-2">
+        <h2 class="font-bold text-slate-900">Sitemap & robots.txt</h2>
+        <p>Submit your sitemap in <a href="https://search.google.com/search-console" target="_blank" rel="noopener" class="text-brand-600 underline">Google Search Console</a>: <a href="<?= e(url('sitemap.php')) ?>" target="_blank" class="font-mono text-brand-700 underline"><?= e(url('sitemap.php')) ?></a></p>
+        <p>robots.txt: <a href="<?= e(url('robots.php')) ?>" target="_blank" class="font-mono text-brand-700 underline"><?= e(url('robots.php')) ?></a> (also available as /sitemap.xml and /robots.txt on Apache).</p>
+        <p class="text-xs text-slate-400">Each trip, destination, blog post and page has its own SEO title and meta description fields. Trips also send ratings and prices to Google as structured data.</p>
+    </div>
+<?php endif; ?>
 <?php if ($tab === 'email'): ?>
     <form method="post" class="card p-6 mt-4 flex items-center justify-between">
         <?= csrf_field() ?><input type="hidden" name="action" value="test_mail">

@@ -8,7 +8,7 @@
  */
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.0.0');
+define('APP_VERSION', '1.1.0');
 $configFile = APP_ROOT . '/config.php';
 
 session_start();
@@ -131,11 +131,8 @@ if (!$alreadyInstalled && $step === '2' && $_SERVER['REQUEST_METHOD'] === 'POST'
 
     if ($pdo && !$errors) {
         try {
-            $schema = str_replace('{prefix}', $prefix, file_get_contents(__DIR__ . '/schema.sql'));
-            $schema = preg_replace('/^--.*$/m', '', $schema);
-            foreach (array_filter(array_map('trim', explode(';', $schema))) as $sql) {
-                $pdo->exec($sql);
-            }
+            require APP_ROOT . '/includes/schema.php';
+            schema_sync($pdo, $prefix);
 
             require __DIR__ . '/seed.php';
             seed_default_settings($pdo, $prefix, [

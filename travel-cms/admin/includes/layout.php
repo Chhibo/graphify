@@ -8,30 +8,39 @@ if (!defined('APP_ROOT')) {
 
 function admin_nav(): array
 {
-    $pending = (int) db_value('SELECT COUNT(*) FROM ' . tbl('bookings') . " WHERE status = 'pending'");
-    $pendingReviews = (int) db_value('SELECT COUNT(*) FROM ' . tbl('reviews') . " WHERE status = 'pending'");
-    $unread = (int) db_value('SELECT COUNT(*) FROM ' . tbl('messages') . ' WHERE is_read = 0');
-    return [
+    $count = fn (string $sql) => (int) db_value($sql);
+    $groups = [
         'Main' => [
-            ['dashboard', 'index.php', 'fa-gauge-high', 'Dashboard', 0],
-            ['bookings', 'bookings.php', 'fa-calendar-check', 'Bookings', $pending],
-            ['calendar', 'calendar.php', 'fa-calendar-days', 'Calendar', 0],
+            ['dashboard', 'index.php', 'fa-gauge-high', 'Dashboard', 'dashboard', null],
+            ['bookings', 'bookings.php', 'fa-calendar-check', 'Bookings', 'bookings', 'SELECT COUNT(*) FROM ' . tbl('bookings') . " WHERE status = 'pending'"],
+            ['calendar', 'calendar.php', 'fa-calendar-days', 'Calendar', 'bookings', null],
         ],
         'Content' => [
-            ['trips', 'tours.php?type=trip', 'fa-plane-departure', 'Trips & Tours', 0],
-            ['activities', 'tours.php?type=activity', 'fa-person-hiking', 'Activities', 0],
-            ['categories', 'categories.php', 'fa-layer-group', 'Categories', 0],
-            ['posts', 'posts.php', 'fa-newspaper', 'Blog Posts', 0],
-            ['pages', 'pages.php', 'fa-file-lines', 'Pages', 0],
-            ['reviews', 'reviews.php', 'fa-star', 'Reviews', $pendingReviews],
-            ['messages', 'messages.php', 'fa-envelope', 'Messages', $unread],
+            ['trips', 'tours.php?type=trip', 'fa-plane-departure', 'Trips & Tours', 'content', null],
+            ['activities', 'tours.php?type=activity', 'fa-person-hiking', 'Activities', 'content', null],
+            ['destinations', 'destinations.php', 'fa-earth-americas', 'Destinations', 'content', null],
+            ['categories', 'categories.php', 'fa-layer-group', 'Categories', 'content', null],
+            ['posts', 'posts.php', 'fa-newspaper', 'Blog Posts', 'content', null],
+            ['pages', 'pages.php', 'fa-file-lines', 'Pages', 'content', null],
+            ['reviews', 'reviews.php', 'fa-star', 'Reviews', 'reviews', 'SELECT COUNT(*) FROM ' . tbl('reviews') . " WHERE status = 'pending'"],
+            ['messages', 'messages.php', 'fa-envelope', 'Messages', 'messages', 'SELECT COUNT(*) FROM ' . tbl('messages') . ' WHERE is_read = 0'],
+            ['subscribers', 'subscribers.php', 'fa-paper-plane', 'Subscribers', 'subscribers', null],
         ],
         'System' => [
-            ['settings', 'settings.php', 'fa-sliders', 'Settings', 0],
-            ['users', 'users.php', 'fa-users-gear', 'Administrators', 0],
-            ['profile', 'profile.php', 'fa-user-lock', 'My Profile', 0],
+            ['settings', 'settings.php', 'fa-sliders', 'Settings', 'settings', null],
+            ['users', 'users.php', 'fa-users-gear', 'Staff Accounts', 'users', null],
+            ['profile', 'profile.php', 'fa-user-lock', 'My Profile', null, null],
         ],
     ];
+    $nav = [];
+    foreach ($groups as $group => $items) {
+        foreach ($items as [$key, $href, $icon, $label, $perm, $badgeSql]) {
+            if ($perm === null || can($perm)) {
+                $nav[$group][] = [$key, $href, $icon, $label, $badgeSql ? $count($badgeSql) : 0];
+            }
+        }
+    }
+    return $nav;
 }
 
 function admin_header(string $title, string $active = ''): void
@@ -92,7 +101,7 @@ function admin_header(string $title, string $active = ''): void
             </div>
             <div class="flex items-center space-x-3 text-sm">
                 <a href="<?= e(url()) ?>" target="_blank" class="btn btn-light hidden sm:inline-flex"><i class="fa-solid fa-arrow-up-right-from-square"></i> View site</a>
-                <span class="hidden md:inline text-slate-500"><?= e($user['name'] ?? '') ?></span>
+                <span class="hidden md:inline text-slate-500"><?= e($user['name'] ?? '') ?> <span class="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full ml-1"><?= e(role_label($user['role'] ?? '')) ?></span></span>
                 <a href="<?= e(url('admin/logout.php')) ?>" class="btn btn-light" title="Log out"><i class="fa-solid fa-right-from-bracket"></i></a>
             </div>
         </header>

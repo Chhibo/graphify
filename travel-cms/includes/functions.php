@@ -348,7 +348,32 @@ function upload_image(string $field): ?string
     if (empty($_FILES[$field]) || ($_FILES[$field]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
         return null;
     }
-    $file = $_FILES[$field];
+    return store_uploaded_image($_FILES[$field]);
+}
+
+/** Handle a multiple file input (name="field[]"). Returns the stored file names. */
+function upload_images(string $field): array
+{
+    $names = [];
+    $files = $_FILES[$field] ?? null;
+    if (!$files || !is_array($files['name'])) {
+        return $names;
+    }
+    foreach (array_keys($files['name']) as $i) {
+        if ($files['error'][$i] === UPLOAD_ERR_NO_FILE) {
+            continue;
+        }
+        $names[] = store_uploaded_image([
+            'name' => $files['name'][$i], 'tmp_name' => $files['tmp_name'][$i],
+            'error' => $files['error'][$i], 'size' => $files['size'][$i],
+        ]);
+    }
+    return $names;
+}
+
+/** Validate one uploaded image (real image, max 5 MB) and store it under a random name. */
+function store_uploaded_image(array $file): string
+{
     if ($file['error'] !== UPLOAD_ERR_OK) {
         throw new RuntimeException('Upload failed (error code ' . (int) $file['error'] . ').');
     }
@@ -365,6 +390,20 @@ function upload_image(string $field): ?string
         throw new RuntimeException('Could not save the uploaded file. Check that /uploads is writable.');
     }
     return $name;
+}
+
+/** Copy an uploaded file so a duplicate owns its own copy. URLs are returned unchanged. */
+function copy_upload(string $value): string
+{
+    if ($value === '' || preg_match('#^(https?:)?//#i', $value)) {
+        return $value;
+    }
+    $src = APP_ROOT . '/uploads/' . basename($value);
+    if (!is_file($src)) {
+        return '';
+    }
+    $copy = date('Ymd') . '-' . bin2hex(random_bytes(8)) . '.' . pathinfo($src, PATHINFO_EXTENSION);
+    return @copy($src, APP_ROOT . '/uploads/' . $copy) ? $copy : '';
 }
 
 function delete_upload(?string $value): void
@@ -425,13 +464,48 @@ function categories(): array
 
 function bookable_tours(): array
 {
-    return db_all('SELECT id, type, title, price, hide_price, max_guests FROM ' . tbl('tours') . " WHERE status = 'active' ORDER BY type DESC, sort_order, title");
+    return db_all('SELECT id, type, title, price, child_price, infant_price, allow_children, allow_infants, hide_price, max_guests FROM ' . tbl('tours') . " WHERE status = 'active' ORDER BY type DESC, sort_order, title");
 }
 
-/** Price shown for a trip/activity: the amount, or "Price on request" when hidden. */
+/* ---------------- Prices ---------------- */
+
+/** True when a trip's price must not be shown (hidden on the trip, or all prices hidden in Settings). */
+function prices_hidden(array $tour = []): bool
+{
+    return setting('hide_all_prices', '0') === '1' || !empty($tour['hide_price']);
+}
+
+/** Price per adult, child and infant. Empty child price = adult price, empty infant price = free. */
+function tour_prices(array $tour): array
+{
+    $adult = (float) $tour['price'];
+    return [
+        'adult' => $adult,
+        'child' => ($tour['child_price'] ?? null) === null ? $adult : (float) $tour['child_price'],
+        'infant' => ($tour['infant_price'] ?? null) === null ? 0.0 : (float) $tour['infant_price'],
+    ];
+}
+
+/** Price shown for a trip/activity: the adult price, or "Price on request" when hidden. */
 function tour_price(array $tour): string
 {
-    return !empty($tour['hide_price']) ? setting('price_hidden_text', 'Price on request') : money($tour['price']);
+    return prices_hidden($tour) ? setting('price_hidden_text', 'Price on request') : money($tour['price']);
+}
+
+/** Price fields and total for a booking of $tour. */
+function booking_quote(array $tour, int $adults, int $children, int $infants): array
+{
+    if (prices_hidden($tour)) {
+        return ['unit_price' => 0, 'child_price' => 0, 'infant_price' => 0, 'total' => 0, 'price_on_request' => 1];
+    }
+    $p = tour_prices($tour);
+    return [
+        'unit_price' => $p['adult'],
+        'child_price' => $p['child'],
+        'infant_price' => $p['infant'],
+        'total' => round($adults * $p['adult'] + $children * $p['child'] + $infants * $p['infant'], 2),
+        'price_on_request' => 0,
+    ];
 }
 
 /** Amount of a booking: the total, or "To be confirmed" when the price is on request. */
@@ -440,21 +514,120 @@ function booking_total(array $booking): string
     return !empty($booking['price_on_request']) ? 'To be confirmed' : money($booking['total']);
 }
 
-/** Small database upgrades for sites installed with an older version. */
+/** "2 adults, 1 child, 1 infant" */
+function guests_summary(array $b): string
+{
+    $parts = [];
+    foreach (['adults' => ['adult', 'adults'], 'children' => ['child', 'children'], 'infants' => ['infant', 'infants']] as $key => [$one, $many]) {
+        $n = (int) ($b[$key] ?? 0);
+        if ($n > 0) {
+            $parts[] = $n . ' ' . ($n === 1 ? $one : $many);
+        }
+    }
+    return $parts ? implode(', ', $parts) : (int) ($b['guests'] ?? 0) . ' guests';
+}
+
+/** Price lines of a booking, e.g. [["2 adults × $100", "$200"], ...]. Empty when on request. */
+function booking_lines(array $b): array
+{
+    if (!empty($b['price_on_request'])) {
+        return [];
+    }
+    $lines = [];
+    foreach (['adults' => ['unit_price', 'adult', 'adults'], 'children' => ['child_price', 'child', 'children'], 'infants' => ['infant_price', 'infant', 'infants']] as $key => [$priceKey, $one, $many]) {
+        $n = (int) ($b[$key] ?? 0);
+        if ($n > 0) {
+            $price = (float) $b[$priceKey];
+            $lines[] = [$n . ' ' . ($n === 1 ? $one : $many) . ' × ' . money($price), $price > 0 ? money($n * $price) : 'Free'];
+        }
+    }
+    return $lines;
+}
+
+/* ---------------- Destinations ---------------- */
+
+function destinations(bool $featuredOnly = false): array
+{
+    return db_all('SELECT d.*, (SELECT COUNT(*) FROM ' . tbl('tours') . " t WHERE t.destination_id = d.id AND t.status = 'active') AS tours_count FROM " . tbl('destinations') . " d WHERE d.status = 'active'" . ($featuredOnly ? ' AND d.is_featured = 1' : '') . ' ORDER BY d.sort_order, d.name');
+}
+
+/* ---------------- Wishlist (stored in a cookie, no account needed) ---------------- */
+
+function wishlist_ids(): array
+{
+    $ids = array_filter(array_map('intval', explode(',', (string) ($_COOKIE['tcms_wishlist'] ?? ''))));
+    return array_slice(array_values(array_unique($ids)), 0, 50);
+}
+
+function in_wishlist(int $id): bool
+{
+    return in_array($id, wishlist_ids(), true);
+}
+
+/* ---------------- Newsletter ---------------- */
+
+function unsubscribe_url(string $email): string
+{
+    $token = substr(hash_hmac('sha256', strtolower($email), (string) ($GLOBALS['config']['app_key'] ?? '')), 0, 32);
+    return url('unsubscribe.php?e=' . urlencode($email) . '&t=' . $token);
+}
+
+function valid_unsubscribe_token(string $email, string $token): bool
+{
+    parse_str((string) parse_url(unsubscribe_url($email), PHP_URL_QUERY), $q);
+    return hash_equals($q['t'], $token);
+}
+
+/** Add a subscriber. Returns 'new', 'reactivated' or 'exists'. */
+function subscribe_email(string $email, string $name = '', string $source = 'footer'): string
+{
+    $email = strtolower(trim($email));
+    $row = db_one('SELECT id, status FROM ' . tbl('subscribers') . ' WHERE email = ?', [$email]);
+    if ($row) {
+        if ($row['status'] !== 'active') {
+            db_update('subscribers', ['status' => 'active', 'unsubscribed_at' => null], (int) $row['id']);
+            return 'reactivated';
+        }
+        return 'exists';
+    }
+    db_insert('subscribers', ['email' => $email, 'name' => mb_substr($name, 0, 150), 'status' => 'active', 'source' => $source, 'ip_address' => client_ip(), 'created_at' => now()]);
+    return 'new';
+}
+
+/* ---------------- SEO ---------------- */
+
+/** Print a JSON-LD structured data block (Google rich results). */
+function json_ld(array $data): string
+{
+    $data = ['@context' => 'https://schema.org'] + $data;
+    return '<script type="application/ld+json">' . json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . '</script>';
+}
+
+/** Absolute URL of the current page without tracking parameters (canonical link). */
+function current_url(array $keep = []): string
+{
+    $path = basename(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: 'index.php');
+    $query = array_intersect_key($_GET, array_flip($keep));
+    $path = $path === 'index.php' ? '' : $path;
+    return url($path . ($query ? '?' . http_build_query($query) : ''));
+}
+
+/* ---------------- Upgrades ---------------- */
+
+/** Bring the database of an older installation up to date (runs once per version). */
 function run_migrations(): void
 {
-    if ((int) setting('db_version', '1') >= 2) {
+    require_once APP_ROOT . '/includes/schema.php';
+    $current = (int) setting('db_version', '1');
+    if ($current >= SCHEMA_VERSION) {
         return;
     }
-    $cols = array_column(db_all('SHOW COLUMNS FROM ' . tbl('tours')), 'Field');
-    if (!in_array('hide_price', $cols, true)) {
-        db()->exec('ALTER TABLE ' . tbl('tours') . ' ADD COLUMN `hide_price` TINYINT(1) NOT NULL DEFAULT 0 AFTER `price`');
+    schema_sync(db(), (string) ($GLOBALS['config']['db_prefix'] ?? ''));
+    if ($current < 3) {
+        // Bookings made before adult/child pricing: every guest was an adult.
+        db_exec('UPDATE ' . tbl('bookings') . ' SET adults = guests WHERE children = 0 AND infants = 0');
     }
-    $cols = array_column(db_all('SHOW COLUMNS FROM ' . tbl('bookings')), 'Field');
-    if (!in_array('price_on_request', $cols, true)) {
-        db()->exec('ALTER TABLE ' . tbl('bookings') . ' ADD COLUMN `price_on_request` TINYINT(1) NOT NULL DEFAULT 0 AFTER `total`');
-    }
-    save_setting('db_version', '2');
+    save_setting('db_version', (string) SCHEMA_VERSION);
     settings_all(true);
 }
 
@@ -564,7 +737,12 @@ function booking_email_table(array $b): string
         'Reference' => $b['reference'],
         'Experience' => $b['tour_title'],
         'Travel date' => format_date($b['travel_date']),
-        'Guests' => $b['guests'],
+        'Guests' => guests_summary($b),
+    ];
+    foreach (booking_lines($b) as [$label, $amount]) {
+        $rows[$label] = $amount;
+    }
+    $rows += [
         'Amount due on arrival' => booking_total($b),
         'Status' => ucfirst($b['status']),
     ];

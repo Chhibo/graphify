@@ -30,6 +30,8 @@ $counts = [
     'activities' => (int) db_value('SELECT COUNT(*) FROM ' . tbl('tours') . " WHERE type = 'activity'"),
     'posts' => (int) db_value('SELECT COUNT(*) FROM ' . tbl('posts')),
     'reviews' => (int) db_value('SELECT COUNT(*) FROM ' . tbl('reviews') . " WHERE status = 'pending'"),
+    'destinations' => (int) db_value('SELECT COUNT(*) FROM ' . tbl('destinations')),
+    'subscribers' => (int) db_value('SELECT COUNT(*) FROM ' . tbl('subscribers') . " WHERE status = 'active'"),
 ];
 
 admin_header('Dashboard', 'dashboard');
@@ -64,15 +66,21 @@ admin_header('Dashboard', 'dashboard');
         <h2 class="font-bold mb-4">Quick actions</h2>
         <div class="grid grid-cols-2 gap-2 text-xs">
             <a href="<?= e(url('admin/booking.php')) ?>" class="btn btn-accent justify-center"><i class="fa-solid fa-plus"></i> New booking</a>
+            <a href="<?= e(url('admin/calendar.php')) ?>" class="btn btn-light justify-center"><i class="fa-solid fa-calendar-days"></i> Calendar</a>
+            <?php if (can('content')): ?>
             <a href="<?= e(url('admin/tour-edit.php?type=trip')) ?>" class="btn btn-primary justify-center"><i class="fa-solid fa-plus"></i> New trip</a>
             <a href="<?= e(url('admin/tour-edit.php?type=activity')) ?>" class="btn btn-light justify-center"><i class="fa-solid fa-plus"></i> New activity</a>
             <a href="<?= e(url('admin/post-edit.php')) ?>" class="btn btn-light justify-center"><i class="fa-solid fa-plus"></i> New post</a>
+            <a href="<?= e(url('admin/destination-edit.php')) ?>" class="btn btn-light justify-center"><i class="fa-solid fa-plus"></i> New destination</a>
+            <?php endif; ?>
         </div>
         <ul class="mt-5 text-sm space-y-2 text-slate-600">
             <li class="flex justify-between"><span>Trips</span><b><?= $counts['trips'] ?></b></li>
             <li class="flex justify-between"><span>Activities</span><b><?= $counts['activities'] ?></b></li>
             <li class="flex justify-between"><span>Blog posts</span><b><?= $counts['posts'] ?></b></li>
-            <li class="flex justify-between"><span>Reviews awaiting approval</span><a href="<?= e(url('admin/reviews.php?status=pending')) ?>" class="font-bold text-accent-500"><?= $counts['reviews'] ?></a></li>
+            <li class="flex justify-between"><span>Destinations</span><b><?= $counts['destinations'] ?></b></li>
+            <li class="flex justify-between"><span>Newsletter subscribers</span><?php if (can('subscribers')): ?><a href="<?= e(url('admin/subscribers.php')) ?>" class="font-bold text-brand-600"><?= $counts['subscribers'] ?></a><?php else: ?><b><?= $counts['subscribers'] ?></b><?php endif; ?></li>
+            <li class="flex justify-between"><span>Reviews awaiting approval</span><?php if (can('reviews')): ?><a href="<?= e(url('admin/reviews.php?status=pending')) ?>" class="font-bold text-accent-500"><?= $counts['reviews'] ?></a><?php else: ?><b><?= $counts['reviews'] ?></b><?php endif; ?></li>
         </ul>
     </div>
 </div>

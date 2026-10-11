@@ -27,18 +27,37 @@ The design follows the WanderLuxe template: hero search, featured trips with cat
 > If the installer cannot write `config.php`, it shows the file contents so you can create it yourself in the root folder.
 > To reinstall, delete `config.php` and open `/install/` again. Use a different table prefix, or an empty database.
 
+## Updating an existing site
+
+1. Back up your database and your `uploads/` folder.
+2. Upload the new files over the old ones. **Keep your `config.php`** and your `uploads/` folder, and don't upload the `/install` folder again.
+3. Open any page of your website. The database is upgraded automatically: new tables and fields are added and your existing data is kept.
+
 ## Features
 
 ### Website
-- Homepage with hero search (destination, travel style, max budget), featured trips with category tabs, activities, blog, reviews and features
-- Trip / activity listing with search, filters, sorting and pagination
-- Trip detail pages with overview, "What's included", day-by-day itinerary, reviews and related trips
-- **Booking form** (modal on every page) with a live price estimate and pay-on-arrival messaging
+- Homepage with hero search (destination, travel style, max budget), featured trips with category tabs, destinations, activities, blog, reviews and features
+- Trip / activity listing with search, destination and style filters, sorting and pagination
+- Trip detail pages with a **photo gallery** (full-screen viewer), overview, "What's included", day-by-day itinerary, reviews and related trips
+- **Destinations:** a destinations page and one page per destination listing its trips and activities
+- **Adult / child / infant pricing:** separate prices per trip (child price defaults to the adult price, infants default to free). Children or infants can be turned off per trip.
+- **Booking form** (modal on every page) with adults / children / infants and a live price estimate
+- **Prices can be hidden** per trip, or for the whole site (Settings → Booking), showing "Price on request". Guests still book, and you confirm the price with them afterwards.
+- **Wishlist:** a heart button on every trip saves it to "Saved Trips" (no account needed), and the saved list can be shared on WhatsApp
+- **Share buttons** on trips, destinations and blog posts: WhatsApp, Facebook, X, Telegram, email, copy link and the phone's own share menu
+- **Newsletter:** sign-up box in the footer, plus an optional subscribe popup (on/off, delay, and how often it shows) with welcome emails and unsubscribe links
 - **Instant voucher page** with a printable voucher. Guests can cancel online if you allow it.
 - **Manage My Booking**: guests find their voucher with their reference and email
 - Visitor reviews, held for moderation by default
 - Blog with tags, static pages (About, Terms, Privacy and so on) and a contact form
-- Floating WhatsApp button, social links, SEO meta tags, responsive layout
+- Floating WhatsApp button, social links, responsive layout
+
+### SEO
+- SEO title and meta description fields for every trip, destination, blog post and page
+- Canonical links, Open Graph and Twitter tags for link previews, and a default sharing image
+- Google structured data: product ratings and prices on trips, breadcrumbs, travel agency details, blog articles and destinations
+- XML sitemap (`/sitemap.php`, also `/sitemap.xml` on Apache) and `robots.txt` (`/robots.php`, also `/robots.txt`). When the site is installed in a sub-folder, submit the sitemap URL in Google Search Console yourself.
+- A switch to hide the whole site from search engines while you build it, and a Google Search Console verification field
 
 ### Booking rules (Settings → Booking)
 - Turn online bookings on or off; auto-confirm bookings or review them first
@@ -50,10 +69,18 @@ The design follows the WanderLuxe template: hero search, featured trips with cat
 - **Dashboard:** pending bookings, upcoming trips, expected revenue, a 14-day chart, the next 7 days of arrivals and the most-booked experiences
 - **Bookings:** filters, search, bulk status changes, CSV export, and manual bookings for phone or walk-in guests. Each booking can be edited and has internal notes, email/WhatsApp/call buttons and an "email the guest" option.
 - **Calendar:** a monthly view of arrivals
-- **Trips & Activities:** create, edit, duplicate, hide or show, feature on the homepage; image upload or image URL
+- **Trips & Activities:** create, edit, duplicate, hide or show, feature on the homepage, adult/child/infant prices, a photo gallery (upload many photos at once, captions, order), destination link and SEO fields
+- **Destinations:** add, edit, choose which trips belong to each one, and feature them on the homepage
+- **Subscribers:** search, add manually, unsubscribe or delete, and export to CSV for Mailchimp, Brevo, MailerLite and similar tools. The CSV includes each subscriber's unsubscribe link.
 - Categories, blog posts (drafts and scheduled posts), pages, review moderation and contact messages
-- **Settings:** general, every homepage text and image, booking rules, email/SMTP, contact and social links, custom code (analytics, chat widgets)
-- Multiple administrators and a profile/password page
+- **Settings:** general, every homepage text and image, booking rules, newsletter and popup, SEO, email/SMTP, contact and social links, custom code (analytics, chat widgets)
+- **Staff roles:**
+  | Role | Can access |
+  |---|---|
+  | Administrator | Everything, including Settings and staff accounts |
+  | Manager | Bookings, trips, destinations, blog, pages, reviews, messages, subscribers |
+  | Booking Agent | Bookings, calendar and messages only (cannot delete bookings) |
+- Every staff member has a profile page to change their own password
 
 ### Emails
 - The guest gets a reservation email with a voucher link. The admin gets a new-booking alert.
@@ -71,7 +98,9 @@ The design follows the WanderLuxe template: hero search, featured trips with cat
 **Nginx users:** add equivalent rules:
 
 ```nginx
-location ~ ^/(config\.php|includes/|admin/includes/|install/schema\.sql) { deny all; }
+location ~ ^/(config\.php|includes/|admin/includes/) { deny all; }
+location = /sitemap.xml { rewrite ^ /sitemap.php last; }
+location = /robots.txt { rewrite ^ /robots.php last; }
 location ~ ^/uploads/.*\.php$ { deny all; }
 ```
 
@@ -91,6 +120,10 @@ location ~ ^/uploads/.*\.php$ { deny all; }
 ```
 ├── index.php            Homepage
 ├── tours.php / tour.php Listing & detail pages
+├── destinations.php     Destinations list (destination.php = one destination)
+├── wishlist.php         Saved trips
+├── subscribe.php        Newsletter sign-up (unsubscribe.php to opt out)
+├── sitemap.php          XML sitemap (robots.php = robots.txt)
 ├── book.php             Booking handler (no payment)
 ├── voucher.php          Guest voucher / cancellation
 ├── my-booking.php       Booking lookup
@@ -100,7 +133,7 @@ location ~ ^/uploads/.*\.php$ { deny all; }
 ├── review.php           Review submission
 ├── admin/               Admin panel
 ├── install/             Web installer (delete after install)
-├── includes/            Core functions & layout
+├── includes/            Core functions, layout & database schema (schema.php)
 ├── assets/              CSS, JS, images
 ├── uploads/             Uploaded images
 └── build/               Tailwind config (only needed to rebuild CSS)

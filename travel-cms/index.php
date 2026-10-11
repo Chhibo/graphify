@@ -18,7 +18,27 @@ foreach ($trips as $t) {
     }
 }
 
+$homeDestinations = setting('home_show_destinations', '1') === '1' ? array_slice(destinations(true), 0, 5) : [];
 $activeNav = '';
+$canonical = url();
+$org = [
+    '@type' => 'TravelAgency',
+    'name' => setting('site_name', 'WanderLuxe'),
+    'url' => url(),
+    'description' => setting('meta_description', ''),
+    'email' => setting('contact_email'),
+    'telephone' => setting('contact_phone'),
+    'address' => setting('contact_address'),
+    'sameAs' => array_values(array_filter(array_map(fn ($k) => setting('social_' . $k), ['facebook', 'instagram', 'twitter', 'youtube', 'tiktok']))),
+];
+if (setting('logo_image')) {
+    $org['logo'] = img_url(setting('logo_image'));
+}
+if ($reviewStats['n'] > 0) {
+    $org['aggregateRating'] = ['@type' => 'AggregateRating', 'ratingValue' => round((float) $reviewStats['avg'], 1), 'reviewCount' => (int) $reviewStats['n'], 'bestRating' => 5];
+}
+$jsonLd = [array_filter($org), ['@type' => 'WebSite', 'name' => setting('site_name', 'WanderLuxe'), 'url' => url(),
+    'potentialAction' => ['@type' => 'SearchAction', 'target' => url('tours.php') . '?q={search_term_string}', 'query-input' => 'required name=search_term_string']]];
 require APP_ROOT . '/includes/header.php';
 ?>
 
@@ -43,12 +63,12 @@ require APP_ROOT . '/includes/header.php';
 
         <!-- Search & Filter Card -->
         <form method="get" action="<?= e(url('tours.php')) ?>" class="max-w-5xl mx-auto glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-slate-800 border border-white/30 text-left">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 <?= prices_hidden() ? 'md:grid-cols-3' : 'md:grid-cols-4' ?> gap-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5" for="heroQ">
                         <i class="fa-solid fa-location-dot text-brand-500 mr-1"></i> Destination
                     </label>
-                    <input type="text" id="heroQ" name="q" placeholder="e.g., Bali, Switzerland, Egypt" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all font-medium">
+                    <input type="text" id="heroQ" name="q" list="heroDestinations" placeholder="e.g., Bali, Switzerland, Egypt" class="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all font-medium">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5" for="heroCat">
@@ -61,6 +81,7 @@ require APP_ROOT . '/includes/header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <?php if (!prices_hidden()): ?>
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5" for="heroMax">
                         <i class="fa-solid fa-wallet text-brand-500 mr-1"></i> Max Budget (<?= e(setting('currency_symbol', '$')) ?>)
@@ -72,6 +93,7 @@ require APP_ROOT . '/includes/header.php';
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <?php endif; ?>
                 <div class="flex items-end">
                     <button type="submit" class="w-full h-[46px] bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 text-white font-bold rounded-xl shadow-lg shadow-brand-500/30 flex items-center justify-center space-x-2 transition-all transform hover:scale-[1.02]">
                         <i class="fa-solid fa-magnifying-glass"></i>
@@ -79,6 +101,7 @@ require APP_ROOT . '/includes/header.php';
                     </button>
                 </div>
             </div>
+            <datalist id="heroDestinations"><?php foreach (destinations() as $d): ?><option value="<?= e($d['name']) ?>"><?php endforeach; ?></datalist>
         </form>
 
         <div class="mt-12 flex flex-wrap justify-center items-center gap-6 text-sm text-slate-300 font-medium">
@@ -112,6 +135,22 @@ require APP_ROOT . '/includes/header.php';
         <a href="<?= e(url('tours.php?type=trip')) ?>" class="inline-flex items-center px-6 py-3 rounded-full border-2 border-brand-600 text-brand-700 font-bold text-sm hover:bg-brand-600 hover:text-white transition">View All Trips <i class="fa-solid fa-arrow-right ml-2"></i></a>
     </div>
 </section>
+
+<?php if ($homeDestinations): ?>
+<!-- Destinations Section -->
+<section id="destinations" class="pb-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex flex-col md:flex-row md:items-end justify-between mb-10">
+        <div>
+            <span class="text-accent-500 font-bold uppercase tracking-widest text-xs"><?= e(setting('destinations_kicker', 'Where To Next?')) ?></span>
+            <h2 class="font-serif text-3xl sm:text-4xl font-bold mt-1 text-slate-900"><?= e(setting('destinations_title', 'Explore Destinations')) ?></h2>
+        </div>
+        <a href="<?= e(url('destinations.php')) ?>" class="mt-4 md:mt-0 text-sm font-bold text-brand-600 hover:underline">All destinations <i class="fa-solid fa-arrow-right ml-1"></i></a>
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <?php foreach ($homeDestinations as $i => $d) { destination_card($d, $i === 0 ? 'h-56 sm:h-80 lg:row-span-2 lg:h-full' : 'h-56 sm:h-64'); } ?>
+    </div>
+</section>
+<?php endif; ?>
 
 <?php if ($activities): ?>
 <!-- Activities Section -->

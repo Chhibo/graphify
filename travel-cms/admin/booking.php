@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
+require_permission('bookings');
 
 $id = (int) ($_GET['id'] ?? 0);
 $booking = $id ? db_one('SELECT * FROM ' . tbl('bookings') . ' WHERE id = ?', [$id]) : null;
@@ -9,13 +10,13 @@ if ($id && !$booking) {
 }
 $isNew = !$booking;
 $statuses = booking_statuses();
-$tours = db_all('SELECT id, type, title, price, hide_price, status FROM ' . tbl('tours') . ' ORDER BY type DESC, title');
+$tours = db_all('SELECT id, type, title, price, child_price, infant_price, hide_price, status FROM ' . tbl('tours') . ' ORDER BY type DESC, title');
 $self = 'admin/booking.php' . ($id ? '?id=' . $id : '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf($self);
 
-    if (post('action') === 'delete' && $booking) {
+    if (post('action') === 'delete' && $booking && can('bookings_delete')) {
         db_exec('DELETE FROM ' . tbl('bookings') . ' WHERE id = ?', [$id]);
         flash('success', 'Booking ' . $booking['reference'] . ' deleted.');
         redirect('admin/bookings.php');
@@ -24,7 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tour = db_one('SELECT * FROM ' . tbl('tours') . ' WHERE id = ?', [(int) post('tour_id')]);
     $data = [
         'travel_date' => post('travel_date'),
-        'guests' => max(1, (int) post('guests', 1)),
+        'adults' => max(1, (int) post('adults', 1)),
+        'children' => max(0, (int) post('children')),
+        'infants' => max(0, (int) post('infants')),
         'customer_name' => mb_substr(post('customer_name'), 0, 150),
         'customer_email' => mb_substr(post('customer_email'), 0, 190),
         'customer_phone' => mb_substr(post('customer_phone'), 0, 60),
@@ -48,17 +51,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect($self);
     }
 
-    $priceInput = post('unit_price');
-    if ($booking && (int) $booking['tour_id'] !== (int) $tour['id'] && $priceInput === booking_price_field($booking)) {
-        $priceInput = ''; // experience changed: take the new experience's price
+    $data['guests'] = $data['adults'] + $data['children'] + $data['infants'];
+    $onRequest = post('price_on_request') === '1';
+    $tourChanged = $booking && (int) $booking['tour_id'] !== (int) $tour['id'];
+    $tourPrices = tour_prices($tour);
+    $inputs = [];
+    foreach (['unit_price' => 'adult', 'child_price' => 'child', 'infant_price' => 'infant'] as $field => $cat) {
+        $value = post($field);
+        // Experience changed and the old price was left untouched: use the new experience's price.
+        if ($tourChanged && $value !== '' && $value === price_field($booking, $field)) {
+            $value = '';
+        }
+        $inputs[$field] = $value;
+        $data[$field] = $onRequest ? 0 : ($value !== '' ? max(0, (float) $value) : $tourPrices[$cat]);
     }
-    // An empty price on a "price on request" experience keeps the booking on request.
-    $onRequest = $priceInput === '' && $tour['hide_price'];
-    $unit = $priceInput !== '' ? (float) $priceInput : ($onRequest ? 0.0 : (float) $tour['price']);
+    if (!$onRequest && prices_hidden($tour) && $inputs['unit_price'] === '') {
+        flash('error', 'This experience has no public price: enter the agreed adult price, or keep "Price to be confirmed" ticked.');
+        redirect($self);
+    }
     $data['tour_id'] = $tour['id'];
     $data['tour_title'] = $tour['title'];
-    $data['unit_price'] = $unit;
-    $data['total'] = round($unit * $data['guests'], 2);
+    $data['total'] = $onRequest ? 0 : round($data['adults'] * $data['unit_price'] + $data['children'] * $data['child_price'] + $data['infants'] * $data['infant_price'], 2);
     $data['price_on_request'] = $onRequest ? 1 : 0;
 
     if ($isNew) {
@@ -93,14 +106,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect('admin/booking.php?id=' . $id);
 }
 
-/** Value of the price field: empty while the price is still on request. */
-function booking_price_field(array $b): string
+/** Value shown in a price field: empty while the price is still on request. */
+function price_field(?array $b, string $field): string
 {
-    return ($b['unit_price'] === '' || !empty($b['price_on_request'])) ? '' : (string) (float) $b['unit_price'];
+    return (!$b || $b[$field] === '' || !empty($b['price_on_request'])) ? '' : (string) (float) $b[$field];
 }
 
 $b = $booking ?: [
-    'tour_id' => (int) ($_GET['tour'] ?? 0), 'travel_date' => date('Y-m-d', strtotime('+1 day')), 'guests' => 2, 'unit_price' => '', 'price_on_request' => 0,
+    'tour_id' => (int) ($_GET['tour'] ?? 0), 'travel_date' => date('Y-m-d', strtotime('+1 day')), 'adults' => 2, 'children' => 0, 'infants' => 0,
+    'unit_price' => '', 'child_price' => '', 'infant_price' => '', 'price_on_request' => 0,
     'customer_name' => '', 'customer_email' => '', 'customer_phone' => '', 'notes' => '', 'status' => 'confirmed', 'admin_notes' => '',
 ];
 
@@ -121,14 +135,26 @@ admin_header($isNew ? 'New booking' : 'Booking ' . $booking['reference'], 'booki
                 <select class="inp" name="tour_id" required>
                     <option value="">— Choose —</option>
                     <?php foreach ($tours as $t): ?>
-                        <option value="<?= (int) $t['id'] ?>" <?= (int) $b['tour_id'] === (int) $t['id'] ? 'selected' : '' ?>><?= e(($t['type'] === 'trip' ? 'Trip: ' : 'Activity: ') . $t['title'] . ' (' . tour_price($t) . ')' . ($t['status'] !== 'active' ? ' [hidden]' : '')) ?></option>
+                        <option value="<?= (int) $t['id'] ?>" data-hidden="<?= prices_hidden($t) ? 1 : 0 ?>" <?= (int) $b['tour_id'] === (int) $t['id'] ? 'selected' : '' ?>><?= e(($t['type'] === 'trip' ? 'Trip: ' : 'Activity: ') . $t['title'] . ' (' . tour_price($t) . ')' . ($t['status'] !== 'active' ? ' [hidden]' : '')) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <?php f_input('Travel date', 'travel_date', $b['travel_date'], 'date', 'required'); ?>
-            <?php f_input('Guests', 'guests', $b['guests'], 'number', 'min="1" required'); ?>
-            <?php f_input('Price per guest', 'unit_price', booking_price_field($b), 'number', 'step="0.01" min="0"', !empty($b['price_on_request']) ? 'Price is on request: enter the agreed price to confirm it to the guest.' : 'Leave empty to use the experience price.'); ?>
             <?php f_select('Status', 'status', array_map(fn ($s) => $s[0], $statuses), $b['status']); ?>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+            <?php f_input('Adults', 'adults', $b['adults'], 'number', 'min="1" required'); ?>
+            <?php f_input('Children', 'children', $b['children'], 'number', 'min="0"', setting('child_age_label', 'Ages 2-11')); ?>
+            <?php f_input('Infants', 'infants', $b['infants'], 'number', 'min="0"', setting('infant_age_label', 'Under 2')); ?>
+        </div>
+        <div class="rounded-xl border <?= $b['price_on_request'] ? 'border-amber-300 bg-amber-50' : 'border-slate-200' ?> p-4 space-y-3" id="priceBox">
+            <?php f_check('Price to be confirmed (price on request)', 'price_on_request', (bool) $b['price_on_request'], 'The guest sees "To be confirmed". Untick it and enter the agreed prices once you have confirmed them with the guest.'); ?>
+            <div class="grid grid-cols-3 gap-4" data-booking-prices>
+                <?php f_input('Adult price', 'unit_price', price_field($booking, 'unit_price'), 'number', 'step="0.01" min="0"'); ?>
+                <?php f_input('Child price', 'child_price', price_field($booking, 'child_price'), 'number', 'step="0.01" min="0"'); ?>
+                <?php f_input('Infant price', 'infant_price', price_field($booking, 'infant_price'), 'number', 'step="0.01" min="0"'); ?>
+            </div>
+            <p class="help">Leave a price empty to use the experience's current price.</p>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <?php f_input('Guest name', 'customer_name', $b['customer_name'], 'text', 'required'); ?>
@@ -149,7 +175,10 @@ admin_header($isNew ? 'New booking' : 'Booking ' . $booking['reference'], 'booki
         <div class="card p-6 space-y-3 text-sm">
             <h2 class="font-bold">Summary</h2>
             <div class="flex justify-between"><span class="text-slate-500">Reference</span><b class="font-mono"><?= e($booking['reference']) ?></b></div>
-            <div class="flex justify-between"><span class="text-slate-500">Guests × price</span><span><?= (int) $booking['guests'] ?><?= $booking['price_on_request'] ? '' : ' × ' . e(money($booking['unit_price'])) ?></span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Guests</span><span><?= e(guests_summary($booking)) ?></span></div>
+            <?php foreach (booking_lines($booking) as [$label, $amount]): ?>
+                <div class="flex justify-between text-xs"><span class="text-slate-400"><?= e($label) ?></span><span><?= e($amount) ?></span></div>
+            <?php endforeach; ?>
             <div class="flex justify-between text-base"><span class="text-slate-500">Due on arrival</span><b class="text-emerald-600"><?= e(booking_total($booking)) ?></b></div>
             <div class="flex justify-between"><span class="text-slate-500">Booked</span><span><?= e(format_date($booking['created_at'], 'M j, Y H:i')) ?></span></div>
             <div class="flex justify-between"><span class="text-slate-500">Last update</span><span><?= e(time_ago($booking['updated_at'])) ?></span></div>
@@ -164,12 +193,31 @@ admin_header($isNew ? 'New booking' : 'Booking ' . $booking['reference'], 'booki
                 <a href="tel:<?= e(preg_replace('/[^0-9+]/', '', $booking['customer_phone'])) ?>" class="btn btn-light w-full justify-center"><i class="fa-solid fa-phone"></i> Call</a>
             <?php endif; ?>
         </div>
+        <?php if (can('bookings_delete')): ?>
         <form method="post" class="card p-6" data-confirm="Delete this booking permanently?">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="delete">
             <button class="btn btn-danger w-full justify-center"><i class="fa-solid fa-trash"></i> Delete booking</button>
         </form>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 </div>
+<script>
+(function () {
+    var box = document.querySelector('input[type=checkbox][name=price_on_request]');
+    var prices = document.querySelector('[data-booking-prices]');
+    var tour = document.querySelector('select[name=tour_id]');
+    function sync() { prices.style.opacity = box.checked ? '.4' : '1'; }
+    box.addEventListener('change', sync);
+    <?php if ($isNew): ?>
+    tour.addEventListener('change', function () {
+        var opt = tour.options[tour.selectedIndex];
+        box.checked = opt && opt.getAttribute('data-hidden') === '1';
+        sync();
+    });
+    <?php endif; ?>
+    sync();
+})();
+</script>
 <?php admin_footer(); ?>

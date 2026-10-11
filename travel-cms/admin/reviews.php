@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/includes/auth.php';
+require_permission('reviews');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf('admin/reviews.php');

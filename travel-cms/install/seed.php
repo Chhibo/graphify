@@ -48,7 +48,14 @@ function seed_default_settings(PDO $pdo, string $prefix, array $site): void
         'home_activities_count' => '4',
         'budget_options' => '1000,2000,3500',
         'price_hidden_text' => 'Price on request',
-        'db_version' => '2',
+        'db_version' => (string) SCHEMA_VERSION,
+        'hide_all_prices' => '0',
+        'child_age_label' => 'Ages 2-11',
+        'infant_age_label' => 'Under 2',
+        'newsletter_enabled' => '1',
+        'newsletter_popup' => '0',
+        'newsletter_popup_delay' => '8',
+        'newsletter_popup_days' => '7',
     ];
     $st = $pdo->prepare('INSERT INTO `' . $prefix . 'settings` (name, value) VALUES (?, ?)');
     foreach ($settings as $k => $v) {
@@ -65,6 +72,32 @@ function seed_demo_content(PDO $pdo, string $prefix): void
     }
 
     $u = 'https://images.unsplash.com/';
+    $dests = [];
+    $destRows = [
+        ['Bali', 'Indonesia', 'photo-1537996194471-e657df975ab4', 'Temples, rice terraces, surf beaches and the turquoise reefs of Nusa Penida.'],
+        ['Switzerland', 'Switzerland', 'photo-1530122037265-a5f1f91d3b99', 'Glaciers, alpine lakes and storybook villages, best explored on foot and by rail.'],
+        ['Egypt', 'Egypt', 'photo-1503177119275-0aa32b3a9368', 'Pyramids, pharaohs and the timeless Nile, from Cairo to Luxor and Aswan.'],
+        ['Santorini', 'Greece', 'photo-1570077188670-e3a8d69ac5ff', 'Whitewashed cliffs, volcanic beaches and the most famous sunsets of the Aegean.'],
+        ['Costa Rica', 'Costa Rica', 'photo-1518259102261-b40117eabbc9', 'Rainforests, volcanoes and wildlife on both the Caribbean and Pacific coasts.'],
+        ['Kyoto', 'Japan', 'photo-1493976040374-85c8e12f0c0e', 'Ancient temples, tea houses and bamboo groves in the heart of traditional Japan.'],
+        ['Dubai', 'United Arab Emirates', 'photo-1451187580459-43490279c0fa', 'Desert safaris, record-breaking skylines and luxury beach resorts.'],
+        ['Chiang Mai', 'Thailand', 'photo-1556910103-1c02745aae4d', 'Mountain temples, night markets and the best street food in northern Thailand.'],
+        ['Cappadocia', 'Turkey', 'photo-1507608616759-54f48f0af0ee', 'Fairy chimneys, cave hotels and unforgettable hot air balloon sunrises.'],
+    ];
+    foreach ($destRows as $i => $d) {
+        $dests[$d[0]] = seed_insert($pdo, $prefix, 'destinations', [
+            'name' => $d[0], 'slug' => slug_for_seed($d[0]), 'country' => $d[1],
+            'image' => $u . $d[2] . '?auto=format&fit=crop&w=1200&q=80', 'short_description' => $d[3],
+            'description' => $d[3] . "\n\nBrowse our handpicked trips and day activities below and reserve your spot today. No online payment is needed: you pay on arrival.",
+            'is_featured' => $i < 6 ? 1 : 0, 'status' => 'active', 'sort_order' => $i, 'created_at' => $now, 'updated_at' => $now,
+        ]);
+    }
+    $tripDest = ['Bali', 'Switzerland', 'Egypt', 'Santorini', 'Costa Rica', 'Kyoto'];
+    $actDest = ['Bali', 'Dubai', 'Chiang Mai', 'Cappadocia'];
+    $galleries = [
+        0 => ['photo-1537996194471-e657df975ab4', 'photo-1544551763-46a013bb70d5', 'photo-1528127269322-539801943592', 'photo-1507525428034-b723cf961d3e'],
+        1 => ['photo-1530122037265-a5f1f91d3b99', 'photo-1502784444187-359ac186c5bb', 'photo-1488646953014-85cb44e25828'],
+    ];
     $trips = [
         ['Bali Luxury Ocean & Temple Tour', 'beach', 'Bali, Indonesia', 1899, '7 Days / 6 Nights', 'photo-1537996194471-e657df975ab4', 4.9, 142,
             "5-Star Beach Resort\nDaily Breakfast & Dinner\nPrivate Airport Transfers\nUbud Monkey Forest Entry",
@@ -86,9 +119,9 @@ function seed_demo_content(PDO $pdo, string $prefix): void
             "Step back in time to Japan's cultural capital. Enjoy authentic Kaiseki dining, bamboo groves, serene zen gardens, and private geisha heritage walks."],
     ];
     foreach ($trips as $i => $t) {
-        seed_insert($pdo, $prefix, 'tours', [
+        $tourId = seed_insert($pdo, $prefix, 'tours', [
             'type' => 'trip', 'title' => $t[0], 'slug' => slug_for_seed($t[0]), 'category_id' => $cats[$t[1]],
-            'destination' => $t[2], 'price' => $t[3], 'duration' => $t[4], 'max_guests' => 12, 'icon' => 'fa-plane',
+            'destination_id' => $dests[$tripDest[$i]], 'destination' => $t[2], 'price' => $t[3], 'child_price' => round($t[3] * 0.7), 'duration' => $t[4], 'max_guests' => 12, 'icon' => 'fa-plane',
             'image' => $u . $t[5] . '?auto=format&fit=crop&w=1200&q=80',
             'short_description' => $t[9],
             'description' => $t[9] . "\n\nOur local experts take care of every detail so you can simply enjoy the journey. Reserve today with zero upfront payment and settle the balance directly with your guide on arrival.",
@@ -97,6 +130,9 @@ function seed_demo_content(PDO $pdo, string $prefix): void
             'rating' => $t[6], 'reviews_count' => $t[7], 'is_featured' => 1, 'status' => 'active', 'sort_order' => $i,
             'created_at' => $now, 'updated_at' => $now,
         ]);
+        foreach ($galleries[$i] ?? [] as $n => $photo) {
+            seed_insert($pdo, $prefix, 'tour_images', ['tour_id' => $tourId, 'image' => $u . $photo . '?auto=format&fit=crop&w=1400&q=80', 'sort_order' => $n]);
+        }
     }
 
     $acts = [
@@ -108,7 +144,8 @@ function seed_demo_content(PDO $pdo, string $prefix): void
     foreach ($acts as $i => $a) {
         seed_insert($pdo, $prefix, 'tours', [
             'type' => 'activity', 'title' => $a[0], 'slug' => slug_for_seed($a[0]), 'category_id' => $cats[$a[7]],
-            'destination' => $a[1], 'price' => $a[2], 'duration' => $a[3], 'max_guests' => 10, 'icon' => $a[4],
+            'destination_id' => $dests[$actDest[$i]], 'destination' => $a[1], 'price' => $a[2], 'child_price' => round($a[2] * 0.6),
+            'allow_infants' => in_array($i, [0, 3], true) ? 0 : 1, 'duration' => $a[3], 'max_guests' => 10, 'icon' => $a[4],
             'image' => $u . $a[5] . '?auto=format&fit=crop&w=900&q=80',
             'short_description' => $a[6], 'description' => $a[6], 'inclusions' => "Hotel pickup & drop-off\nProfessional local guide\nAll equipment\nBottled water",
             'itinerary' => '', 'rating' => 4.9, 'reviews_count' => 40 + $i * 13, 'is_featured' => 1, 'status' => 'active', 'sort_order' => $i,

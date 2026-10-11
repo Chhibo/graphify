@@ -11,23 +11,33 @@ function tour_link(array $t): string
     return url('tour.php?slug=' . urlencode($t['slug']));
 }
 
+/** Heart button that saves a trip/activity to the visitor's wishlist (see app.js). */
+function wishlist_button(int $id, string $extra = ''): string
+{
+    $on = in_wishlist($id);
+    return '<button type="button" data-wishlist="' . $id . '" aria-pressed="' . ($on ? 'true' : 'false') . '" title="Save to wishlist" aria-label="Save to wishlist"'
+        . ' class="wishlist-btn w-9 h-9 rounded-full bg-white/90 backdrop-blur shadow flex items-center justify-center transition hover:scale-110 ' . ($on ? 'text-rose-500' : 'text-slate-400') . ' ' . $extra . '">'
+        . '<i class="fa-solid fa-heart"></i></button>';
+}
+
 function trip_card(array $trip): void
 {
     ?>
     <div data-category="<?= e($trip['category_slug'] ?? '') ?>" class="bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-100 flex flex-col group hover:-translate-y-1.5 transition-all duration-300">
-        <a href="<?= e(tour_link($trip)) ?>" class="relative h-56 overflow-hidden block">
-            <img src="<?= e(img_url($trip['image'])) ?>" alt="<?= e($trip['title']) ?>" loading="lazy" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
-            <div class="absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-slate-800 shadow">
+        <div class="relative h-56 overflow-hidden">
+            <a href="<?= e(tour_link($trip)) ?>" class="block w-full h-full" tabindex="-1"><img src="<?= e(img_url($trip['image'])) ?>" alt="<?= e($trip['title']) ?>" loading="lazy" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"></a>
+            <div class="pointer-events-none absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-slate-800 shadow">
                 <i class="fa-solid fa-location-dot text-brand-500 mr-1"></i> <?= e($trip['destination']) ?>
             </div>
-            <div class="absolute bottom-4 right-4 bg-accent-500 text-white font-extrabold text-sm px-3 py-1.5 rounded-xl shadow-lg">
-                <?php if (!empty($trip['hide_price'])): ?>
+            <?= wishlist_button((int) $trip['id'], 'absolute top-3 right-3') ?>
+            <div class="pointer-events-none absolute bottom-4 right-4 bg-accent-500 text-white font-extrabold text-sm px-3 py-1.5 rounded-xl shadow-lg">
+                <?php if (prices_hidden($trip)): ?>
                     <?= e(tour_price($trip)) ?>
                 <?php else: ?>
                     <?= e(money($trip['price'])) ?> <span class="text-[10px] font-normal opacity-90">/ person</span>
                 <?php endif; ?>
             </div>
-        </a>
+        </div>
         <div class="p-6 flex-1 flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between text-xs text-slate-500 mb-2">
@@ -57,10 +67,11 @@ function activity_card(array $act): void
     ?>
     <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-md flex flex-col justify-between hover:border-brand-500 transition duration-300">
         <div>
-            <a href="<?= e(tour_link($act)) ?>" class="relative h-36 rounded-xl overflow-hidden mb-4 block">
-                <img src="<?= e(img_url($act['image'])) ?>" alt="<?= e($act['title']) ?>" loading="lazy" class="w-full h-full object-cover">
-                <span class="absolute top-2 right-2 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-lg"><?= e(tour_price($act)) ?></span>
-            </a>
+            <div class="relative h-36 rounded-xl overflow-hidden mb-4">
+                <a href="<?= e(tour_link($act)) ?>" class="block w-full h-full" tabindex="-1"><img src="<?= e(img_url($act['image'])) ?>" alt="<?= e($act['title']) ?>" loading="lazy" class="w-full h-full object-cover"></a>
+                <span class="pointer-events-none absolute top-2 right-2 bg-slate-900/80 text-white text-xs font-bold px-2.5 py-1 rounded-lg"><?= e(tour_price($act)) ?></span>
+                <?= wishlist_button((int) $act['id'], 'absolute top-2 left-2 !w-8 !h-8 text-sm') ?>
+            </div>
             <span class="text-[10px] font-bold text-accent-500 uppercase tracking-widest block mb-1">
                 <i class="fa-solid <?= e($act['icon'] ?: 'fa-compass') ?> mr-1"></i> <?= e($act['duration']) ?>
             </span>
@@ -71,6 +82,23 @@ function activity_card(array $act): void
             Reserve Excursion
         </button>
     </div>
+    <?php
+}
+
+function destination_card(array $d, string $height = 'h-72'): void
+{
+    $link = url('destination.php?slug=' . urlencode($d['slug']));
+    $n = (int) ($d['tours_count'] ?? 0);
+    ?>
+    <a href="<?= e($link) ?>" class="group relative block <?= $height ?> rounded-3xl overflow-hidden shadow-xl">
+        <img src="<?= e(img_url($d['image'])) ?>" alt="<?= e($d['name']) ?>" loading="lazy" class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700">
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/30 to-transparent"></div>
+        <div class="absolute bottom-0 left-0 right-0 p-6 text-white">
+            <?php if ($d['country'] && $d['country'] !== $d['name']): ?><span class="text-xs font-bold uppercase tracking-widest text-accent-400"><?= e($d['country']) ?></span><?php endif; ?>
+            <h3 class="font-serif text-2xl font-bold"><?= e($d['name']) ?></h3>
+            <p class="text-xs text-slate-200 mt-1"><?= $n ?> experience<?= $n === 1 ? '' : 's' ?> <i class="fa-solid fa-arrow-right ml-1 group-hover:translate-x-1 transition-transform"></i></p>
+        </div>
+    </a>
     <?php
 }
 
@@ -131,9 +159,34 @@ function review_card(array $r): void
 /** Shared SELECT for tours joined with their category. */
 function tours_query(string $where = '1=1', array $params = [], string $order = 't.sort_order, t.id', int $limit = 0): array
 {
-    $sql = 'SELECT t.*, c.name AS category_name, c.slug AS category_slug FROM ' . tbl('tours') . ' t LEFT JOIN ' . tbl('categories') . ' c ON c.id = t.category_id WHERE ' . $where . ' ORDER BY ' . $order;
+    $sql = 'SELECT t.*, c.name AS category_name, c.slug AS category_slug, d.name AS destination_name, d.slug AS destination_slug FROM ' . tbl('tours') . ' t'
+        . ' LEFT JOIN ' . tbl('categories') . ' c ON c.id = t.category_id'
+        . ' LEFT JOIN ' . tbl('destinations') . " d ON d.id = t.destination_id AND d.status = 'active'"
+        . ' WHERE ' . $where . ' ORDER BY ' . $order;
     if ($limit > 0) {
         $sql .= ' LIMIT ' . (int) $limit;
     }
     return db_all($sql, $params);
+}
+
+/** Share buttons: WhatsApp, Facebook, X, Telegram, email, copy link and the phone's native share sheet. */
+function share_buttons(string $link, string $title, string $theme = 'light'): void
+{
+    $u = rawurlencode($link);
+    $t = rawurlencode($title);
+    $targets = [
+        ['WhatsApp', 'fa-brands fa-whatsapp', 'https://wa.me/?text=' . rawurlencode($title . ' ' . $link), 'hover:bg-emerald-500'],
+        ['Facebook', 'fa-brands fa-facebook-f', 'https://www.facebook.com/sharer/sharer.php?u=' . $u, 'hover:bg-blue-600'],
+        ['X', 'fa-brands fa-x-twitter', 'https://twitter.com/intent/tweet?url=' . $u . '&text=' . $t, 'hover:bg-slate-900'],
+        ['Telegram', 'fa-brands fa-telegram', 'https://t.me/share/url?url=' . $u . '&text=' . $t, 'hover:bg-sky-500'],
+        ['Email', 'fa-solid fa-envelope', 'mailto:?subject=' . $t . '&body=' . $u, 'hover:bg-accent-500'],
+    ];
+    $base = $theme === 'dark' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600';
+    echo '<div class="flex flex-wrap items-center gap-2">';
+    foreach ($targets as [$label, $icon, $href, $hover]) {
+        echo '<a href="' . e($href) . '" target="_blank" rel="noopener" title="Share on ' . e($label) . '" aria-label="Share on ' . e($label) . '" class="w-9 h-9 rounded-full ' . $base . ' ' . $hover . ' hover:text-white flex items-center justify-center transition"><i class="' . $icon . ' text-sm"></i></a>';
+    }
+    echo '<button type="button" data-share-copy="' . e($link) . '" title="Copy link" aria-label="Copy link" class="w-9 h-9 rounded-full ' . $base . ' hover:bg-brand-600 hover:text-white flex items-center justify-center transition"><i class="fa-solid fa-link text-sm"></i></button>';
+    echo '<button type="button" data-share-native="' . e($link) . '" data-title="' . e($title) . '" title="More" aria-label="More sharing options" class="w-9 h-9 rounded-full ' . $base . ' hover:bg-brand-600 hover:text-white flex items-center justify-center transition"><i class="fa-solid fa-share-nodes text-sm"></i></button>';
+    echo '</div>';
 }
