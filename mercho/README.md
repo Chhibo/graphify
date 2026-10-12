@@ -5,7 +5,7 @@ A complete online clothing store in plain PHP. It has no frameworks and doesn't 
 ## Requirements
 
 - Any normal PHP hosting (cPanel, Plesk, Hostinger, Namecheap…)
-- PHP 7.4 or newer (PHP 8.x recommended) with PDO, mbstring and cURL
+- PHP 7.4 or newer (PHP 8.x recommended) with PDO, mbstring and cURL (GD for image resizing and Zip for backups and one-click updates are recommended)
 - A MySQL / MariaDB database, **or** nothing at all (SQLite mode)
 - HTTPS (SSL) for live PayPal / Stripe payments
 
@@ -95,6 +95,34 @@ When the cart contains a Printful product, checkout asks for a postal / ZIP code
 - **Backup** (Admin → **Backup**, owner only): download the database as a `.sql` file (import it in phpMyAdmin to restore), the SQLite file if you use SQLite, and a `.zip` of your uploaded images. Make a backup before big changes and keep a copy on your computer.
 
 **Updating from an older version**: upload the new files over the old ones (keep `config.php`, `data/` and `uploads/`). The database is updated automatically the first time you open the store. Existing admin accounts become owners.
+
+## More sales, ads & security tools (version 1.6)
+
+- **Order on WhatsApp** (Settings → **Sales tools**, on/off): a green button on product pages sends you the product, chosen size/color/options, quantity, price and link on WhatsApp. It can also be shown in the cart (sends the whole cart). It uses the number from the WhatsApp tab.
+- **Upsells & bundles** (Settings → Sales tools, on/off):
+  - In each product (*Upsells & deals*), choose up to 3 **Frequently bought together** products and an optional **bundle discount** (e.g. 10% off when all are bought together). With none chosen, similar products are shown.
+  - **Quantity deals** like *Buy 2, get 1 free* (the cheapest item is free). A badge appears on the product, and the discount is applied in the cart automatically.
+  - **You may also like** suggestions in the cart and *Add to your order* at checkout.
+- **Product questions** (Q&A): customers ask in a *Questions* tab on the product page. You answer in Admin → **Product questions**; the answer is emailed to the customer and shown on the page (you can hide it).
+- **Stock alerts**:
+  - **Low stock**: you get an email when an order brings a product (or a size/color) to the low-stock level (3 by default, Settings → Sales tools). See all of them in Admin → **Stock & alerts** and on the dashboard.
+  - **Back in stock**: on sold-out products (or sold-out sizes/colors) customers can leave their email. They are emailed automatically when you add stock.
+- **Product feed for ads** (Settings → Sales tools): one link with all your products, prices, stock, images and categories, for **Google Merchant Center** (Google Shopping), **Meta Commerce Manager** (Facebook & Instagram Shop / catalog ads) and **TikTok Catalog**. Add the link once; the platforms read it again every day. XML (`feed.php`) and CSV (`feed.php?format=csv`) versions. Note: these platforms need JPG/PNG/WebP product photos (not the SVG demo images).
+- **Multi-currency** (Settings → **Currencies**): add currencies (e.g. EUR, MAD) with their symbol and rate, or click *Update exchange rates now* (free daily rates, optionally automatic). Visitors pick a currency in the header and prices are converted. **Orders and payments stay in your main currency**: checkout shows the amount that will really be charged, and invoices, emails, WhatsApp messages and the admin always use the main currency.
+- **Two-step login** (Settings → **Security**): after the password, admins and staff receive a 6-digit code by email. A device can be remembered for 30 days. It can only be turned on when a test email arrives, so check the Email tab first.
+  - *Locked out (email stopped working)?* Add `define('ADMIN_2FA_OFF', true);` to `config.php` with File Manager, log in, fix the email settings, then remove the line.
+- **Activity log** (Admin → **Activity log**, owner only): every change made in the admin, by whom, when and from which IP. It covers order status changes, product edits and price changes, settings, staff, imports, backups, logins and failed logins. Kept 180 days by default (Settings → Security).
+- **One-click updates** (Admin → **Updates**, owner only): upload the new zip (no need to unzip it), or click *Check for updates* / *Update now* when an update address is set. Your `config.php`, database, images (`uploads/`) and settings are never touched, and the files that are replaced are saved first in `data/backups/`. The database is updated automatically.
+
+### For the seller of the script: publishing updates
+
+1. Change `APP_VERSION` in `includes/bootstrap.php` (e.g. `1.7.0`) and make the zip of the `mercho` folder.
+2. Upload the zip and an `update.json` file to your website:
+   ```json
+   {"version": "1.7.0", "url": "https://yoursite.com/mercho/mercho-1.7.0.zip", "sha256": "…", "notes": "What is new"}
+   ```
+   `sha256` is the checksum of the zip (`sha256sum mercho-1.7.0.zip` on Linux/Mac, `certutil -hashfile mercho-1.7.0.zip SHA256` on Windows). The store refuses a zip that does not match it.
+3. Put the address of `update.json` in `MERCHO_UPDATE_URL` at the top of `includes/updater.php` before you share the script, so every store can update in one click. Store owners can also set it in Admin → Updates (https only).
 
 ## Customer accounts & emails
 

@@ -175,3 +175,23 @@ label .jodit-container { font-weight: 400; }
 .hbar-track { height: 10px; background: #f1f1f1; border-radius: 0 4px 4px 0; }
 .hbar-track span { display: block; height: 100%; background: var(--primary); border-radius: 0 4px 4px 0; }
 @media (max-width: 1000px) { .report-grid { grid-template-columns: 1fr; } .custom-range { margin-left: 0; } }
+
+/* Upsell picker, questions, activity log, currencies */
+.pick-search { margin-bottom: 6px; }
+.pick-list { max-height: 190px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; margin-bottom: 12px; }
+.pick-list label { display: flex; margin: 4px 0; }
+.qa-admin { border: 1px solid var(--line); border-radius: 12px; margin: 10px 0; }
+.qa-admin summary { display: flex; gap: 12px; align-items: center; padding: 12px 14px; cursor: pointer; list-style: none; }
+.qa-admin summary::-webkit-details-marker { display: none; }
+.qa-admin summary .grow { flex: 1; min-width: 0; }
+.qa-form { padding: 0 14px 14px; }
+.feed-links .kv { gap: 12px; align-items: center; }
+.feed-links .kv input { max-width: 420px; font-size: 12px; }
+.cur-table input, .cur-table select { margin: 0; }
+.pager { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.pager a { min-width: 34px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; text-align: center; color: var(--text); }
+.pager a.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.nowrap { white-space: nowrap; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--primary); font: inherit; cursor: pointer; }
+.center { text-align: center; }
+.cur-table tr.row-item { display: table-row; }

@@ -103,7 +103,8 @@
 
   // Money formatting like the server (currency symbol, decimals)
   var formatMoney = function (n) {
-    var fmt = (window.STORE && window.STORE.money) || { symbol: '$', after: false, dec: 2, trim: true };
+    var fmt = (window.STORE && window.STORE.money) || { symbol: '$', after: false, dec: 2, trim: true, rate: 1 };
+    n = n * (fmt.rate || 1); // amounts in the page data are in the main currency
     var str = n.toFixed(fmt.dec).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     if (fmt.trim) str = str.replace(/\.0+$/, '');
     return fmt.after ? str + ' ' + fmt.symbol : fmt.symbol + str;
@@ -137,6 +138,9 @@
       var msg = $('[data-variant-msg]', vform);
       msg.hidden = !!ok;
       msg.textContent = match ? 'This option is sold out.' : 'This combination is not available.';
+      // "Notify me when back in stock" for a sold-out size/color
+      var sa = $('[data-stock-alert]');
+      if (sa) { sa.hidden = !(match && match.stock === 0); sa.querySelector('[name=size]').value = size; sa.querySelector('[name=color]').value = color; }
       var qtyIn = $('input[name=qty]', vform);
       if (qtyIn && match) { qtyIn.max = match.stock > 0 ? match.stock : 99; if (match.stock > 0 && +qtyIn.value > match.stock) qtyIn.value = match.stock; }
       // Grey out sizes that do not exist in the selected color
@@ -173,6 +177,7 @@
         shipBox.hidden = !d.show;
         var ship = $('[data-ship]'); if (ship) ship.textContent = d.shipping;
         var total = $('[data-total]'); if (total) total.textContent = d.total;
+        var totalBase = $('[data-total-base]'); if (totalBase) totalBase.textContent = d.total_base;
       }).catch(function () {});
     };
     var later = function () { clearTimeout(shipTimer); shipTimer = setTimeout(refreshShipping, 450); };
@@ -195,6 +200,49 @@
     });
   });
   if (location.hash === '#tab-reviews' && $('[data-tab-btn=reviews]')) openTab('reviews');
+  if (location.hash === '#tab-questions' && $('[data-tab-btn=questions]')) openTab('questions');
+
+  // Order on WhatsApp: message with the chosen options, quantity and price
+  $$('[data-wa-order]').forEach(function (a) {
+    a.addEventListener('click', function () {
+      var f = $('.add-form'), lines = [a.getAttribute('data-intro'), '', '• ' + a.getAttribute('data-name')];
+      if (f) {
+        $$('input[type=radio]:checked', f).forEach(function (i) {
+          var group = i.closest('.opt-group'), title = group ? $('h4', group) : null;
+          lines.push('  ' + (title ? title.textContent.replace(/^(Select|Choose) /, '') : i.name) + ': ' + i.value);
+        });
+        var q = $('input[name=qty]', f); if (q) lines.push('  Quantity: ' + q.value);
+      }
+      var price = $('[data-price]'); if (price) lines.push('  Price: ' + price.textContent.trim());
+      lines.push('', a.getAttribute('data-link'));
+      a.href = 'https://wa.me/' + a.getAttribute('data-number') + '?text=' + encodeURIComponent(lines.join('\n'));
+    });
+  });
+
+  // Frequently bought together: total of the ticked products (with the bundle discount when all are ticked)
+  var bundle = $('#bundle-form');
+  if (bundle) {
+    var pct = parseFloat(bundle.getAttribute('data-pct')) || 0;
+    var bundleTotal = function () {
+      var sum = 0, all = true;
+      $$('.bundle-item', bundle).forEach(function (it) {
+        var box = $('input[type=checkbox]', it);
+        if (!box || box.checked) sum += parseFloat(it.getAttribute('data-amount')) || 0; else all = false;
+        it.classList.toggle('off', !!box && !box.checked);
+      });
+      var old = $('[data-bundle-old]', bundle), save = pct > 0 && all;
+      $('[data-bundle-total]', bundle).textContent = formatMoney(save ? sum * (1 - pct / 100) : sum);
+      old.hidden = !save; old.textContent = formatMoney(sum);
+    };
+    bundle.addEventListener('change', bundleTotal); bundleTotal();
+    // Send the size / color / options chosen for the main product
+    bundle.addEventListener('submit', function () {
+      var f = $('.add-form'); if (!f) return;
+      $$('input[type=radio]:checked', f).forEach(function (i) {
+        var h = document.createElement('input'); h.type = 'hidden'; h.name = i.name; h.value = i.value; bundle.appendChild(h);
+      });
+    });
+  }
 
   // Review form: "save my name and email in this browser"
   var rf = $('#review-form');

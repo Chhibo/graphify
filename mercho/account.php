@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/includes/bootstrap.php';
+money_base_mode(); // order amounts are shown in the store's main currency
 
 if (!accounts_enabled()) {
     redirect('track.php');
@@ -128,7 +129,7 @@ include __DIR__ . '/includes/header.php';
             </div>
           <?php endforeach; ?>
           <div class="sum-row"><span>Subtotal</span><b><?= money($order['subtotal']) ?></b></div>
-          <?php if ((float) $order['discount'] > 0): ?><div class="sum-row discount"><span>Discount (<?= e($order['coupon_code']) ?>)</span><b>-<?= money($order['discount']) ?></b></div><?php endif; ?>
+          <?php if ((float) $order['discount'] > 0): ?><div class="sum-row discount"><span>Discount (<?= e(order_discount_label($order)) ?>)</span><b>-<?= money($order['discount']) ?></b></div><?php endif; ?>
           <div class="sum-row"><span>Delivery<?= $order['shipping_method'] !== '' ? ' (' . e($order['shipping_method']) . ')' : '' ?></span><b><?= (float) $order['shipping'] > 0 ? money($order['shipping']) : 'Free' ?></b></div>
           <div class="sum-row total"><span>Total</span><b><?= money($order['total']) ?></b></div>
           <div class="sum-row"><span>Deliver to</span><b><?= e(implode(', ', array_filter([$order['address'], $order['city'], $order['zip'], $order['country']], 'strlen'))) ?></b></div>

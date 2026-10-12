@@ -1,6 +1,7 @@
 <?php
 /** Customer invoice: only for the customer's own orders (logged in, or the order placed in this browser). */
 require __DIR__ . '/includes/bootstrap.php';
+money_base_mode(); // order amounts are shown in the store's main currency
 $number = (string) ($_GET['order'] ?? '');
 $order = q_one('SELECT * FROM orders WHERE order_number = ?', [$number]);
 $me = current_customer();

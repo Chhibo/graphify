@@ -5,6 +5,7 @@
  * The secret key in the URL makes sure only Printful (who knows the URL) can call it.
  */
 require __DIR__ . '/includes/bootstrap.php';
+money_base_mode(); // order amounts are shown in the store's main currency
 
 header('Content-Type: application/json');
 $key = (string) ($_GET['key'] ?? '');

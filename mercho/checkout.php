@@ -91,6 +91,7 @@ if (is_post() && $items) {
     }
 
     if (!$errors) {
+        money_base_mode(); // from here: emails, WhatsApp message and order pages use the main currency
         $pdo = db();
         $pdo->beginTransaction();
         try {
@@ -108,8 +109,10 @@ if (is_post() && $items) {
                 'country_code' => $form['country'],
                 'notes' => mb_substr($form['notes'], 0, 2000),
                 'subtotal' => $totals['subtotal'],
-                'discount' => $totals['discount'],
+                'discount' => round($totals['discount'] + $totals['deals_total'], 2),
                 'coupon_code' => $totals['coupon']['code'] ?? '',
+                'discount_note' => mb_substr(implode(' + ', array_filter(array_merge([$totals['discount'] > 0 ? ($totals['coupon']['code'] ?? '') : ''], array_column($totals['deals'], 'label')))), 0, 255),
+                'display_currency' => display_currency()['code'],
                 'shipping' => $totals['shipping'],
                 'shipping_method' => mb_substr((string) ($totals['shipping_method']['name'] ?? ''), 0, 120),
                 'customer_id' => $customer ? (int) $customer['id'] : null,
@@ -261,20 +264,25 @@ include __DIR__ . '/includes/header.php';
           </div>
         <?php endforeach; ?>
         <div class="sum-row"><span>Subtotal</span><b><?= money($totals['subtotal']) ?></b></div>
+        <?php foreach ($totals['deals'] as $deal): ?><div class="sum-row discount"><span><?= e($deal['label']) ?></span><b>-<?= money($deal['amount']) ?></b></div><?php endforeach; ?>
         <?php if ($totals['discount'] > 0): ?><div class="sum-row discount"><span>Discount (<?= e($totals['coupon']['code']) ?>)</span><b>-<?= money($totals['discount']) ?></b></div><?php endif; ?>
         <?php
           // Delivery is free when the order reaches the free delivery amount or a free-shipping coupon is used.
           $shipFree = ((float) setting('free_shipping_over') > 0 && $totals['subtotal'] >= (float) setting('free_shipping_over'))
               || ($totals['coupon']['type'] ?? '') === 'free_shipping';
         ?>
-        <div class="sum-row" data-summary data-base="<?= e((string) round($totals['subtotal'] - $totals['discount'], 2)) ?>" data-free="<?= $shipFree ? 1 : 0 ?>">
+        <div class="sum-row" data-summary data-base="<?= e((string) round($totals['subtotal'] - $totals['deals_total'] - $totals['discount'], 2)) ?>" data-free="<?= $shipFree ? 1 : 0 ?>">
           <span>Delivery</span><b data-ship><?= $totals['shipping'] > 0 ? money($totals['shipping']) : 'Free' ?></b></div>
         <?php include __DIR__ . '/includes/coupon-box.php'; ?>
         <div class="sum-row total"><span>Total</span><b data-total><?= money($totals['total']) ?></b></div>
+        <?php if (!is_base_currency_shown()): ?>
+          <p class="currency-note">Prices are shown in <?= e(display_currency()['code']) ?> to help you. Your order is charged in <?= e(base_currency()['code']) ?>: <b data-total-base><?= money_base($totals['total']) ?></b></p>
+        <?php endif; ?>
         <button class="btn btn-primary btn-block" type="submit" data-loading-text="Please wait...">Place Order</button>
         <p class="muted small-text center"><?= icon('shield', 14) ?> Your details are safe and only used for your order.</p>
       </aside>
     </form>
+    <?php $suggestions = cart_suggestions($items, 3); $suggestBack = 'checkout'; include __DIR__ . '/includes/suggestions.php'; ?>
   <?php endif; ?>
 </div>
 <?php include __DIR__ . '/includes/footer.php'; ?>

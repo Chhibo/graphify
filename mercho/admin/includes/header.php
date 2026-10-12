@@ -7,6 +7,7 @@ $counts = [
     'orders.php' => $newOrders,
     'reviews.php' => (int) q_val('SELECT COUNT(*) FROM reviews WHERE approved = 0'),
     'messages.php' => (int) q_val('SELECT COUNT(*) FROM messages WHERE is_read = 0'),
+    'questions.php' => (int) q_val("SELECT COUNT(*) FROM product_questions WHERE answer IS NULL OR answer = ''"),
 ];
 // [label, icon, permission needed]
 $menu = [
@@ -22,6 +23,8 @@ $menu = [
     'coupons.php' => ['Coupons', 'tag', 'marketing'],
     'shipping.php' => ['Delivery options', 'truck', 'products'],
     'reviews.php' => ['Product reviews', 'star', 'products'],
+    'questions.php' => ['Product questions', 'mail', 'products'],
+    'stock.php' => ['Stock & alerts', 'package', 'products'],
     'testimonials.php' => ['Testimonials', 'check', 'content'],
     'pages.php' => ['Pages & Blog', 'mail', 'content'],
     'menus.php' => ['Menus', 'menu', 'content'],
@@ -30,7 +33,9 @@ $menu = [
     'printful.php' => ['Printful', 'package', 'products'],
     'settings.php' => ['Settings', 'refresh', 'settings'],
     'staff.php' => ['Staff accounts', 'user', 'owner'],
+    'activity.php' => ['Activity log', 'menu', 'owner'],
     'backup.php' => ['Backup', 'shield', 'owner'],
+    'update.php' => ['Updates', 'refresh', 'owner'],
 ];
 $menu = array_filter($menu, fn($m) => admin_can($m[2]));
 $active = ['order.php' => 'orders.php', 'product-edit.php' => 'products.php', 'page-edit.php' => 'pages.php', 'invoice.php' => 'orders.php'][$self] ?? $self;

@@ -30,6 +30,10 @@ $extraOptions = product_extra_options($p);
 $infoRows = product_additional_info($p);
 $reviews = setting_on('reviews_enabled') ? product_reviews((int) $p['id']) : [];
 $shortDesc = trim((string) ($p['short_description'] ?? ''));
+$upsells = upsells_on() ? product_upsells($p, 3) : [];
+$bundlePct = $upsells ? bundle_pct($p) : 0.0;
+$dealText = deal_label($p);
+$questions = qa_on() ? product_questions((int) $p['id']) : [];
 $related = find_products(['category_id' => (int) $p['category_id'], 'exclude' => (int) $p['id'], 'limit' => 4]);
 
 $pageTitle = $p['name'];
@@ -91,6 +95,7 @@ include __DIR__ . '/includes/header.php';
         <strong data-price><?= money($p['price']) ?></strong>
         <?php if ($off > 0): ?><del><?= money($p['old_price']) ?></del><span class="off">-<?= $off ?>%</span><?php endif; ?>
       </div>
+      <?php if ($dealText !== ''): ?><p class="deal-banner"><?= icon('tag', 16) ?> <?= e($dealText) ?> - added automatically in your cart</p><?php endif; ?>
       <?php if ($shortDesc !== ''): ?>
         <div class="pd-desc"><?= rich_text($shortDesc) ?></div>
       <?php elseif (trim((string) $p['description']) !== ''): ?>
@@ -151,7 +156,22 @@ include __DIR__ . '/includes/header.php';
         <?php if (!$soldOut): ?>
           <button class="btn btn-outline btn-block" type="submit" name="buy_now" value="1" data-add-btn>Buy it now</button>
         <?php endif; ?>
+        <?php if (wa_order_on() && !$soldOut): ?>
+          <a class="btn btn-wa btn-block" href="<?= e(wa_order_link(setting('wa_order_text') . "\n" . $p['name'] . "\n" . abs_url(product_url($p)))) ?>" target="_blank" rel="noopener"
+             data-wa-order data-number="<?= e(preg_replace('/\D+/', '', setting('whatsapp_number'))) ?>" data-intro="<?= e(setting('wa_order_text', 'Hello! I would like to order:')) ?>"
+             data-name="<?= e($p['name']) ?>" data-link="<?= e(abs_url(product_url($p))) ?>"><?= icon('whatsapp', 18) ?> Order on WhatsApp</a>
+        <?php endif; ?>
       </form>
+
+      <?php if (stock_alerts_on()): ?>
+        <form class="stock-alert" method="post" action="<?= url('stock-alert.php') ?>" data-stock-alert <?= $soldOut ? '' : 'hidden' ?>>
+          <?= csrf_field() ?>
+          <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
+          <input type="hidden" name="size" value=""><input type="hidden" name="color" value="">
+          <p><b>Sold out?</b> Leave your email and we will tell you when it is back.</p>
+          <div class="sa-row"><input type="email" name="email" placeholder="Your email" required maxlength="190" value="<?= e(current_customer()['email'] ?? '') ?>"><button class="btn btn-primary" type="submit">Notify me</button></div>
+        </form>
+      <?php endif; ?>
 
       <ul class="perks">
         <li><?= icon('truck', 18) ?> <?= (float) setting('free_shipping_over') > 0 ? 'Free shipping on orders over ' . money(setting('free_shipping_over')) : 'Fast delivery to your door' ?></li>
@@ -161,16 +181,67 @@ include __DIR__ . '/includes/header.php';
     </div>
   </div>
 
+  <?php if ($upsells && !$soldOut): ?>
+    <section class="bundle-box">
+      <div class="bundle-head">
+        <h2><?= e(setting('upsell_title', 'Frequently Bought Together')) ?></h2>
+        <?php if ($bundlePct > 0): ?><span class="bundle-save">Buy together and save <?= e(rtrim(rtrim(number_format($bundlePct, 2), '0'), '.')) ?>%</span><?php endif; ?>
+      </div>
+      <form method="post" action="<?= url('cart.php') ?>" id="bundle-form" data-pct="<?= e((string) $bundlePct) ?>">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="add_bundle">
+        <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
+        <div class="bundle-items">
+          <div class="bundle-item main" data-amount="<?= e((string) (float) $p['price']) ?>">
+            <img src="<?= e(img_url($images[0])) ?>" alt="">
+            <div><b>This item:</b> <?= e($p['name']) ?><span class="bi-price"><?= money($p['price']) ?></span></div>
+          </div>
+          <?php foreach ($upsells as $u): ?>
+            <?php
+              // Options of the extra product: its size/color combinations that are in stock.
+              $uVariants = array_filter(product_variants((int) $u['id']), fn($v) => (int) $v['stock'] !== 0);
+              $uCombos = $uVariants ? array_map(fn($v) => [$v['size'], $v['color']], $uVariants) : [];
+              if (!$uVariants && (str_list($u['sizes']) || str_list($u['colors']))) {
+                  foreach (str_list($u['sizes']) ?: [''] as $us) {
+                      foreach (str_list($u['colors']) ?: [''] as $uc) {
+                          $uCombos[] = [$us, $uc];
+                      }
+                  }
+              }
+            ?>
+            <label class="bundle-item" data-amount="<?= e((string) (float) $u['price']) ?>">
+              <input type="checkbox" name="bundle[]" value="<?= (int) $u['id'] ?>" checked>
+              <img src="<?= e(img_url($u['image'])) ?>" alt="">
+              <div>
+                <a href="<?= e(product_url($u)) ?>"><?= e($u['name']) ?></a><span class="bi-price"><?= money($u['price']) ?></span>
+                <?php if ($uCombos): ?>
+                  <select name="bundle_opt[<?= (int) $u['id'] ?>]" aria-label="Options">
+                    <?php foreach ($uCombos as [$us, $uc]): ?><option value="<?= e($us . '|' . $uc) ?>"><?= e(implode(' / ', array_filter([$us, $uc]))) ?></option><?php endforeach; ?>
+                  </select>
+                <?php endif; ?>
+              </div>
+            </label>
+          <?php endforeach; ?>
+        </div>
+        <div class="bundle-foot">
+          <span>Total: <b data-bundle-total></b> <del data-bundle-old hidden></del></span>
+          <button class="btn btn-primary" type="submit">Add selected to cart</button>
+        </div>
+      </form>
+    </section>
+  <?php endif; ?>
+
   <?php
     $hasDesc = trim(strip_tags((string) $p['description'], '<img>')) !== '';
     $showInfo = $infoRows || $sizes || $colors || $extraOptions;
-    $firstTab = $hasDesc ? 'description' : ($showInfo ? 'info' : 'reviews');
+    $firstTab = $hasDesc ? 'description' : ($showInfo ? 'info' : (setting_on('reviews_enabled') ? 'reviews' : 'questions'));
   ?>
   <section class="pd-tabs" id="product-tabs">
     <div class="tab-nav" role="tablist">
       <?php if ($hasDesc): ?><button type="button" role="tab" data-tab-btn="description" class="<?= $firstTab === 'description' ? 'active' : '' ?>">Description</button><?php endif; ?>
       <?php if ($showInfo): ?><button type="button" role="tab" data-tab-btn="info" class="<?= $firstTab === 'info' ? 'active' : '' ?>">Additional Information</button><?php endif; ?>
       <?php if (setting_on('reviews_enabled')): ?><button type="button" role="tab" data-tab-btn="reviews" id="tab-reviews" class="<?= $firstTab === 'reviews' ? 'active' : '' ?>">Reviews (<?= count($reviews) ?>)</button><?php endif; ?>
+      <?php if (qa_on()): ?><button type="button" role="tab" data-tab-btn="questions" id="tab-questions" class="<?= $firstTab === 'questions' ? 'active' : '' ?>">Questions (<?= count($questions) ?>)</button><?php endif; ?>
     </div>
 
     <?php if ($hasDesc): ?>
@@ -223,6 +294,32 @@ include __DIR__ . '/includes/header.php';
             <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
             <label class="check"><input type="checkbox" data-remember-me> Save my name and email in this browser for the next time I comment.</label>
             <button class="btn btn-primary" type="submit">Submit</button>
+          </form>
+        </div>
+      </div>
+    <?php endif; ?>
+    <?php if (qa_on()): ?>
+      <div class="tab-pane" data-tab-pane="questions" <?= $firstTab === 'questions' ? '' : 'hidden' ?>>
+        <div class="reviews-grid">
+          <div class="qa-list">
+            <?php foreach ($questions as $qa): ?>
+              <div class="qa-item">
+                <p class="qa-q"><b>Q:</b> <?= nl2br(e($qa['question'])) ?> <small><?= e($qa['name']) ?> · <?= e(date('d M Y', strtotime($qa['created_at']))) ?></small></p>
+                <p class="qa-a"><b>A:</b> <?= nl2br(e((string) $qa['answer'])) ?> <small><?= e(setting('store_name')) ?></small></p>
+              </div>
+            <?php endforeach; ?>
+            <?php if (!$questions): ?><p class="muted">No questions yet. Ask the first one: we usually answer within a day.</p><?php endif; ?>
+          </div>
+          <form class="review-form" method="post" action="<?= url('question.php') ?>">
+            <?= csrf_field() ?>
+            <input type="hidden" name="product_id" value="<?= (int) $p['id'] ?>">
+            <h3>Ask a question</h3>
+            <p class="muted">We will answer by email, and the answer may be shown here to help other customers.</p>
+            <input name="name" placeholder="Your Name *" required maxlength="120" value="<?= e(current_customer()['name'] ?? '') ?>">
+            <input name="email" type="email" placeholder="Your Email *" required maxlength="190" value="<?= e(current_customer()['email'] ?? '') ?>">
+            <textarea name="question" rows="4" placeholder="Your question *" required maxlength="1000"></textarea>
+            <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <button class="btn btn-primary" type="submit">Send question</button>
           </form>
         </div>
       </div>

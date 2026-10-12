@@ -42,6 +42,11 @@ if (is_post()) {
         'meta_title' => mb_substr(trim((string) ($_POST['meta_title'] ?? '')), 0, 200),
         'meta_description' => mb_substr(trim((string) ($_POST['meta_description'] ?? '')), 0, 300),
         'shipping_methods' => implode(',', array_map('intval', (array) ($_POST['shipping_methods'] ?? []))),
+        // Upsells & bundles
+        'upsell_ids' => implode(',', array_slice(array_values(array_unique(array_filter(array_map('intval', (array) ($_POST['upsell_ids'] ?? [])), fn($i) => $i > 0 && $i !== (int) $p['id']))), 0, 3)),
+        'bundle_discount' => max(0, min(90, round((float) ($_POST['bundle_discount'] ?? 0), 2))),
+        'deal_buy' => max(0, min(20, (int) ($_POST['deal_buy'] ?? 0))),
+        'deal_get' => max(0, min(20, (int) ($_POST['deal_get'] ?? 0))),
     ];
     // Custom options: one row per option, values like "Cotton, Silk +5"
     $opts = [];
@@ -101,7 +106,11 @@ if (is_post()) {
         if (empty($p['printful_id'])) {
             save_variant_stock($savedId, (bool) $data['variant_stock'], str_list($data['sizes']), str_list($data['colors']));
         }
-        flash('success', $p['id'] ? 'Product saved.' : 'Product created.');
+        activity(($p['id'] ? 'Edited product' : 'Added product') . ' “' . $data['name'] . '” (#' . $savedId . ')',
+            $p['id'] && (float) $p['price'] !== (float) $data['price'] ? 'Price ' . money($p['price']) . ' → ' . money($data['price']) : '');
+        // Some customers may be waiting for this product: email them if it is back in stock.
+        $notified = process_stock_alerts($savedId);
+        flash('success', ($p['id'] ? 'Product saved.' : 'Product created.') . ($notified ? ' ' . $notified . ' customer(s) were told it is back in stock.' : ''));
         redirect('admin/product-edit.php?id=' . $savedId);
     }
     $p = array_merge($p, $data, ['image' => $data['image'] ?? $p['image']]);
@@ -223,6 +232,22 @@ include __DIR__ . '/includes/header.php';
       <label>SEO title <small class="muted">(optional)</small><input name="meta_title" maxlength="200" value="<?= e($p['meta_title'] ?? '') ?>" placeholder="<?= e($p['name']) ?>"></label>
       <label>SEO description <small class="muted">(optional, ~155 characters)</small><textarea name="meta_description" rows="3" maxlength="300"><?= e($p['meta_description'] ?? '') ?></textarea></label>
 
+      <h3 class="sub">Upsells & deals<?= upsells_on() ? '' : ' <small class="muted">(off - <a href="settings.php?tab=sales">turn on</a>)</small>' ?></h3>
+      <?php $chosenUp = product_upsell_ids($p); $otherProducts = q_all('SELECT id, name, price FROM products WHERE id <> ? ORDER BY name', [(int) $p['id']]); ?>
+      <p class="help" style="margin-top:0">“Frequently bought together” (up to 3). None ticked = similar products are shown automatically.</p>
+      <input type="search" placeholder="Search products..." class="pick-search" data-filter="#upsell-pick">
+      <div class="pick-list" id="upsell-pick">
+        <?php foreach ($otherProducts as $op): ?>
+          <label class="inline small"><input type="checkbox" name="upsell_ids[]" value="<?= (int) $op['id'] ?>" <?= in_array((int) $op['id'], $chosenUp, true) ? 'checked' : '' ?>> <?= e($op['name']) ?> <span class="muted">(<?= money($op['price']) ?>)</span></label>
+        <?php endforeach; ?>
+      </div>
+      <label>Bundle discount % <small class="muted">(when bought with all the ticked products)</small><input name="bundle_discount" type="number" step="0.5" min="0" max="90" value="<?= (float) ($p['bundle_discount'] ?? 0) > 0 ? e($p['bundle_discount']) : '' ?>" placeholder="e.g. 10"></label>
+      <div class="grid-2">
+        <label>Buy<input name="deal_buy" type="number" min="0" max="20" value="<?= (int) ($p['deal_buy'] ?? 0) ?: '' ?>" placeholder="2"></label>
+        <label>Get free<input name="deal_get" type="number" min="0" max="20" value="<?= (int) ($p['deal_get'] ?? 0) ?: '' ?>" placeholder="1"></label>
+      </div>
+      <p class="help" style="margin-top:0">Example: Buy 2, get 1 free → the 3rd item is free (the cheapest one). Leave empty for no deal.</p>
+
       <h3 class="sub">Shipping</h3>
       <label class="inline"><input type="checkbox" name="shipping_enabled" value="1" data-toggle-target="#ship-methods" <?= (int) $p['shipping_enabled'] ? 'checked' : '' ?>> This product needs delivery</label>
       <p class="help">Untick for products that are not shipped (gift cards, services, digital items): no delivery fee is charged for them.</p>
@@ -274,6 +299,21 @@ include __DIR__ . '/includes/header.php';
   toggle.addEventListener('change', sync);
   build(); sync();
 })();
+</script>
+<script>
+// Product picker search
+document.querySelectorAll('[data-filter]').forEach(function (inp) {
+  var list = document.querySelector(inp.getAttribute('data-filter'));
+  inp.addEventListener('input', function () {
+    var q = inp.value.toLowerCase();
+    list.querySelectorAll('label').forEach(function (l) { l.hidden = q !== '' && l.textContent.toLowerCase().indexOf(q) === -1 && !l.querySelector('input').checked; });
+  });
+});
+document.querySelectorAll('#upsell-pick input').forEach(function (cb) {
+  cb.addEventListener('change', function () {
+    if (document.querySelectorAll('#upsell-pick input:checked').length > 3) { cb.checked = false; alert('You can choose up to 3 products.'); }
+  });
+});
 </script>
 <?php include __DIR__ . '/includes/editor.php'; ?>
 <?php include __DIR__ . '/includes/footer.php'; ?>

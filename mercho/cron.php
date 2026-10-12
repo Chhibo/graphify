@@ -5,6 +5,7 @@
  * Without a cron job, reminders are sent when you open the admin panel.
  */
 require __DIR__ . '/includes/bootstrap.php';
+money_base_mode(); // order amounts are shown in the store's main currency
 header('Content-Type: text/plain');
 if (!hash_equals(setting('cron_key'), (string) ($_GET['key'] ?? ''))) {
     http_response_code(403);

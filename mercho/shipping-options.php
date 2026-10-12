@@ -17,4 +17,5 @@ echo json_encode([
     'no_delivery' => $totals['no_delivery'],
     'shipping' => $totals['shipping'] > 0 ? money($totals['shipping']) : 'Free',
     'total' => money($totals['total']),
+    'total_base' => money_base($totals['total']),
 ]);

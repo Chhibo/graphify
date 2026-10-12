@@ -88,15 +88,20 @@ function setting_on(string $key): bool
 
 /* ---------- Money ---------- */
 
-function money($amount): string
+/**
+ * Format a price. On store pages it is shown in the currency the visitor chose (includes/currency.php);
+ * pass $convert = false (or call money_base_mode()) for real order amounts.
+ */
+function money($amount, ?bool $convert = null): string
 {
-    $symbol = setting('currency_symbol', '$');
-    $formatted = number_format((float) $amount, (int) setting('currency_decimals', '2'));
-    // Hide ".00" for whole amounts to match the store design ($120 instead of $120.00)
-    if (setting('hide_zero_decimals', '1') === '1') {
-        $formatted = preg_replace('/\.0+$/', '', $formatted);
+    $convert = $convert ?? empty($GLOBALS['MONEY_BASE_MODE']);
+    if ($convert) {
+        $cur = display_currency();
+        if ($cur['code'] !== base_currency()['code']) {
+            return format_currency(convert_amount((float) $amount, $cur), $cur);
+        }
     }
-    return setting('currency_position', 'before') === 'after' ? $formatted . ' ' . $symbol : $symbol . $formatted;
+    return money_base($amount);
 }
 
 function discount_pct(array $p): int
@@ -613,6 +618,7 @@ function order_reduce_stock(int $orderId): void
     if (!$order || (int) $order['stock_reduced'] === 1) {
         return;
     }
+    $before = order_stock_levels($orderId);
     foreach (order_items($orderId) as $item) {
         if (!empty($item['variant_id'])) {
             // Stock per size/color
@@ -624,6 +630,7 @@ function order_reduce_stock(int $orderId): void
         }
     }
     q('UPDATE orders SET stock_reduced = 1 WHERE id = ?', [$orderId]);
+    notify_low_stock($before, order_stock_levels($orderId));
     // Count the coupon use at the same moment (this function runs once per confirmed order).
     $code = (string) q_val('SELECT coupon_code FROM orders WHERE id = ?', [$orderId]);
     if ($code !== '') {
@@ -647,15 +654,15 @@ function order_text(array $order): string
     $lines[] = '📦 *Items:*';
     foreach (order_items((int) $order['id']) as $it) {
         $variant = trim(implode(' / ', array_filter([$it['size'], $it['color'], $it['options'] ?? ''])));
-        $lines[] = '• ' . $it['qty'] . ' x ' . $it['name'] . ($variant !== '' ? ' (' . $variant . ')' : '') . ' = ' . money($it['price'] * $it['qty']);
+        $lines[] = '• ' . $it['qty'] . ' x ' . $it['name'] . ($variant !== '' ? ' (' . $variant . ')' : '') . ' = ' . money_base($it['price'] * $it['qty']);
     }
     $lines[] = '';
-    $lines[] = 'Subtotal: ' . money($order['subtotal']);
+    $lines[] = 'Subtotal: ' . money_base($order['subtotal']);
     if ((float) ($order['discount'] ?? 0) > 0) {
-        $lines[] = 'Discount (' . $order['coupon_code'] . '): -' . money($order['discount']);
+        $lines[] = 'Discount (' . order_discount_label($order) . '): -' . money_base($order['discount']);
     }
-    $lines[] = 'Shipping' . (($order['shipping_method'] ?? '') !== '' ? ' (' . $order['shipping_method'] . ')' : '') . ': ' . ((float) $order['shipping'] > 0 ? money($order['shipping']) : 'Free');
-    $lines[] = '💰 *Total: ' . money($order['total']) . '*';
+    $lines[] = 'Shipping' . (($order['shipping_method'] ?? '') !== '' ? ' (' . $order['shipping_method'] . ')' : '') . ': ' . ((float) $order['shipping'] > 0 ? money_base($order['shipping']) : 'Free');
+    $lines[] = '💰 *Total: ' . money_base($order['total']) . '*';
     $lines[] = '💳 Payment: ' . payment_method_label($order['payment_method'])
         . ($order['payment_status'] === 'paid' ? ' (PAID)' : '');
     if (trim((string) $order['notes']) !== '') {
@@ -666,7 +673,7 @@ function order_text(array $order): string
 
 function generate_order_number(): string
 {
-    $prefix = setting('order_prefix', 'VL');
+    $prefix = setting('order_prefix', 'MC');
     do {
         $num = $prefix . '-' . date('ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 5));
     } while ((int) q_val('SELECT COUNT(*) FROM orders WHERE order_number = ?', [$num]) > 0);

@@ -182,6 +182,38 @@ $tabs = [
         ['cookie_link_text', 'Link text', 'text'],
         ['cookie_link', 'Link address', 'text'],
     ]],
+    'sales' => ['Sales tools', [
+        ['', 'Order on WhatsApp', 'heading'],
+        ['wa_order_enabled', 'Show an “Order on WhatsApp” button on product pages', 'checkbox', 'The customer sends you the product, options, quantity and price on WhatsApp. Uses the number in the WhatsApp tab.'],
+        ['wa_order_cart', 'Also show it in the cart (sends the whole cart)', 'checkbox'],
+        ['wa_order_text', 'First line of the message', 'text'],
+        ['', 'Upsells & bundles', 'heading'],
+        ['upsell_enabled', 'Turn on upsells, bundles and quantity deals', 'checkbox', 'In each product: choose “Frequently bought together” products, a bundle discount, and deals like “Buy 2, get 1 free”.'],
+        ['upsell_title', 'Title of the product page box', 'text'],
+        ['cart_upsell_enabled', 'Show “You may also like” in the cart and at checkout', 'checkbox'],
+        ['', 'Product questions', 'heading'],
+        ['qa_enabled', 'Customers can ask questions on product pages', 'checkbox', 'You answer in Admin → Product questions. Answers are emailed to the customer and shown on the product page.'],
+        ['notify_admin_question', 'Email me new questions', 'checkbox'],
+        ['', 'Stock', 'heading'],
+        ['low_stock_threshold', 'Low stock level', 'number', 'You get an email when an order brings a product (or a size/color) to this number or less. See Admin → Stock & alerts.'],
+        ['notify_low_stock', 'Email me low stock alerts', 'checkbox'],
+        ['stock_alerts_enabled', 'Customers can ask to be emailed when a sold-out product is back in stock', 'checkbox'],
+        ['', 'Product feed (Google Shopping, Facebook & Instagram Shop, TikTok)', 'heading'],
+        ['feed_enabled', 'Publish my product feed', 'checkbox'],
+        ['', 'feed_links', 'html'],
+    ]],
+    'currency' => ['Currencies', [
+        ['', 'Show prices in other currencies', 'heading'],
+        ['currencies_enabled', 'Let visitors choose a currency (selector in the header)', 'checkbox', 'Prices are converted for display. Orders and payments stay in your main currency (General tab), and checkout shows the real amount charged.'],
+        ['', 'currency_table', 'html'],
+        ['currency_auto_rates', 'Update exchange rates automatically every day', 'checkbox', 'Uses free daily rates from open.er-api.com. Untick it to keep your own rates.'],
+    ]],
+    'security' => ['Security', [
+        ['', 'Two-step login', 'heading'],
+        ['admin_2fa', 'Ask for a code sent by email when an admin or staff member signs in', 'checkbox', 'After the password, a 6-digit code is emailed to the account’s email address. A device can be remembered for 30 days. Your email settings must work: a test is sent when you turn it on.'],
+        ['', 'Activity log', 'heading'],
+        ['activity_log_days', 'Keep the activity log for (days)', 'number', 'See Admin → Activity log. 0 = keep forever.'],
+    ]],
     'whatsapp' => ['WhatsApp', [
         ['', 'Where orders are sent', 'heading'],
         ['whatsapp_number', 'Your WhatsApp number', 'text', 'With country code, digits only. Example: 212612345678 or 14155550123'],
@@ -219,9 +251,34 @@ if (is_post()) {
     }
 
     $errors = [];
+    $before = settings_all();
+    if ($tab === 'currency') {
+        // Currency rows: code, symbol, rate (1 main currency = rate), symbol position, decimals
+        $rows = [];
+        foreach ((array) ($_POST['cur_code'] ?? []) as $i => $code) {
+            $code = strtoupper(preg_replace('/[^A-Za-z]/', '', (string) $code));
+            if (strlen($code) !== 3 || $code === strtoupper(setting('currency_code', 'USD'))) {
+                continue;
+            }
+            $rows[] = [
+                'code' => $code,
+                'symbol' => mb_substr(trim((string) ($_POST['cur_symbol'][$i] ?? '')), 0, 8) ?: $code,
+                'rate' => max(0, round((float) str_replace(',', '.', (string) ($_POST['cur_rate'][$i] ?? '0')), 6)),
+                'position' => ($_POST['cur_position'][$i] ?? '') === 'after' ? 'after' : 'before',
+                'decimals' => max(0, min(3, (int) ($_POST['cur_decimals'][$i] ?? 2))),
+            ];
+        }
+        set_setting('currencies', json_encode($rows));
+        if (($_POST['action'] ?? '') === 'update_rates' || ($rows && array_filter($rows, fn($r) => $r['rate'] <= 0))) {
+            $msg = update_exchange_rates();
+            if ($msg !== '') {
+                $errors[] = $msg;
+            }
+        }
+    }
     foreach ($tabs[$tab][1] as $f) {
         [$key, , $type] = $f;
-        if ($key === '') {
+        if ($key === '' || $type === 'html') {
             continue;
         }
         switch ($type) {
@@ -289,10 +346,32 @@ if (is_post()) {
                 . 'in cPanel File Manager click Settings → "Show Hidden Files", then upload .htaccess from the zip next to index.php.';
         }
     }
+    settings_all(true);
+    // Two-step login: only switch on when this admin can really receive the code.
+    if ($tab === 'security' && setting_on('admin_2fa') && ($before['admin_2fa'] ?? '0') !== '1') {
+        $me = current_admin();
+        $ok = send_template($me['email'], 'Two-step login is on - ' . setting('store_name'), 'Two-step login is on',
+            '<p>From now on, a 6-digit code will be emailed to this address when you sign in to the admin.</p>');
+        if (!$ok) {
+            set_setting('admin_2fa', '0');
+            settings_all(true);
+            $errors[] = 'Two-step login was not turned on: the test email to ' . $me['email'] . ' could not be sent (' . mail_last_error() . '). Check the Email tab first.';
+        }
+    }
     foreach ($errors as $err) {
         flash('error', $err);
     }
-    settings_all(true);
+    // Activity log: list the settings that changed (never their values: they can be passwords or keys).
+    $changed = [];
+    foreach ($tabs[$tab][1] as $f) {
+        if ($f[0] !== '' && ($before[$f[0]] ?? null) !== (settings_all()[$f[0]] ?? null)) {
+            $changed[] = $f[1];
+        }
+    }
+    if ($tab === 'currency' && ($before['currencies'] ?? '') !== setting('currencies')) {
+        $changed[] = 'Currencies list / rates';
+    }
+    activity('Settings → ' . $tabs[$tab][0] . ' saved', $changed ? 'Changed: ' . implode(', ', $changed) : 'No changes');
     if (($_POST['action'] ?? '') === 'test_email') {
         // Settings above were saved first, so the test uses what is in the form.
         $to = trim((string) ($_POST['test_to'] ?? '')) ?: admin_email();
@@ -329,6 +408,37 @@ include __DIR__ . '/includes/header.php';
       ?>
     <?php if ($type === 'heading'): ?>
       <h3 class="sub"><?= e($flabel) ?></h3>
+    <?php elseif ($type === 'html' && $flabel === 'feed_links'): ?>
+      <div class="feed-links">
+        <p class="help">Give this link to each platform once: it is read again automatically (daily), so new products, prices and stock update by themselves.</p>
+        <div class="kv"><span>XML feed (Google Merchant Center, Meta Commerce Manager, TikTok)</span><input readonly value="<?= e(full_url('feed.php')) ?>" onclick="this.select()"></div>
+        <div class="kv"><span>CSV feed (same products)</span><input readonly value="<?= e(full_url('feed.php?format=csv')) ?>" onclick="this.select()"></div>
+        <?php foreach (multi_currency_on() ? extra_currencies() : [] as $fc): ?>
+          <div class="kv"><span>Prices in <?= e($fc['code']) ?></span><input readonly value="<?= e(full_url('feed.php?currency=' . $fc['code'])) ?>" onclick="this.select()"></div>
+        <?php endforeach; ?>
+        <p class="help"><b>Google:</b> Merchant Center → Products → Add products → From a file → enter a link. <b>Meta:</b> Commerce Manager → Catalog → Data sources → Data feed → Scheduled feed. <b>TikTok:</b> Catalog → Add products → Data feed.</p>
+      </div>
+    <?php elseif ($type === 'html' && $flabel === 'currency_table'): ?>
+      <p class="help">Your main currency is <b><?= e(base_currency()['code']) ?></b> (General tab). Rate = how much 1 <?= e(base_currency()['code']) ?> is worth in that currency. Leave the rate empty and save to download it.</p>
+      <div class="table-wrap"><table class="vs-table cur-table">
+        <thead><tr><th>Code</th><th>Symbol</th><th>Rate</th><th>Symbol position</th><th>Decimals</th><th></th></tr></thead>
+        <tbody id="cur-rows">
+          <?php $curRows = (array) json_decode(setting('currencies', '[]'), true); $curRows[] = ['code' => '', 'symbol' => '', 'rate' => '', 'position' => 'before', 'decimals' => 2]; ?>
+          <?php foreach ($curRows as $cr): ?>
+            <tr class="row-item">
+              <td><input name="cur_code[]" value="<?= e($cr['code']) ?>" maxlength="3" placeholder="EUR" style="width:70px;text-transform:uppercase"></td>
+              <td><input name="cur_symbol[]" value="<?= e($cr['symbol']) ?>" maxlength="8" placeholder="€" style="width:70px"></td>
+              <td><input name="cur_rate[]" value="<?= e((string) $cr['rate']) ?>" placeholder="auto" style="width:110px"></td>
+              <td><select name="cur_position[]"><option value="before">Before (€10)</option><option value="after" <?= ($cr['position'] ?? '') === 'after' ? 'selected' : '' ?>>After (10 DH)</option></select></td>
+              <td><select name="cur_decimals[]"><?php foreach ([0, 2, 3] as $d): ?><option value="<?= $d ?>" <?= (int) ($cr['decimals'] ?? 2) === $d ? 'selected' : '' ?>><?= $d ?></option><?php endforeach; ?></select></td>
+              <td><button type="button" class="icon-x" data-remove-row aria-label="Remove">×</button></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table></div>
+      <p><button type="button" class="btn btn-sm btn-light" data-add-row="#cur-rows"><?= icon('plus', 14) ?> Add currency</button>
+        <button type="submit" class="btn btn-sm btn-light" name="action" value="update_rates"><?= icon('refresh', 14) ?> Update exchange rates now</button>
+        <?php if (setting('currency_rates_updated') !== ''): ?><span class="help">Last update: <?= e(setting('currency_rates_updated')) ?></span><?php endif; ?></p>
     <?php elseif ($type === 'checkbox'): ?>
       <label class="inline"><input type="checkbox" name="<?= e($key) ?>" value="1" <?= $val === '1' ? 'checked' : '' ?>> <?= e($flabel) ?></label>
       <?php if ($help): ?><p class="help"><?= e($help) ?></p><?php endif; ?>

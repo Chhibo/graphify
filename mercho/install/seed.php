@@ -21,7 +21,7 @@ function default_settings(array $store): array
         'hide_zero_decimals' => '1',
         'shipping_fee' => '0',
         'free_shipping_over' => '0',
-        'order_prefix' => 'VL',
+        'order_prefix' => 'MC',
         'country_default' => '',
 
         // Top bar & hero
@@ -99,7 +99,7 @@ function default_settings(array $store): array
         'mail_from_email' => $store['store_email'],
         'mail_from_name' => $store['store_name'],
         'admin_notify_email' => $store['store_email'],
-    ] + default_v4_settings() + default_v5_settings() + [
+    ] + default_v4_settings() + default_v5_settings() + default_v6_settings() + [
 
         // Social
         'social_facebook' => '#', 'social_twitter' => '#', 'social_instagram' => '#', 'social_github' => '',

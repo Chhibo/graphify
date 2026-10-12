@@ -5,7 +5,7 @@
 declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.0.0');
+define('APP_VERSION', '1.6.0');
 
 if (!is_file(APP_ROOT . '/config.php')) {
     // Not installed yet: send the visitor to the installer.
@@ -35,13 +35,17 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 
 require APP_ROOT . '/includes/db.php';
 require APP_ROOT . '/includes/functions.php';
+require APP_ROOT . '/includes/currency.php';
 require APP_ROOT . '/includes/cart.php';
+require APP_ROOT . '/includes/upsell.php';
 require APP_ROOT . '/includes/store.php';
 require APP_ROOT . '/includes/mailer.php';
 require APP_ROOT . '/includes/customer.php';
 require APP_ROOT . '/includes/protection.php';
 require APP_ROOT . '/includes/tracking.php';
 require APP_ROOT . '/includes/abandoned.php';
+require APP_ROOT . '/includes/engage.php';
+require APP_ROOT . '/includes/activity.php';
 require APP_ROOT . '/includes/icons.php';
 require APP_ROOT . '/includes/countries.php';
 require APP_ROOT . '/includes/printful.php';

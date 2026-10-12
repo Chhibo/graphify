@@ -11,51 +11,18 @@ if (is_post()) {
             flash('error', 'This product is no longer available.');
             redirect('shop.php');
         }
-        $sizes = str_list($p['sizes']);
-        $colors = str_list($p['colors']);
-        $size = (string) ($_POST['size'] ?? ($sizes[0] ?? ''));
-        $color = (string) ($_POST['color'] ?? ($colors[0] ?? ''));
-        if ($sizes && !in_array($size, $sizes, true)) {
-            $size = $sizes[0];
-        }
-        if ($colors && !in_array($color, $colors, true)) {
-            $color = $colors[0];
-        }
-        if (!$sizes) {
-            $size = '';
-        }
-        if (!$colors) {
-            $color = '';
-        }
-        $qty = max(1, (int) ($_POST['qty'] ?? 1));
-        if ((int) $p['stock'] === 0) {
-            flash('error', 'Sorry, this product is sold out.');
+        $res = cart_add_checked($p, (int) ($_POST['qty'] ?? 1), (string) ($_POST['size'] ?? ''), (string) ($_POST['color'] ?? ''), (array) ($_POST['opt'] ?? []));
+        if ($res['error'] !== '') {
+            if (!empty($_POST['ajax'])) {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => $res['error']]);
+                exit;
+            }
+            flash('error', $res['error']);
             redirect(product_url($p));
         }
-        if ((int) $p['stock'] > 0) {
-            $qty = min($qty, (int) $p['stock']);
-        }
-        $variantId = 0;
-        if (product_variants((int) $p['id'])) {
-            $variant = find_variant((int) $p['id'], $size, $color);
-            if (!$variant) {
-                flash('error', 'Sorry, ' . trim($color . ' / ' . $size, ' /') . ' is not available. Please choose another option.');
-                redirect(product_url($p));
-            }
-            if ((int) $variant['stock'] === 0) {
-                flash('error', 'Sorry, ' . trim($color . ' / ' . $size, ' /') . ' is sold out. Please choose another option.');
-                redirect(product_url($p));
-            }
-            if ((int) $variant['stock'] > 0) {
-                $qty = min($qty, (int) $variant['stock']);
-            }
-            $variantId = (int) $variant['id'];
-        }
-        [$options] = resolve_options($p, (array) ($_POST['opt'] ?? []));
-        cart_add((int) $p['id'], $qty, $size, $color, $variantId, $options);
-        $unit = ($variantId ? variant_price($variant, $p) : (float) $p['price']) + resolve_options($p, $options)[1];
         cart_snapshot();
-        track_event('AddToCart', ['value' => round($unit * $qty, 2), 'items' => [track_item($p, $unit, $qty)]], true);
+        track_event('AddToCart', ['value' => round($res['unit'] * $res['qty'], 2), 'items' => [track_item($p, $res['unit'], $res['qty'])]], true);
 
         if (!empty($_POST['ajax'])) {
             header('Content-Type: application/json');
@@ -66,7 +33,40 @@ if (is_post()) {
             redirect('checkout.php');
         }
         flash('success', '“' . $p['name'] . '” was added to your cart.');
-        redirect('cart.php');
+        redirect(($_POST['back'] ?? '') === 'checkout' ? 'checkout.php' : 'cart.php');
+    }
+
+    // "Frequently bought together": add the product (with the options chosen on its page) and the ticked products.
+    if ($action === 'add_bundle') {
+        $main = find_product((int) ($_POST['product_id'] ?? 0));
+        if (!$main) {
+            redirect('shop.php');
+        }
+        $added = [];
+        $errors = [];
+        $res = cart_add_checked($main, 1, (string) ($_POST['size'] ?? ''), (string) ($_POST['color'] ?? ''), (array) ($_POST['opt'] ?? []));
+        $res['error'] === '' ? $added[] = [$main, $res] : $errors[] = $res['error'];
+        $allowed = array_map(fn($u) => (int) $u['id'], product_upsells($main, 3));
+        foreach ((array) ($_POST['bundle'] ?? []) as $pid) {
+            $pid = (int) $pid;
+            $up = in_array($pid, $allowed, true) ? find_product($pid) : null;
+            if (!$up) {
+                continue;
+            }
+            [$size, $color] = array_pad(explode('|', (string) ($_POST['bundle_opt'][$pid] ?? '')), 2, '');
+            $res = cart_add_checked($up, 1, $size, $color, []);
+            $res['error'] === '' ? $added[] = [$up, $res] : $errors[] = $up['name'] . ': ' . $res['error'];
+        }
+        if ($added) {
+            cart_snapshot();
+            track_event('AddToCart', ['value' => round(array_sum(array_map(fn($a) => $a[1]['unit'], $added)), 2),
+                'items' => array_map(fn($a) => track_item($a[0], $a[1]['unit'], 1), $added)], true);
+            flash('success', count($added) . ' products were added to your cart.');
+        }
+        foreach ($errors as $err) {
+            flash('error', $err);
+        }
+        redirect($added ? 'cart.php' : product_url($main));
     }
 
     if ($action === 'update') {
@@ -156,6 +156,7 @@ include __DIR__ . '/includes/header.php';
       <aside class="summary">
         <h3>Order Summary</h3>
         <div class="sum-row"><span>Subtotal</span><b><?= money($totals['subtotal']) ?></b></div>
+        <?php foreach ($totals['deals'] as $deal): ?><div class="sum-row discount"><span><?= e($deal['label']) ?></span><b>-<?= money($deal['amount']) ?></b></div><?php endforeach; ?>
         <?php if ($totals['discount'] > 0): ?><div class="sum-row discount"><span>Discount (<?= e($totals['coupon']['code']) ?>)</span><b>-<?= money($totals['discount']) ?></b></div><?php endif; ?>
         <?php if (count($totals['shipping_methods']) > 1): ?>
           <form method="post" class="ship-choose">
@@ -174,9 +175,13 @@ include __DIR__ . '/includes/header.php';
         <?php endif; ?>
         <div class="sum-row total"><span>Total</span><b><?= money($totals['total']) ?></b></div>
         <a class="btn btn-primary btn-block" href="<?= url('checkout.php') ?>">Go to Checkout <?= icon('arrow-right', 16) ?></a>
+        <?php if (wa_order_on() && setting_on('wa_order_cart')): ?>
+          <a class="btn btn-wa btn-block" href="<?= e(wa_order_link(wa_cart_text($items, $totals))) ?>" target="_blank" rel="noopener"><?= icon('whatsapp', 18) ?> Order on WhatsApp</a>
+        <?php endif; ?>
         <a class="btn btn-ghost btn-block" href="<?= url('shop.php') ?>">Continue shopping</a>
       </aside>
     </div>
+    <?php $suggestions = cart_suggestions($items); $suggestBack = 'cart'; include __DIR__ . '/includes/suggestions.php'; ?>
   <?php endif; ?>
 </div>
 <?php include __DIR__ . '/includes/footer.php'; ?>

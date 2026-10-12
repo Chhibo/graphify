@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/includes/bootstrap.php';
+money_base_mode(); // order amounts are shown in the store's main currency
 
 $order = null;
 $error = '';
@@ -24,7 +25,7 @@ include __DIR__ . '/includes/header.php';
   <form method="post" class="box track-form">
     <?= csrf_field() ?>
     <div class="grid-2">
-      <label>Order number<input name="order_number" required placeholder="e.g. VL-261009-AB12C" value="<?= e($_POST['order_number'] ?? '') ?>"></label>
+      <label>Order number<input name="order_number" required placeholder="e.g. <?= e(setting('order_prefix', 'MC')) ?>-261009-AB12C" value="<?= e($_POST['order_number'] ?? '') ?>"></label>
       <label>Phone number<input name="phone" type="tel" required value="<?= e($_POST['phone'] ?? '') ?>"></label>
     </div>
     <button class="btn btn-primary" type="submit">Track Order</button>

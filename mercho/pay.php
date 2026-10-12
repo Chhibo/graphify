@@ -3,6 +3,7 @@
  * Return / cancel endpoint for PayPal and Stripe.
  */
 require __DIR__ . '/includes/bootstrap.php';
+money_base_mode(); // order amounts are shown in the store's main currency
 require __DIR__ . '/includes/payments.php';
 require __DIR__ . '/includes/whatsapp.php';
 

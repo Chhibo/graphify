@@ -162,6 +162,8 @@ if (is_post()) {
                 $report['errors'][] = "Row $rowNo: " . $ex->getMessage();
             }
         }
+        activity('Imported products from CSV', $report['created'] . ' new, ' . $report['updated'] . ' updated, ' . count($report['errors']) . ' problem(s)');
+        process_stock_alerts(); // products back in stock: email the customers who asked
     }
 }
 

@@ -190,7 +190,7 @@ function mail_layout(string $title, string $contentHtml, string $buttonText = ''
 /** Send an HTML email made from simple paragraphs (plain text version is generated automatically). */
 function send_template(string $to, string $subject, string $title, string $contentHtml, string $buttonText = '', string $buttonUrl = '', string $replyTo = ''): bool
 {
-    $text = $title . "\n\n" . trim(html_entity_decode(strip_tags(preg_replace('#<(br|/p|/tr|/h\d)[^>]*>#i', "\n", $contentHtml)), ENT_QUOTES, 'UTF-8'));
+    $text = $title . "\n\n" . trim(html_entity_decode(strip_tags(preg_replace('#<(br|/p|/tr|/li|/h\d)[^>]*>#i', "\n", $contentHtml)), ENT_QUOTES, 'UTF-8'));
     if ($buttonText !== '') {
         $text .= "\n\n" . $buttonText . ': ' . $buttonUrl;
     }
@@ -205,15 +205,15 @@ function order_email_html(array $order): string
         $variant = implode(' / ', array_filter([$it['size'], $it['color'], $it['options']]));
         $rows .= '<tr><td style="padding:8px 0;border-bottom:1px solid #eee">' . (int) $it['qty'] . ' × ' . e($it['name'])
             . ($variant !== '' ? '<br><small style="color:#888">' . e($variant) . '</small>' : '') . '</td>'
-            . '<td align="right" style="padding:8px 0;border-bottom:1px solid #eee">' . e(money($it['price'] * $it['qty'])) . '</td></tr>';
+            . '<td align="right" style="padding:8px 0;border-bottom:1px solid #eee">' . e(money_base($it['price'] * $it['qty'])) . '</td></tr>';
     }
     $line = fn($label, $value, $bold = false) => '<tr><td style="padding:4px 0' . ($bold ? ';font-weight:bold' : '') . '">' . e($label) . '</td><td align="right" style="padding:4px 0' . ($bold ? ';font-weight:bold' : '') . '">' . e($value) . '</td></tr>';
-    $rows .= $line('Subtotal', money($order['subtotal']));
+    $rows .= $line('Subtotal', money_base($order['subtotal']));
     if ((float) ($order['discount'] ?? 0) > 0) {
-        $rows .= $line('Discount (' . $order['coupon_code'] . ')', '-' . money($order['discount']));
+        $rows .= $line('Discount (' . order_discount_label($order) . ')', '-' . money_base($order['discount']));
     }
-    $rows .= $line('Delivery' . (($order['shipping_method'] ?? '') !== '' ? ' (' . $order['shipping_method'] . ')' : ''), (float) $order['shipping'] > 0 ? money($order['shipping']) : 'Free');
-    $rows .= $line('Total', money($order['total']), true);
+    $rows .= $line('Delivery' . (($order['shipping_method'] ?? '') !== '' ? ' (' . $order['shipping_method'] . ')' : ''), (float) $order['shipping'] > 0 ? money_base($order['shipping']) : 'Free');
+    $rows .= $line('Total', money_base($order['total']), true);
     $addr = implode(', ', array_filter([$order['address'], $order['city'], $order['state'] ?? '', $order['zip'] ?? '', $order['country']], 'strlen'));
     return '<table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin:14px 0">' . $rows . '</table>'
         . '<p style="font-size:14px;color:#555"><b>Payment:</b> ' . e(payment_method_label($order['payment_method'])) . '<br>'
@@ -232,9 +232,9 @@ function notify_new_order(array $order): void
                 'Track your order', full_url('track.php'));
         }
         if (setting_on('notify_admin_order') && admin_email() !== '') {
-            send_template(admin_email(), 'New order ' . $order['order_number'] . ' - ' . money($order['total']),
+            send_template(admin_email(), 'New order ' . $order['order_number'] . ' - ' . money_base($order['total']),
                 'New order ' . $order['order_number'],
-                '<p>' . e($order['customer_name']) . ' placed an order of <b>' . e(money($order['total'])) . '</b>.</p>' . order_email_html($order),
+                '<p>' . e($order['customer_name']) . ' placed an order of <b>' . e(money_base($order['total'])) . '</b>.</p>' . order_email_html($order),
                 'Open in admin', full_url('admin/order.php?id=' . (int) $order['id']), $order['email']);
         }
     } catch (Throwable $ex) {

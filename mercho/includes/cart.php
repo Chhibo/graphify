@@ -48,6 +48,43 @@ function cart_count(): int
     return array_sum(array_column(cart_raw(), 'qty'));
 }
 
+/**
+ * Add a product to the cart after checking its size/color, variant and stock.
+ * Returns ['error' => '' or a message for the customer, 'unit' => unit price, 'qty' => quantity added].
+ */
+function cart_add_checked(array $p, int $qty, string $size, string $color, array $opt): array
+{
+    $sizes = str_list($p['sizes']);
+    $colors = str_list($p['colors']);
+    $size = $sizes ? (in_array($size, $sizes, true) ? $size : $sizes[0]) : '';
+    $color = $colors ? (in_array($color, $colors, true) ? $color : $colors[0]) : '';
+    $qty = max(1, $qty);
+    $fail = fn($msg) => ['error' => $msg, 'unit' => 0.0, 'qty' => 0];
+    if ((int) $p['stock'] === 0) {
+        return $fail('Sorry, this product is sold out.');
+    }
+    if ((int) $p['stock'] > 0) {
+        $qty = min($qty, (int) $p['stock']);
+    }
+    $variant = null;
+    if (product_variants((int) $p['id'])) {
+        $variant = find_variant((int) $p['id'], $size, $color);
+        $label = trim($color . ' / ' . $size, ' /');
+        if (!$variant) {
+            return $fail('Sorry, ' . $label . ' is not available. Please choose another option.');
+        }
+        if ((int) $variant['stock'] === 0) {
+            return $fail('Sorry, ' . $label . ' is sold out. Please choose another option.');
+        }
+        if ((int) $variant['stock'] > 0) {
+            $qty = min($qty, (int) $variant['stock']);
+        }
+    }
+    [$options, $extra] = resolve_options($p, $opt);
+    cart_add((int) $p['id'], $qty, $size, $color, $variant ? (int) $variant['id'] : 0, $options);
+    return ['error' => '', 'unit' => ($variant ? variant_price($variant, $p) : (float) $p['price']) + $extra, 'qty' => $qty];
+}
+
 /** Cart lines joined with current product data (prices always come from the database). */
 function cart_items(): array
 {
@@ -103,6 +140,9 @@ function cart_totals(?array $items = null): array
 {
     $items = $items ?? cart_items();
     $subtotal = round(array_sum(array_column($items, 'line_total')), 2);
+    // Quantity deals and bundles (includes/upsell.php)
+    $deals = cart_deals($items);
+    $dealsTotal = round(min($subtotal, array_sum(array_column($deals, 'amount'))), 2);
 
     // Shipping
     $methods = cart_shipping_options($items);
@@ -138,9 +178,9 @@ function cart_totals(?array $items = null): array
         if ($couponError === '') {
             $coupon = $c;
             if ($c['type'] === 'percent') {
-                $discount = $subtotal * min(100, (float) $c['value']) / 100;
+                $discount = ($subtotal - $dealsTotal) * min(100, (float) $c['value']) / 100;
             } elseif ($c['type'] === 'fixed') {
-                $discount = min($subtotal, (float) $c['value']);
+                $discount = min($subtotal - $dealsTotal, (float) $c['value']);
             } else {
                 $shipping = 0.0; // free_shipping
             }
@@ -151,8 +191,10 @@ function cart_totals(?array $items = null): array
     return [
         'subtotal' => $subtotal,
         'discount' => $discount,
+        'deals' => $deals,
+        'deals_total' => $dealsTotal,
         'shipping' => round($shipping, 2),
-        'total' => round(max(0, $subtotal - $discount) + $shipping, 2),
+        'total' => round(max(0, $subtotal - $dealsTotal - $discount) + $shipping, 2),
         'coupon' => $coupon,
         'coupon_error' => $couponError,
         'shipping_methods' => $methods,

@@ -78,6 +78,15 @@ $themeMode = setting('theme_mode', 'light');
       <?php endif; ?>
     </a>
     <div class="header-icons">
+      <?php if (multi_currency_on()): $shownCur = display_currency()['code']; ?>
+        <form class="currency-switch" action="<?= url('currency.php') ?>" method="get">
+          <input type="hidden" name="back" value="<?= e($_SERVER['REQUEST_URI'] ?? url()) ?>">
+          <select name="c" aria-label="Currency" onchange="this.form.submit()">
+            <?php foreach (store_currencies() as $curCode => $cur): ?><option value="<?= e($curCode) ?>" <?= $curCode === $shownCur ? 'selected' : '' ?>><?= e($curCode . ' ' . $cur['symbol']) ?></option><?php endforeach; ?>
+          </select>
+          <noscript><button type="submit">OK</button></noscript>
+        </form>
+      <?php endif; ?>
       <?php if (accounts_enabled()): $me = current_customer(); ?>
         <a class="circle-btn" href="<?= url($me ? 'account.php' : 'login.php') ?>" aria-label="<?= $me ? 'My account' : 'Log in' ?>" title="<?= $me ? 'My account (' . e($me['name']) . ')' : 'Log in / Register' ?>"><?= icon('user', 18) ?><?php if ($me): ?><span class="badge-dot"></span><?php endif; ?></a>
       <?php else: ?>
@@ -87,7 +96,7 @@ $themeMode = setting('theme_mode', 'light');
       <span class="divider"></span>
       <a class="header-cart" href="<?= url('cart.php') ?>" aria-label="Cart">
         <span class="circle-btn"><?= icon('cart', 18) ?><span class="badge-count" data-cart-count <?= $cartCount ? '' : 'hidden' ?>><?= $cartCount ?></span></span>
-        <span class="cart-text"><small>Your cart,</small><b><?= money($cartTotal) ?></b></span>
+        <span class="cart-text"><small>Your cart,</small><b><?= money($cartTotal, true) ?></b></span>
       </a>
     </div>
   </div>

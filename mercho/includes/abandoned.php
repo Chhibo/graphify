@@ -131,16 +131,30 @@ function send_abandoned_reminders(int $limit = 10): int
     return $sent;
 }
 
-/** Run background jobs at most every 10 minutes (called from the admin panel and cron.php). */
+/** Run background jobs at most every 10 minutes (called from the admin panel and cron.php): cart reminders, back-in-stock emails, log cleanup, exchange rates. */
 function run_background_jobs(bool $force = false): void
 {
     if (!$force && (time() - (int) setting('last_cron_run', '0')) < 600) {
         return;
     }
     set_setting('last_cron_run', (string) time());
-    try {
-        send_abandoned_reminders();
-    } catch (Throwable $ex) {
-        // never break the page because of background work
+    // Each job on its own: one failing must not stop the others, nor break the page.
+    $jobs = [
+        'send_abandoned_reminders',
+        'process_stock_alerts',
+        'activity_log_cleanup',
+        function () {
+            // Exchange rates: once a day when the owner turned on automatic rates.
+            if (multi_currency_on() && setting_on('currency_auto_rates') && strtotime(setting('currency_rates_updated') ?: '2000-01-01') < time() - 86400) {
+                update_exchange_rates();
+            }
+        },
+    ];
+    foreach ($jobs as $job) {
+        try {
+            $job();
+        } catch (Throwable $ex) {
+            // ignore
+        }
     }
 }

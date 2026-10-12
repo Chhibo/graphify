@@ -12,6 +12,7 @@ $isNew = (int) ($p['is_new'] ?? 0) === 1;
       <span class="pc-badge new">NEW</span>
     <?php endif; ?>
     <?php if ((int) $p['stock'] === 0): ?><span class="pc-out">Sold out</span><?php endif; ?>
+    <?php if (deal_label($p) !== ''): ?><span class="pc-deal"><?= e(deal_label($p)) ?></span><?php endif; ?>
   </a>
   <form class="pc-wish" action="<?= url('wishlist.php') ?>" method="post">
     <?= csrf_field() ?>

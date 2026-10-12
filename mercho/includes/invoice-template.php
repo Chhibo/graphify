@@ -70,17 +70,17 @@ $addr = implode('<br>', array_map('e', array_filter([$order['address'], trim($or
         <?php if ($isSlip): ?><td><span class="check"></span></td><?php endif; ?>
         <td><b><?= e($it['name']) ?></b><?php $v = implode(' / ', array_filter([$it['size'], $it['color'], $it['options']])); ?><?= $v !== '' ? '<br><span class="muted">' . e($v) . '</span>' : '' ?></td>
         <td class="r"><?= (int) $it['qty'] ?></td>
-        <?php if (!$isSlip): ?><td class="r"><?= money($it['price']) ?></td><td class="r"><?= money($it['price'] * $it['qty']) ?></td><?php endif; ?>
+        <?php if (!$isSlip): ?><td class="r"><?= money_base($it['price']) ?></td><td class="r"><?= money_base($it['price'] * $it['qty']) ?></td><?php endif; ?>
       </tr>
     <?php endforeach; ?>
     </tbody>
   </table>
   <?php if (!$isSlip): ?>
     <div class="totals">
-      <div><span>Subtotal</span><span><?= money($order['subtotal']) ?></span></div>
-      <?php if ((float) $order['discount'] > 0): ?><div><span>Discount (<?= e($order['coupon_code']) ?>)</span><span>-<?= money($order['discount']) ?></span></div><?php endif; ?>
-      <div><span>Delivery</span><span><?= (float) $order['shipping'] > 0 ? money($order['shipping']) : 'Free' ?></span></div>
-      <div class="grand"><span>Total</span><span><?= money($order['total']) ?></span></div>
+      <div><span>Subtotal</span><span><?= money_base($order['subtotal']) ?></span></div>
+      <?php if ((float) $order['discount'] > 0): ?><div><span>Discount (<?= e(order_discount_label($order)) ?>)</span><span>-<?= money_base($order['discount']) ?></span></div><?php endif; ?>
+      <div><span>Delivery</span><span><?= (float) $order['shipping'] > 0 ? money_base($order['shipping']) : 'Free' ?></span></div>
+      <div class="grand"><span>Total</span><span><?= money_base($order['total']) ?></span></div>
     </div>
   <?php endif; ?>
   <?php if (trim((string) $order['notes']) !== ''): ?><div class="note"><b>Notes:</b> <?= nl2br(e($order['notes'])) ?></div><?php endif; ?>

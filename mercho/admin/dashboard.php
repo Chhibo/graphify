@@ -8,7 +8,7 @@ $ordersTotal = (int) q_val("SELECT COUNT(*) FROM orders WHERE payment_status IN 
 $ordersToday = (int) q_val("SELECT COUNT(*) FROM orders WHERE payment_status IN ('paid','cod') AND created_at >= ?", [date('Y-m-d 00:00:00')]);
 $products = (int) q_val('SELECT COUNT(*) FROM products');
 $recent = q_all("SELECT * FROM orders WHERE payment_status IN ('paid','cod') ORDER BY id DESC LIMIT 8");
-$lowStock = q_all('SELECT id, name, stock FROM products WHERE stock >= 0 AND stock <= 5 ORDER BY stock LIMIT 6');
+$lowStock = admin_can('products') ? array_slice(low_stock_items(20), 0, 6) : [];
 $methods = enabled_payment_methods();
 
 $adminTitle = 'Dashboard';
@@ -59,12 +59,14 @@ include __DIR__ . '/includes/header.php';
       <li class="<?= $products > 0 ? 'ok' : '' ?>"><a href="product-edit.php">Add products</a></li>
       <li class="<?= setting('hero_image') !== 'assets/img/demo/hero.svg' ? 'ok' : '' ?>"><a href="settings.php?tab=home">Home page images</a></li>
     </ul>
-    <?php if ($lowStock): ?>
-      <div class="card-head" style="margin-top:18px"><h2>Low stock</h2></div>
-      <?php foreach ($lowStock as $p): ?>
-        <div class="row-between"><a href="product-edit.php?id=<?= (int) $p['id'] ?>"><?= e($p['name']) ?></a><span class="status <?= (int) $p['stock'] === 0 ? 'st-cancelled' : 'st-pending' ?>"><?= (int) $p['stock'] ?> left</span></div>
-      <?php endforeach; ?>
-    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+  <?php if ($lowStock): ?>
+  <div class="card">
+    <div class="card-head"><h2>Low stock</h2><a href="stock.php">View all →</a></div>
+    <?php foreach ($lowStock as $p): ?>
+      <div class="row-between"><a href="product-edit.php?id=<?= (int) $p['id'] ?>"><?= e($p['name']) ?><?= $p['size'] || $p['color'] ? ' <small class="muted">(' . e(implode(' / ', array_filter([(string) $p['size'], (string) $p['color']]))) . ')</small>' : '' ?></a><span class="status <?= (int) $p['stock'] === 0 ? 'st-cancelled' : 'st-pending' ?>"><?= (int) $p['stock'] === 0 ? 'Sold out' : (int) $p['stock'] . ' left' ?></span></div>
+    <?php endforeach; ?>
   </div>
   <?php endif; ?>
 </div>

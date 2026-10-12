@@ -10,6 +10,7 @@ if (is_post()) {
     if ($action === 'delete') {
         if ($target && (int) $target['id'] !== (int) $me['id']) {
             q('DELETE FROM admins WHERE id = ?', [$id]);
+            activity('Deleted staff account ' . $target['email']);
             flash('success', 'Staff account deleted.');
         }
         redirect('admin/staff.php');
@@ -45,6 +46,8 @@ if (is_post()) {
     } else {
         db_insert('admins', $data + ['created_at' => now()]);
     }
+    activity(($target ? 'Edited' : 'Added') . ' staff account ' . ($data['email'] ?? ($target['email'] ?? '')),
+        'Access: ' . (($data['permissions'] ?? '') !== '' ? $data['permissions'] : 'none') . ($pass !== '' ? ' · password set' : ''));
     flash('success', 'Staff account saved. They log in at ' . full_url('admin/') . ' with their email and password.');
     redirect('admin/staff.php');
 }

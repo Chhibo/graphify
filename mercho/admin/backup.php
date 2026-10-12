@@ -9,6 +9,7 @@ $tables = ['settings', 'admins', 'categories', 'products', 'product_variants', '
 $action = $_GET['download'] ?? '';
 if ($action !== '' && hash_equals(csrf_token(), (string) ($_GET['t'] ?? ''))) {
     $stamp = date('Y-m-d-His');
+    log_activity('Downloaded a backup', ['sql' => 'Database (.sql)', 'sqlite' => 'SQLite file', 'uploads' => 'Images (.zip)'][$action] ?? $action);
     if ($action === 'sql') {
         // Full backup: table structure + all rows. Import it in phpMyAdmin (or any SQL tool) to restore.
         header('Content-Type: application/sql; charset=utf-8');

@@ -662,3 +662,54 @@ a.pc-rating:hover span { text-decoration: underline; }
 .cookie-bar a { color: var(--primary); text-decoration: underline; }
 .cookie-actions { display: flex; gap: 8px; flex-shrink: 0; }
 @media (max-width: 560px) { .cookie-bar { flex-direction: column; align-items: stretch; bottom: 10px; left: 10px; right: 10px; } .cookie-actions .btn { flex: 1; } }
+
+/* ---------- Currency selector ---------- */
+.currency-switch select { height: 40px; padding: 0 28px 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 11px center; color: var(--text); font: inherit; font-size: 13px; font-weight: 600; appearance: none; cursor: pointer; }
+.currency-note { margin: 10px 0 14px; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft); color: var(--muted); font-size: 13px; }
+.currency-note b { color: var(--text); }
+@media (max-width: 560px) { .currency-switch select { height: 34px; padding: 0 22px 0 9px; font-size: 12px; background-position: right 8px center; } }
+
+/* ---------- Deals, WhatsApp order, back in stock ---------- */
+.deal-banner { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0 14px; padding: 7px 12px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 13px; font-weight: 600; }
+.pc-deal { position: absolute; left: 10px; bottom: 10px; padding: 4px 9px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 600; }
+.deal-tag { display: inline-block; margin-top: 2px; color: var(--primary); font-size: 12px; font-weight: 600; }
+.add-form .btn-wa { margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.stock-alert { margin: 16px 0 0; padding: 16px; border: 1px dashed var(--primary); border-radius: 14px; background: var(--primary-soft); }
+.stock-alert p { margin: 0 0 10px; font-size: 14px; }
+.sa-row { display: flex; gap: 8px; }
+.sa-row input { flex: 1; min-width: 0; height: 46px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--text); font: inherit; }
+
+/* ---------- Frequently bought together ---------- */
+.bundle-box { margin: 40px 0 10px; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.bundle-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+.bundle-head h2 { margin: 0; font-size: 22px; }
+.bundle-save { padding: 6px 12px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 13px; font-weight: 600; }
+.bundle-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.bundle-item { position: relative; display: flex; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; transition: opacity .2s; }
+.bundle-item.main { border-color: var(--primary); cursor: default; }
+.bundle-item.off { opacity: .45; }
+.bundle-item img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; background: var(--bg-soft); flex: none; }
+.bundle-item > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 14px; }
+.bundle-item a { color: var(--text); font-weight: 600; }
+.bundle-item input[type=checkbox] { position: absolute; top: 10px; right: 10px; width: 18px; height: 18px; accent-color: var(--primary); }
+.bundle-item select { max-width: 100%; margin-top: 4px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; font-size: 13px; }
+.bi-price { font-weight: 700; }
+.bundle-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 16px; font-size: 16px; }
+.bundle-foot b { font-size: 20px; }
+.bundle-foot del { color: var(--muted); margin-left: 6px; }
+
+/* ---------- You may also like (cart, checkout) ---------- */
+.upsell-box { margin: 34px 0 10px; }
+.upsell-box h3 { margin: 0 0 14px; font-size: 20px; }
+.upsell-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.upsell-item { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.ui-img img { width: 60px; height: 60px; object-fit: cover; border-radius: 10px; display: block; background: var(--bg-soft); }
+.ui-info { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; }
+.ui-info a { color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Product questions ---------- */
+.qa-list { display: flex; flex-direction: column; gap: 14px; }
+.qa-item { padding: 18px 22px; border: 1px solid var(--line); border-radius: 4px; }
+.qa-item p { margin: 0; }
+.qa-item small { color: var(--muted); margin-left: 6px; font-size: 12px; }
+.qa-a { margin-top: 10px !important; padding-left: 14px; border-left: 3px solid var(--primary); }

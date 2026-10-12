@@ -64,6 +64,10 @@ function schema_statements(string $driver): array
             meta_title VARCHAR(200) NOT NULL DEFAULT '',
             meta_description VARCHAR(300) NOT NULL DEFAULT '',
             variant_stock TINYINT NOT NULL DEFAULT 0,
+            upsell_ids VARCHAR(255) NOT NULL DEFAULT '',
+            bundle_discount DECIMAL(5,2) NOT NULL DEFAULT 0,
+            deal_buy INT NOT NULL DEFAULT 0,
+            deal_get INT NOT NULL DEFAULT 0,
             created_at DATETIME NOT NULL,
             FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
         )$tail",
@@ -98,6 +102,8 @@ function schema_statements(string $driver): array
             coupon_code VARCHAR(40) NOT NULL DEFAULT '',
             discount DECIMAL(10,2) NOT NULL DEFAULT 0,
             shipping_method VARCHAR(120) NOT NULL DEFAULT '',
+            discount_note VARCHAR(255) NOT NULL DEFAULT '',
+            display_currency VARCHAR(3) NOT NULL DEFAULT '',
             customer_id $fk NULL,
             ip VARCHAR(45) NOT NULL DEFAULT '',
             created_at DATETIME NOT NULL,
@@ -146,7 +152,7 @@ function schema_statements(string $driver): array
             email VARCHAR(190) NOT NULL UNIQUE,
             created_at DATETIME NOT NULL
         )$tail",
-    ], v3_tables_sql($pk, $fk, $tail), [customers_sql($pk, $tail)], v5_tables_sql($pk, $fk, $tail));
+    ], v3_tables_sql($pk, $fk, $tail), [customers_sql($pk, $tail)], v5_tables_sql($pk, $fk, $tail), v6_tables_sql($pk, $fk, $tail));
 }
 
 /** Size/color combinations of a product (used by Printful products). */
@@ -168,7 +174,92 @@ function product_variants_sql(string $pk, string $fk, string $tail): string
 }
 
 /** Current database version. Bump it and add a step to run_migrations() when the schema changes. */
-const DB_VERSION = 5;
+const DB_VERSION = 6;
+
+/** Version 6: product questions, back-in-stock requests, admin activity log. */
+function v6_tables_sql(string $pk, string $fk, string $tail): array
+{
+    return [
+        "CREATE TABLE IF NOT EXISTS product_questions (
+            id $pk,
+            product_id $fk NOT NULL,
+            name VARCHAR(120) NOT NULL,
+            email VARCHAR(190) NOT NULL DEFAULT '',
+            question TEXT NOT NULL,
+            answer TEXT,
+            published TINYINT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            answered_at DATETIME NULL,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        )$tail",
+        "CREATE TABLE IF NOT EXISTS stock_alerts (
+            id $pk,
+            product_id $fk NOT NULL,
+            variant_id $fk NULL,
+            email VARCHAR(190) NOT NULL,
+            created_at DATETIME NOT NULL,
+            notified_at DATETIME NULL,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        )$tail",
+        "CREATE TABLE IF NOT EXISTS activity_log (
+            id $pk,
+            admin_id $fk NULL,
+            admin_name VARCHAR(120) NOT NULL DEFAULT '',
+            action VARCHAR(255) NOT NULL,
+            details TEXT,
+            ip VARCHAR(45) NOT NULL DEFAULT '',
+            created_at DATETIME NOT NULL
+        )$tail",
+    ];
+}
+
+/** Columns added in version 6 (for upgrades of older stores). */
+function v6_alter_sql(): array
+{
+    return [
+        "ALTER TABLE products ADD COLUMN upsell_ids VARCHAR(255) NOT NULL DEFAULT ''",
+        "ALTER TABLE products ADD COLUMN bundle_discount DECIMAL(5,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE products ADD COLUMN deal_buy INT NOT NULL DEFAULT 0",
+        "ALTER TABLE products ADD COLUMN deal_get INT NOT NULL DEFAULT 0",
+        "ALTER TABLE orders ADD COLUMN discount_note VARCHAR(255) NOT NULL DEFAULT ''",
+        "ALTER TABLE orders ADD COLUMN display_currency VARCHAR(3) NOT NULL DEFAULT ''",
+    ];
+}
+
+/** Settings added in version 6. */
+function default_v6_settings(): array
+{
+    return [
+        // Order on WhatsApp
+        'wa_order_enabled' => '0',
+        'wa_order_cart' => '1',
+        'wa_order_text' => 'Hello! I would like to order:',
+        // Upsells & bundles
+        'upsell_enabled' => '0',
+        'upsell_title' => 'Frequently Bought Together',
+        'cart_upsell_enabled' => '1',
+        // Product questions
+        'qa_enabled' => '1',
+        'notify_admin_question' => '1',
+        // Stock
+        'low_stock_threshold' => '3',
+        'notify_low_stock' => '1',
+        'stock_alerts_enabled' => '1',
+        // Product feeds (Google Shopping, Facebook / Instagram / TikTok catalogs)
+        'feed_enabled' => '1',
+        // Multi-currency
+        'currencies_enabled' => '0',
+        'currencies' => '[]',
+        'currency_auto_rates' => '1',
+        'currency_rates_updated' => '',
+        // Security
+        'admin_2fa' => '0',
+        'device_secret' => bin2hex(random_bytes(24)),
+        'activity_log_days' => '180',
+        // Updates
+        'update_url' => '',
+    ];
+}
 
 /** Version 5: COD block list and saved carts (abandoned cart reminders). */
 function v5_tables_sql(string $pk, string $fk, string $tail): array

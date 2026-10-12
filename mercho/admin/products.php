@@ -6,6 +6,7 @@ if (is_post()) {
     verify_csrf();
     $id = (int) ($_POST['id'] ?? 0);
     if (($_POST['action'] ?? '') === 'delete') {
+        activity('Deleted product “' . q_val('SELECT name FROM products WHERE id = ?', [$id]) . '” (#' . $id . ')');
         q('DELETE FROM products WHERE id = ?', [$id]);
         flash('success', 'Product deleted.');
     } elseif (($_POST['action'] ?? '') === 'toggle') {

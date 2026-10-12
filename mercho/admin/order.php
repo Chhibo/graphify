@@ -28,6 +28,7 @@ if (is_post()) {
     if (($_POST['action'] ?? '') === 'confirm') {
         q("UPDATE orders SET status = 'pending', updated_at = ? WHERE id = ? AND status = 'unconfirmed'", [now(), $order['id']]);
         printful_auto_send((int) $order['id']);
+        activity('Confirmed order ' . $order['order_number']);
         flash('success', 'Order confirmed. You can now prepare it.');
         redirect('admin/order.php?id=' . (int) $order['id']);
     }
@@ -43,6 +44,7 @@ if (is_post()) {
         if (!empty($_POST['cancel'])) {
             q("UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ?", [now(), $order['id']]);
         }
+        activity('Blocked the customer of order ' . $order['order_number'], $order['phone'] . ($order['email'] !== '' ? ', ' . $order['email'] : ''));
         flash('success', 'Customer blocked: they can no longer place orders with this phone/email.');
         redirect('admin/order.php?id=' . (int) $order['id']);
     }
@@ -87,6 +89,15 @@ if (is_post()) {
         order_reduce_stock((int) $order['id']);
     }
     $msg = 'Order updated.';
+    $labels = order_status_labels();
+    $changes = [];
+    if ($status !== $order['status']) {
+        $changes[] = 'status ' . ($labels[$order['status']] ?? $order['status']) . ' → ' . ($labels[$status] ?? $status);
+    }
+    if ($payment !== $order['payment_status']) {
+        $changes[] = 'payment ' . $order['payment_status'] . ' → ' . $payment;
+    }
+    activity('Updated order ' . $order['order_number'], $changes ? ucfirst(implode(', ', $changes)) : 'Notes');
     if ($status !== $order['status'] && !empty($_POST['notify_customer'])) {
         $msg .= notify_order_status(q_one('SELECT * FROM orders WHERE id = ?', [$order['id']]))
             ? ' The customer was emailed.' : ' (Email to the customer could not be sent' . (mail_last_error() !== '' ? ': ' . mail_last_error() : '') . '.)';
@@ -121,7 +132,7 @@ include __DIR__ . '/includes/header.php';
       </table></div>
       <div class="totals">
         <div><span>Subtotal</span><b><?= money($order['subtotal']) ?></b></div>
-        <?php if ((float) $order['discount'] > 0): ?><div><span>Coupon <?= e($order['coupon_code']) ?></span><b>-<?= money($order['discount']) ?></b></div><?php endif; ?>
+        <?php if ((float) $order['discount'] > 0): ?><div><span>Discount <?= e(order_discount_label($order)) ?></span><b>-<?= money($order['discount']) ?></b></div><?php endif; ?>
         <div><span>Shipping<?= $order['shipping_method'] !== '' ? ' (' . e($order['shipping_method']) . ')' : '' ?></span><b><?= money($order['shipping']) ?></b></div>
         <div class="grand"><span>Total</span><b><?= money($order['total']) ?></b></div>
       </div>
