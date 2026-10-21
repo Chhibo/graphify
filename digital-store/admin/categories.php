@@ -57,38 +57,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $cats = db()->query('SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id) AS items
     FROM categories c ORDER BY c.sort_order, c.name')->fetchAll();
 
-admin_header('Categories');
+admin_header('Categories', 'Group your products and choose where each category appears', '<a class="btn btn-grad" href="#form">' . icon('plus', 16) . ' Add category</a>');
 ?>
 <p class="muted">Categories ticked <b>Home</b> get their own section on the home page, under Featured Items.
   Categories ticked <b>Header</b> appear in the top menu. Lower <b>order</b> numbers come first.
   <?php if (setting('categories_in_header', '1') !== '1'): ?><br><span class="bad">Categories in the header menu are switched off in <a href="appearance.php">Appearance</a>.</span><?php endif; ?></p>
 
 <?php if ($cats): ?>
-<table>
+<div class="table-wrap"><table>
   <tr><th>Order</th><th>Name</th><th>Items</th><th>Home</th><th>Header</th><th></th></tr>
   <?php foreach ($cats as $c): ?>
     <tr>
       <td><?= (int)$c['sort_order'] ?></td>
-      <td><a href="../category.php?slug=<?= e(rawurlencode($c['slug'])) ?>" target="_blank"><?= e($c['name']) ?></a></td>
+      <td><div class="prod-cell"><span class="mini-empty"><?= icon('folder') ?></span><a href="?edit=<?= (int)$c['id'] ?>#form"><?= e($c['name']) ?></a></div></td>
       <td><a href="products.php?category=<?= (int)$c['id'] ?>"><?= (int)$c['items'] ?></a></td>
       <?php foreach (['toggle_home' => 'show_on_home', 'toggle_header' => 'show_in_header'] as $act => $col): ?>
         <td><form method="post"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
           <button class="pill <?= $c[$col] ? 'on' : '' ?>" name="action" value="<?= $act ?>"><?= $c[$col] ? 'Shown' : 'Hidden' ?></button></form></td>
       <?php endforeach; ?>
       <td class="actions">
-        <a class="btn btn-small" href="?edit=<?= (int)$c['id'] ?>#form">Edit</a>
+        <a class="icon-btn" href="../category.php?slug=<?= e(rawurlencode($c['slug'])) ?>" target="_blank" title="View"><?= icon('external', 16) ?></a>
+        <a class="icon-btn" href="?edit=<?= (int)$c['id'] ?>#form" title="Edit"><?= icon('pencil', 16) ?></a>
         <form method="post" onsubmit="return confirm('Delete this category? Its products are kept.')"><?= csrf_field() ?>
           <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
-          <button class="btn btn-small btn-danger" name="action" value="delete">Delete</button></form>
+          <button class="icon-btn danger" name="action" value="delete" title="Delete"><?= icon('trash', 16) ?></button></form>
       </td>
     </tr>
   <?php endforeach; ?>
-</table>
+</table></div>
 <?php endif; ?>
 
-<form method="post" class="card form" id="form">
+<form method="post" class="card form" id="form" style="max-width:640px">
   <h2><?= $edit['id'] ? 'Edit category' : 'Add a category' ?></h2>
-  <?php foreach ($errors as $err): ?><p class="bad"><?= e($err) ?></p><?php endforeach; ?>
+  <?php foreach ($errors as $err): ?><?= notice(e($err), '', '', 'bad', 'x') ?><?php endforeach; ?>
   <?= csrf_field() ?>
   <input type="hidden" name="id" value="<?= (int)$edit['id'] ?>">
   <label>Name <input name="name" required value="<?= e($edit['name']) ?>" placeholder="e.g. Ebooks"></label>
@@ -97,7 +98,7 @@ admin_header('Categories');
   <label>Order <input type="number" name="sort_order" value="<?= (int)$edit['sort_order'] ?>" class="short"></label>
   <label class="check"><input type="checkbox" name="show_on_home" <?= $edit['show_on_home'] ? 'checked' : '' ?>> Show a section for this category on the home page</label>
   <label class="check"><input type="checkbox" name="show_in_header" <?= $edit['show_in_header'] ? 'checked' : '' ?>> Show in the header menu</label>
-  <button class="btn" name="action" value="save">Save category</button>
+  <button class="btn btn-grad" name="action" value="save"><?= icon('save', 16) ?> Save category</button>
   <?php if ($edit['id']): ?><a href="categories.php">Cancel</a><?php endif; ?>
 </form>
 <?php admin_footer();

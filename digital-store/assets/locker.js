@@ -1,5 +1,16 @@
 // Offer locker: loads offers, then polls until the postback unlocks the download.
 (function () {
+  // "Copy link" share button.
+  var copy = document.querySelector('.copy-link');
+  if (copy) {
+    copy.addEventListener('click', function () {
+      var label = copy.querySelector('span');
+      var done = function () { label.textContent = 'Copied!'; setTimeout(function () { label.textContent = 'Copy link'; }, 2000); };
+      if (navigator.clipboard) navigator.clipboard.writeText(copy.dataset.url).then(done);
+      else { window.prompt('Copy this link:', copy.dataset.url); }
+    });
+  }
+
   var btn = document.getElementById('unlock-btn');
   if (!btn) return;
 
@@ -7,10 +18,12 @@
   var locker = document.getElementById('locker');
   var offersBox = document.getElementById('locker-offers');
   var statusBox = document.getElementById('locker-status');
+  var steps = document.querySelectorAll('#locker-steps li');
   var simulateBtn = document.getElementById('simulate-btn');
   var productId = btn.getAttribute('data-product');
   var token = null;
   var pollTimer = null;
+  var skeleton = offersBox.innerHTML;
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -19,13 +32,23 @@
     return n;
   }
 
+  function setStep(n) {
+    steps.forEach(function (s) {
+      var i = +s.getAttribute('data-step');
+      s.classList.toggle('active', i === n);
+      s.classList.toggle('done', i < n);
+    });
+  }
+
   function showDownload(url) {
     stopPolling();
+    setStep(3);
     statusBox.hidden = true;
     offersBox.innerHTML = '';
     var done = el('div', 'unlocked');
+    done.innerHTML = '<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>';
     done.appendChild(el('p', 'unlocked-title', 'Unlocked! Your download is ready.'));
-    var a = el('a', 'btn btn-big', 'Download now');
+    var a = el('a', 'btn btn-big btn-glow', 'Download now');
     a.href = url;
     done.appendChild(a);
     offersBox.appendChild(done);
@@ -39,19 +62,22 @@
       a.href = o.url;
       a.target = '_blank';
       a.rel = 'noopener';
+      var pic = el('span', 'offer-pic');
       if (o.image && /^https?:\/\//i.test(o.image)) {
         var img = el('img');
         img.src = o.image;
         img.alt = '';
         img.loading = 'lazy';
-        a.appendChild(img);
+        img.onerror = function () { img.remove(); };
+        pic.appendChild(img);
       }
+      a.appendChild(pic);
       var text = el('div', 'offer-text');
       text.appendChild(el('strong', '', o.title || 'Complete this offer'));
       if (o.description) text.appendChild(el('span', '', o.description));
       a.appendChild(text);
       a.appendChild(el('span', 'offer-go', 'Start'));
-      a.addEventListener('click', startPolling);
+      a.addEventListener('click', function () { setStep(2); startPolling(); });
       offersBox.appendChild(a);
     });
   }
@@ -74,39 +100,41 @@
     pollTimer = null;
   }
 
+  function showError(msg) {
+    offersBox.innerHTML = '';
+    offersBox.appendChild(el('p', 'locker-error', msg));
+  }
+
   function open() {
     locker.hidden = false;
+    requestAnimationFrame(function () { locker.classList.add('open'); });
     document.body.classList.add('no-scroll');
-    offersBox.innerHTML = '<p class="loading">Loading offers…</p>';
+    offersBox.innerHTML = skeleton;
+    setStep(1);
     fetch(base + 'api/offers.php?product=' + encodeURIComponent(productId), { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         token = d.token || null;
         if (d.completed) return showDownload(d.download);
-        if (!d.offers || !d.offers.length) {
-          offersBox.innerHTML = '';
-          offersBox.appendChild(el('p', 'locker-error', d.error || 'No offers available right now.'));
-          return;
-        }
+        if (!d.offers || !d.offers.length) return showError(d.error || 'No offers available right now.');
         renderOffers(d.offers);
         // Visitors often come back after finishing an offer in another tab.
-        startPolling();
+        if (!pollTimer) pollTimer = setInterval(checkStatus, 5000);
       })
-      .catch(function () {
-        offersBox.innerHTML = '';
-        offersBox.appendChild(el('p', 'locker-error', 'Could not load offers. Check your connection and try again.'));
-      });
+      .catch(function () { showError('Could not load offers. Check your connection and try again.'); });
   }
 
   function close() {
-    locker.hidden = true;
+    locker.classList.remove('open');
     document.body.classList.remove('no-scroll');
     stopPolling();
+    setTimeout(function () { locker.hidden = true; }, 200);
   }
 
   btn.addEventListener('click', open);
   document.getElementById('locker-close').addEventListener('click', close);
   locker.addEventListener('click', function (e) { if (e.target === locker) close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !locker.hidden) close(); });
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && !locker.hidden) checkStatus();
   });

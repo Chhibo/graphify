@@ -52,23 +52,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 page_header('Contact us', 'contact');
 ?>
-<section class="card prose">
+<section class="page-banner">
+  <nav class="breadcrumb"><a href="index.php"><?= icon('home', 14) ?> Home</a> <?= icon('chevron-right', 14) ?> <span>Contact</span></nav>
   <h1><?= e(setting_or('contact_title', 'Contact us')) ?></h1>
-  <?php if ($sent): ?>
-    <p class="ok">Thank you! Your message has been sent. We'll reply by email as soon as we can.</p>
-    <p><a href="index.php">Back to the store</a></p>
-  <?php else: ?>
-    <?php if (setting('contact_intro') !== ''): ?><div><?= render_content(setting('contact_intro')) ?></div><?php endif; ?>
-    <?php foreach ($errors as $err): ?><p class="bad"><?= e($err) ?></p><?php endforeach; ?>
-    <form method="post" class="form">
-      <?= csrf_field() ?>
-      <label>Your name <input name="name" required maxlength="100" value="<?= e($form['name']) ?>"></label>
-      <label>Your email <input type="email" name="email" required value="<?= e($form['email']) ?>"></label>
-      <label>Subject <input name="subject" maxlength="200" value="<?= e($form['subject']) ?>"></label>
-      <label>Message <textarea name="message" rows="6" required minlength="10" maxlength="5000"><?= e($form['message']) ?></textarea></label>
-      <label class="hp" aria-hidden="true">Website <input name="website" tabindex="-1" autocomplete="off"></label>
-      <button class="btn">Send message</button>
-    </form>
-  <?php endif; ?>
+  <p>We usually reply within a day.</p>
 </section>
+<div class="contact-layout">
+  <aside class="contact-info card">
+    <span class="step-icon"><?= icon('mail', 22) ?></span>
+    <h2>Get in touch</h2>
+    <?php if (setting('contact_intro') !== ''): ?><?= render_content(setting('contact_intro')) ?>
+    <?php else: ?><p>Questions about a download, a broken link or a suggestion? Send us a message.</p><?php endif; ?>
+    <?php if ($socials = social_links()): ?>
+      <div class="socials">
+        <?php foreach ($socials as [$icon, $label, $url]): ?>
+          <a href="<?= e($url) ?>" target="_blank" rel="noopener" aria-label="<?= e($label) ?>"><?= icon($icon) ?></a>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+  </aside>
+  <section class="card">
+    <?php if ($sent): ?>
+      <div class="success-state">
+        <?= icon('circle-check', 48) ?>
+        <h2>Message sent</h2>
+        <p>Thank you! We'll reply by email as soon as we can.</p>
+        <a class="btn" href="index.php">Back to the store</a>
+      </div>
+    <?php else: ?>
+      <?php foreach ($errors as $err): ?><p class="alert alert-bad"><?= e($err) ?></p><?php endforeach; ?>
+      <form method="post" class="form">
+        <?= csrf_field() ?>
+        <div class="form-row">
+          <label>Your name <input name="name" required maxlength="100" value="<?= e($form['name']) ?>"></label>
+          <label>Your email <input type="email" name="email" required value="<?= e($form['email']) ?>"></label>
+        </div>
+        <label>Subject <input name="subject" maxlength="200" value="<?= e($form['subject']) ?>"></label>
+        <label>Message <textarea name="message" rows="6" required minlength="10" maxlength="5000"><?= e($form['message']) ?></textarea></label>
+        <label class="hp" aria-hidden="true">Website <input name="website" tabindex="-1" autocomplete="off"></label>
+        <button class="btn btn-big"><?= icon('mail', 18) ?> Send message</button>
+      </form>
+    <?php endif; ?>
+  </section>
+</div>
 <?php page_footer();

@@ -10,6 +10,9 @@ Visitors get a product **for free** by completing **one offer** from your CPA ne
 - Home page with **Featured Items**, a section per category, and **Latest Items**
 - Your own logo (with adjustable height), colors, light/dark theme and header menu
 - Editable pages (Privacy Policy, Terms, About…) and a **Contact us** page
+- Modern design with light/dark mode, 8 color themes, 7 fonts, search, related products, share buttons and an announcement bar
+- Admin dashboard with daily chart, top products, a setup checklist, per-product views and conversion rate, and one-click database backup
+- SEO ready: page descriptions, social share previews, and a sitemap at `sitemap.php`
 - Downloads unlock only when the network confirms the lead (server-to-server postback), so the offers can't be skipped
 - The real file location is never shown; download links expire (24h by default)
 
@@ -84,6 +87,11 @@ Use the network's **"Test postback"** button, then open **Admin → Postback log
 ## 6. Customize your store
 
 ### Appearance (Admin → Appearance)
+- **Color themes**: click one of the 8 color swatches, or pick your own main and second color (used in gradients).
+- **Font** and **corner roundness**.
+- **Favicon** and **hero background image**.
+- **Announcement bar**: a colored strip at the top of every page, with an optional link.
+- Switch the home page sections on or off: welcome banner, category buttons, "How it works" steps, download counts.
 - **Logo**: upload a PNG/JPG/WEBP and drag the **height** slider (16–200 px). Tick "Show the store name next to the logo" if you want both.
 - **Colors**: choose Automatic / Always light / Always dark, and pick your **main color** for buttons and links.
   Tick "Use my own background and text colors" to set the page, card and text colors yourself. **Reset colors** goes back to the default.
@@ -107,6 +115,16 @@ Pick a product's category when you add or edit it. Deleting a category keeps its
 ### Pages (Admin → Pages)
 Privacy Policy and Terms of Use are created for you. Add pages like About or FAQ, edit them, or delete them, and choose whether each shows in the **header** or the **footer**.
 Write plain text (an empty line starts a new paragraph) or HTML.
+
+### Product badges and stats
+When editing a product you can add a **badge** like NEW, HOT or BESTSELLER; it shows as a label on the product image.
+The Products list shows each product's **views**, **unlocks** and **conversion rate**, so you can see which products earn best.
+
+### Settings (Admin → Settings)
+- **SEO & social**: a store description for Google, plus your Facebook, Instagram, YouTube, X, Telegram and TikTok links (shown as icons in the footer).
+  Submit `https://your-domain.com/sitemap.php` in Google Search Console.
+- **Tracking code**: paste Google Analytics, Facebook Pixel or similar code.
+- **Backup**: download a copy of your database at any time.
 
 ### Contact us
 The **Contact us** page (`contact.php`) has a form with spam protection. Messages appear in **Admin → Messages**, and the menu shows how many are unread.
@@ -146,3 +164,4 @@ Real visitors see the same thing after they finish an offer and the network send
 1. Back up your `data/` and `uploads/` folders (they hold your database, files and images).
 2. Upload the new files over the old ones. **Don't upload `install.php`**, and don't delete `data/` or `uploads/`.
 3. Open your store. The database upgrades itself on the first visit; your products, settings and keys are kept.
+   If you see an error right after uploading, your host may still be finishing the upload or caching old files: wait a minute and refresh.

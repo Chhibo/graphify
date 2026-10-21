@@ -24,24 +24,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $messages = db()->query('SELECT * FROM messages ORDER BY id DESC LIMIT 200')->fetchAll();
 
-admin_header('Messages');
+admin_header('Messages', 'Sent from your Contact us page', unread_messages() ? '<form method="post" class="inline-form">' . csrf_field() . '<button class="btn btn-light" name="action" value="read_all">' . icon('check', 16) . ' Mark all as read</button></form>' : '');
 ?>
 <p class="muted">Messages sent from the <a href="../contact.php" target="_blank">Contact us</a> page.
   <?= setting('contact_notify') === '1' && setting('contact_email') !== '' ? 'Copies are emailed to ' . e(setting('contact_email')) . '.' : 'Turn on email copies in <a href="settings.php#contact">Settings</a>.' ?></p>
-<?php if (unread_messages()): ?>
-  <form method="post"><?= csrf_field() ?><button class="btn btn-small btn-light" name="action" value="read_all">Mark all as read</button></form>
-<?php endif; ?>
 <?php if (!$messages): ?>
-  <p class="muted">No messages yet.</p>
+  <div class="card empty"><?= icon('mail', 40) ?><p>No messages yet.</p></div>
 <?php else: ?>
   <?php foreach ($messages as $m): ?>
     <div class="card message <?= $m['is_read'] ? '' : 'unread' ?>">
       <div class="message-head">
-        <div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <span class="avatar"><?= e(mb_strtoupper(mb_substr($m['name'], 0, 1))) ?></span>
+          <div>
           <strong><?= e($m['name']) ?></strong>
           &lt;<a href="mailto:<?= e($m['email']) ?>?subject=<?= e(rawurlencode('Re: ' . $m['subject'])) ?>"><?= e($m['email']) ?></a>&gt;
           <?php if (!$m['is_read']): ?><span class="badge">NEW</span><?php endif; ?>
-          <br><small class="muted"><?= e(date('Y-m-d H:i', (int)$m['created_at'])) ?> · IP <?= e($m['ip']) ?></small>
+          <small class="muted"><?= e(date('M j, Y H:i', (int)$m['created_at'])) ?> · IP <?= e($m['ip']) ?></small>
+          </div>
         </div>
         <div class="actions">
           <a class="btn btn-small" href="mailto:<?= e($m['email']) ?>?subject=<?= e(rawurlencode('Re: ' . $m['subject'])) ?>">Reply</a>

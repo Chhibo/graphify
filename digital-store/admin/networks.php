@@ -40,9 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-admin_header('CPA Networks');
+admin_header('CPA Networks', 'Switch networks on or off at any time. Visitors only see offers from networks that are on.');
 ?>
-<p class="muted">Switch networks on or off at any time. Visitors only see offers from networks that are switched on.</p>
 
 <?php if ($testResult): [$tNet, $tOk, $tMsg, $tOffers] = $testResult; ?>
   <div class="card">
@@ -68,7 +67,7 @@ admin_header('CPA Networks');
     <div class="card network <?= $on ? 'is-on' : '' ?>">
       <div class="network-head">
         <h2><?= e($def['label']) ?></h2>
-        <label class="switch"><input type="checkbox" name="<?= e($net) ?>[enabled]" <?= $on ? 'checked' : '' ?>><span></span> On</label>
+        <label class="switch"><input type="checkbox" name="<?= e($net) ?>[enabled]" <?= $on ? 'checked' : '' ?>><span></span> <?= $on ? 'On' : 'Off' ?></label>
       </div>
       <label>Priority <input type="number" min="1" name="<?= e($net) ?>[priority]" value="<?= e(setting("net_{$net}_priority", '1')) ?>" class="short"></label>
       <?php foreach ($def['fields'] as $field => $f): $val = network_setting($net, $field); ?>
@@ -93,6 +92,6 @@ admin_header('CPA Networks');
     </div>
   <?php endforeach; ?>
   <input type="hidden" name="network" value="">
-  <button class="btn" name="action" value="save">Save networks</button>
+  <div class="form-actions"><button class="btn btn-grad" name="action" value="save"><?= icon('save', 16) ?> Save networks</button></div>
 </form>
 <?php admin_footer();

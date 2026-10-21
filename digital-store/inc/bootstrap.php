@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
+require_once __DIR__ . '/icons.php';
 define('DATA_DIR', APP_ROOT . '/data');
 define('FILES_DIR', DATA_DIR . '/files');
 define('UPLOADS_DIR', APP_ROOT . '/uploads');
@@ -128,6 +129,11 @@ function migrate(PDO $pdo): void
                 created_at INTEGER NOT NULL
             );
         ",
+        3 => "
+            ALTER TABLE products ADD COLUMN views INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE products ADD COLUMN badge TEXT NOT NULL DEFAULT '';
+            CREATE INDEX IF NOT EXISTS idx_unlocks_completed ON unlocks(completed_at);
+        ",
     ];
     foreach ($steps as $to => $sql) {
         if ($version >= $to) {
@@ -214,6 +220,13 @@ function base_url(string $path = ''): string
         ? str_replace('\\', '/', substr($appRoot, strlen($docRoot)))
         : '';
     return ($https ? 'https' : 'http') . '://' . $host . rtrim($dir, '/') . '/' . ltrim($path, '/');
+}
+
+/** Full address of the page being viewed. */
+function current_url(): string
+{
+    $origin = preg_replace('#^(https?://[^/]+).*$#', '$1', base_url());
+    return $origin . ($_SERVER['REQUEST_URI'] ?? '/');
 }
 
 function client_ip(): string

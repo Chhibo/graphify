@@ -41,9 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-admin_header($pg['id'] ? 'Edit page' : 'Add page');
+admin_header($pg['id'] ? 'Edit page' : 'Add page', '', $pg['id'] ? '<a class="btn btn-light" href="../page.php?slug=' . e(rawurlencode($pg['slug'])) . '" target="_blank">' . icon('eye', 16) . ' Preview</a>' : '');
 ?>
-<?php foreach ($errors as $err): ?><p class="bad"><?= e($err) ?></p><?php endforeach; ?>
+<?php foreach ($errors as $err): ?><?= notice(e($err), '', '', 'bad', 'x') ?><?php endforeach; ?>
 <form method="post" class="card form">
   <?= csrf_field() ?>
   <input type="hidden" name="id" value="<?= (int)$pg['id'] ?>">
@@ -51,13 +51,12 @@ admin_header($pg['id'] ? 'Edit page' : 'Add page');
   <label>Web address (optional) <input name="slug" value="<?= e($pg['slug']) ?>" placeholder="made from the title if empty">
     <small>Used in the link: page.php?slug=<b>about-us</b></small></label>
   <label>Content
-    <textarea name="content" rows="16"><?= e($pg['content']) ?></textarea>
+    <textarea name="content" rows="18" class="mono"><?= e($pg['content']) ?></textarea>
     <small>Write plain text (empty lines start a new paragraph), or use HTML such as &lt;h2&gt;, &lt;p&gt;, &lt;a href="…"&gt;, &lt;ul&gt;&lt;li&gt;.</small>
   </label>
   <label>Order <input type="number" name="sort_order" value="<?= (int)$pg['sort_order'] ?>" class="short"></label>
   <label class="check"><input type="checkbox" name="show_in_header" <?= $pg['show_in_header'] ? 'checked' : '' ?>> Show in the header menu</label>
   <label class="check"><input type="checkbox" name="show_in_footer" <?= $pg['show_in_footer'] ? 'checked' : '' ?>> Show in the footer</label>
-  <button class="btn">Save page</button>
-  <a href="pages.php">Cancel</a>
+  <div class="form-actions"><button class="btn btn-grad"><?= icon('save', 16) ?> Save page</button> <a class="btn btn-light" href="pages.php">Cancel</a></div>
 </form>
 <?php admin_footer();

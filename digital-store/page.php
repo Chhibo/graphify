@@ -10,16 +10,19 @@ $pg = $stmt->fetch();
 if (!$pg) {
     http_response_code(404);
     page_header('Not found');
-    echo '<p class="empty">This page does not exist. <a href="index.php">Back to the store</a></p>';
+    echo empty_state('This page does not exist. <a href="index.php">Back to the store</a>', 'file');
     page_footer();
     exit;
 }
 
-page_header($pg['title'], 'page:' . $pg['slug']);
+page_header($pg['title'], 'page:' . $pg['slug'], ['description' => $pg['content']]);
 ?>
-<article class="card prose">
+<section class="page-banner">
+  <nav class="breadcrumb"><a href="index.php"><?= icon('home', 14) ?> Home</a> <?= icon('chevron-right', 14) ?> <span><?= e($pg['title']) ?></span></nav>
   <h1><?= e($pg['title']) ?></h1>
+  <p>Last updated <?= e(date('F j, Y', (int)$pg['updated_at'])) ?></p>
+</section>
+<article class="card prose">
   <?= render_content($pg['content']) ?>
-  <p class="muted"><small>Last updated <?= e(date('F j, Y', (int)$pg['updated_at'])) ?></small></p>
 </article>
 <?php page_footer();

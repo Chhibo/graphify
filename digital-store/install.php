@@ -56,13 +56,14 @@ if (is_installed()) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Install your store</title>
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/admin.css?v=3">
 </head>
-<body class="admin-body">
-<main class="narrow card">
+<body class="auth-body">
+<main class="auth-card">
+  <span class="stat-icon"><?= icon('gift', 22) ?></span>
   <h1>Install your store</h1>
   <?php if ($done): ?>
-    <p class="ok">Your store is installed.</p>
+    <div class="notice" style="border-color:var(--ok)"><?= icon('circle-check') ?> <span>Your store is installed.</span></div>
     <ol>
       <li>For safety, delete <code>install.php</code> from your hosting (it is already locked).</li>
       <li><a href="admin/login.php">Log in to the admin panel</a>, add your API keys under <b>CPA Networks</b> and switch them on.</li>
@@ -80,7 +81,7 @@ if (is_installed()) {
       <p class="bad">Fix the items marked ✘ first. Folders usually need permission 755 or 775 in your hosting File Manager. Missing extensions can be enabled in cPanel → "Select PHP Version".</p>
     <?php else: ?>
       <?php if ($error): ?><p class="bad"><?= e($error) ?></p><?php endif; ?>
-      <form method="post">
+      <form method="post" class="form">
         <label>Store name <input name="store_name" required value="<?= e($_POST['store_name'] ?? 'My Free Downloads') ?>"></label>
         <label>Admin username <input name="username" required value="<?= e($_POST['username'] ?? 'admin') ?>"></label>
         <label>Admin password (8+ characters) <input type="password" name="password" required minlength="8"></label>

@@ -30,18 +30,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Admin login</title>
-<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/admin.css?v=3">
 </head>
-<body class="admin-body">
-<main class="narrow card">
-  <h1>Admin login</h1>
-  <?php if ($error): ?><p class="bad"><?= e($error) ?></p><?php endif; ?>
-  <form method="post">
+<body class="auth-body">
+<main class="auth-card">
+  <span class="stat-icon"><?= icon('gift', 22) ?></span>
+  <h1>Welcome back</h1>
+  <p class="muted" style="margin-top:0">Log in to manage <?= e(setting('store_name')) ?>.</p>
+  <?php if ($error): ?><?= '<div class="notice notice-bad">' . icon('x') . ' ' . e($error) . '</div>' ?><?php endif; ?>
+  <form method="post" class="form">
     <?= csrf_field() ?>
-    <label>Username <input name="username" required autofocus></label>
-    <label>Password <input type="password" name="password" required></label>
-    <button class="btn">Log in</button>
+    <label>Username <input name="username" required autofocus autocomplete="username"></label>
+    <label>Password <input type="password" name="password" required autocomplete="current-password"></label>
+    <button class="btn btn-grad">Log in</button>
   </form>
+  <p class="muted" style="text-align:center;margin-bottom:0"><a href="../">← Back to the store</a></p>
 </main>
 </body>
 </html>
