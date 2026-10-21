@@ -37,6 +37,7 @@ Visitors get a product **for free** by completing **one offer** from your CPA ne
 
 1. Open `https://your-domain.com/install.php` in your browser.
 2. All checks should show ✔. Enter a store name, an admin username and a password, then click **Install**.
+   Leave **"Add demo products"** ticked to fill the store with 12 sample products, 4 categories and About/FAQ pages, so you can see how everything looks.
 3. **Delete `install.php`** from your File Manager. It already locks itself, but it's safer to remove it.
 
 ## 4. Connect your CPA networks
@@ -137,6 +138,12 @@ To also get them by email, open **Settings → Contact us page**, enter your ema
 3. Click it. Within 5 seconds the locker turns into **Download now**.
 
 Real visitors see the same thing after they finish an offer and the network sends the postback (usually seconds, sometimes a few minutes).
+
+## Demo content
+
+Demo products, categories and pages show how the store looks before you add your own.
+When you're ready to launch, open **Admin → Settings → Demo content → Remove demo content**. It removes only the demo items:
+your own products stay, and a demo category is kept if you put your own products in it. You can add the demo content back the same way.
 
 ## Tips
 

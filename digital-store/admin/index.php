@@ -59,6 +59,7 @@ $doneCount = count(array_filter($checklist, fn($c) => $c[1]));
 admin_header('Dashboard', 'Last 30 days at a glance',
     '<a class="btn btn-grad" href="product_edit.php">' . icon('plus', 16) . ' Add product</a>');
 ?>
+<?php if (setting('demo_data') !== ''): ?><?= notice('Your store is showing <b>demo products</b>. Add your own products, then remove the demo content before you launch.', 'settings.php#demo', 'Remove demo content', 'warn', 'package') ?><?php endif; ?>
 <?php if ($unread): ?><?= notice("You have <b>$unread</b> unread message" . ($unread === 1 ? '' : 's') . '.', 'messages.php', 'Read', 'warn', 'mail') ?><?php endif; ?>
 <?php if (!$enabled): ?><?= notice('No CPA network is switched on, so visitors will not see any offers.', 'networks.php', 'Set up networks', 'bad', 'plug') ?><?php endif; ?>
 

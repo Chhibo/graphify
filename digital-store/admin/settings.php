@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__) . '/inc/bootstrap.php';
 require dirname(__DIR__) . '/inc/admin_layout.php';
+require dirname(__DIR__) . '/inc/demo.php';
 require_admin();
 
 $socials = ['facebook' => 'Facebook', 'instagram' => 'Instagram', 'youtube' => 'YouTube', 'x' => 'X (Twitter)', 'telegram' => 'Telegram', 'tiktok' => 'TikTok'];
@@ -46,6 +47,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         save_setting('postback_secret', random_token(12));
         flash('New postback secret created. Update the postback URL in every network dashboard now.');
         redirect('admin/networks.php');
+    }
+    if ($action === 'demo_add') {
+        install_demo_data();
+        flash('Demo content added. Take a look at your store.');
+        redirect('admin/settings.php#demo');
+    }
+    if ($action === 'demo_remove') {
+        remove_demo_data();
+        flash('Demo content removed.');
+        redirect('admin/settings.php#demo');
     }
     if ($action === 'backup') {
         // A consistent copy of the database, streamed to the browser.
@@ -148,6 +159,17 @@ admin_header('Settings', 'Store details, contact page, SEO, tracking code and se
     <button class="btn" name="action" value="password">Change password</button>
   </form>
   <div>
+    <form method="post" class="card" id="demo"<?= demo_installed() ? ' onsubmit="return confirm(\'Remove all demo products, demo pages and empty demo categories? Demo products you edited are removed too.\')"' : '' ?>>
+      <?= csrf_field() ?>
+      <h2>Demo content</h2>
+      <?php if (demo_installed()): ?>
+        <p class="card-sub">Your store is showing <b>demo products</b>, categories and About/FAQ pages. Remove them before you launch. Your own products are not touched.</p>
+        <button class="btn btn-danger" name="action" value="demo_remove"><?= icon('trash', 16) ?> Remove demo content</button>
+      <?php else: ?>
+        <p class="card-sub">Add 12 sample products, 4 categories and About/FAQ pages to see how the store looks. You can remove them again with one click.</p>
+        <button class="btn btn-light" name="action" value="demo_add"><?= icon('package', 16) ?> Add demo content</button>
+      <?php endif; ?>
+    </form>
     <form method="post" class="card">
       <?= csrf_field() ?>
       <h2>Backup</h2>

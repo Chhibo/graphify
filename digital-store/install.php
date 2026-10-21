@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require __DIR__ . '/inc/bootstrap.php';
 require __DIR__ . '/inc/networks.php';
+require __DIR__ . '/inc/demo.php';
 
 $checks = [
     'PHP 7.4 or newer' => version_compare(PHP_VERSION, '7.4.0', '>='),
@@ -46,6 +47,9 @@ if (is_installed()) {
         save_setting('net_adbluemedia_priority', '2');
         file_put_contents(CONFIG_FILE, "<?php\n// Created by install.php on " . date('c')
             . "\nreturn ['db_file' => " . var_export($dbFile, true) . "];\n");
+        if (!empty($_POST['demo'])) {
+            install_demo_data();
+        }
         $done = true;
     }
 }
@@ -85,7 +89,9 @@ if (is_installed()) {
         <label>Store name <input name="store_name" required value="<?= e($_POST['store_name'] ?? 'My Free Downloads') ?>"></label>
         <label>Admin username <input name="username" required value="<?= e($_POST['username'] ?? 'admin') ?>"></label>
         <label>Admin password (8+ characters) <input type="password" name="password" required minlength="8"></label>
-        <button class="btn">Install</button>
+        <label class="check"><input type="checkbox" name="demo" value="1" <?= $_SERVER['REQUEST_METHOD'] !== 'POST' || !empty($_POST['demo']) ? 'checked' : '' ?>>
+          <span>Add demo products so I can see how the store looks <small>12 sample products, 4 categories and About/FAQ pages. Remove them any time in Admin → Settings.</small></span></label>
+        <button class="btn btn-grad">Install</button>
       </form>
     <?php endif; ?>
   <?php endif; ?>
