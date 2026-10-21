@@ -93,8 +93,8 @@ function install_demo_data(): void
 
     $products = array_reverse(demo_products()); // newest first on the home page
     $now = time();
-    $insert = $pdo->prepare('INSERT INTO products (title, description, image, file_name, file_label, file_url, active, category_id,
-        featured, badge, downloads, views, created_at) VALUES (?, ?, ?, ?, ?, \'\', 1, ?, ?, ?, ?, ?, ?)');
+    $insert = $pdo->prepare('INSERT INTO products (title, slug, description, image, file_name, file_label, file_url, active, category_id,
+        featured, badge, downloads, views, file_size, file_format, created_at) VALUES (?, ?, ?, ?, ?, ?, \'\', 1, ?, ?, ?, ?, ?, ?, ?, ?)');
     foreach ($products as $i => [$cover, $cat, $title, $badge, $featured, $description]) {
         $image = '';
         $src = APP_ROOT . '/assets/demo/' . $cover . '.jpg';
@@ -106,14 +106,16 @@ function install_demo_data(): void
         file_put_contents(FILES_DIR . '/' . $file, "This is a demo download from your new store.\r\n\r\n"
             . "Replace this product with your real one in Admin -> Products, or remove all demo content in Admin -> Settings.\r\n");
         $downloads = 120 + crc32($title) % 2400;
-        $insert->execute([$title, $description, $image, $file, slugify($title) . '.txt', $catIds[$cat], $featured, $badge,
-            $downloads, $downloads * 3 + 40, $now - (count($products) - $i) * 86400 * 2]);
+        $formats = ['ebooks' => 'PDF', 'templates' => 'Canva, Google Docs', 'presets' => 'DNG, XMP', 'graphics' => 'PNG, SVG'];
+        $insert->execute([$title, unique_slug('products', slugify($title)), $description, $image, $file, slugify($title) . '.txt',
+            $catIds[$cat], $featured, $badge, $downloads, $downloads * 3 + 40, (1 + crc32($title) % 40) . ' MB', $formats[$cat],
+            $now - (count($products) - $i) * 86400 * 2]);
         $made['products'][] = (int)$pdo->lastInsertId();
     }
 
     $pages = [
-        ['About Us', 'about-us', "<p>Welcome to " . e(setting('store_name')) . "! We collect and create useful digital products (ebooks, templates, presets and graphics) and share them for free.</p>\n<h2>How it works</h2>\n<p>Pick any product, complete one short offer from our partners, and your download unlocks right away. The offers keep this site running and the downloads free.</p>\n<h2>Questions?</h2>\n<p>We're happy to help. Send us a message on the <a href=\"contact.php\">contact page</a>.</p>", 0],
-        ['FAQ', 'faq', "<h2>Are the downloads really free?</h2>\n<p>Yes. You don't pay us anything. You unlock a download by completing one offer from our advertising partners.</p>\n<h2>What kind of offers are there?</h2>\n<p>Usually short surveys, app installs or sign-ups. Pick the one you like and read its terms before you start.</p>\n<h2>I completed an offer but the download didn't unlock.</h2>\n<p>Some offers take a few minutes to confirm. Keep the page open. If it still doesn't unlock after 15 minutes, try another offer or <a href=\"contact.php\">contact us</a>.</p>\n<h2>How long does my download link work?</h2>\n<p>Your link stays valid for " . (int)setting('download_hours', '24') . " hours after unlocking.</p>", 1],
+        ['About Us', 'about-us', "<p>Welcome to " . e(setting('store_name')) . "! We collect and create useful digital products (ebooks, templates, presets and graphics) and share them for free.</p>\n<h2>How it works</h2>\n<p>Pick any product, complete one short offer from our partners, and your download unlocks right away. The offers keep this site running and the downloads free.</p>\n<h2>Questions?</h2>\n<p>We're happy to help. Send us a message on the <a href=\"" . e(base_url('contact.php')) . "\">contact page</a>.</p>", 0],
+        ['FAQ', 'faq', "<h2>Are the downloads really free?</h2>\n<p>Yes. You don't pay us anything. You unlock a download by completing one offer from our advertising partners.</p>\n<h2>What kind of offers are there?</h2>\n<p>Usually short surveys, app installs or sign-ups. Pick the one you like and read its terms before you start.</p>\n<h2>I completed an offer but the download didn't unlock.</h2>\n<p>Some offers take a few minutes to confirm. Keep the page open. If it still doesn't unlock after 15 minutes, try another offer or <a href=\"" . e(base_url('contact.php')) . "\">contact us</a>.</p>\n<h2>How long does my download link work?</h2>\n<p>Your link stays valid for " . (int)setting('download_hours', '24') . " hours after unlocking.</p>", 1],
     ];
     foreach ($pages as [$title, $slug, $content, $header]) {
         $q = $pdo->prepare('SELECT 1 FROM pages WHERE slug = ?');

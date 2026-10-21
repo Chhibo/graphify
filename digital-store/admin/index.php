@@ -35,7 +35,8 @@ $top = db()->query("SELECT p.id, p.title, p.image, p.views,
     FROM products p JOIN unlocks u ON u.product_id = p.id
     WHERE u.completed_at IS NOT NULL AND u.network != 'test' AND u.created_at >= $since
     GROUP BY p.id ORDER BY leads DESC LIMIT 5")->fetchAll();
-$recent = db()->query('SELECT u.*, p.title FROM unlocks u JOIN products p ON p.id = u.product_id
+$recent = db()->query('SELECT u.*, COALESCE(p.title, l.title) AS title, u.link_id FROM unlocks u
+    LEFT JOIN products p ON p.id = u.product_id LEFT JOIN links l ON l.id = u.link_id
     WHERE u.completed_at IS NOT NULL ORDER BY u.completed_at DESC LIMIT 8')->fetchAll();
 
 $enabled = array_filter(array_keys(network_definitions()), 'network_enabled');
@@ -74,37 +75,7 @@ admin_header('Dashboard', 'Last 30 days at a glance',
 <div class="grid-2">
   <div class="card">
     <div class="card-head"><div><h2>Offers completed per day</h2><p class="muted">Last 14 days · <?= array_sum($days) ?> total</p></div></div>
-    <?php
-    $max = max(1, max($days));
-    $mag = 10 ** floor(log10($max));
-    foreach ([1, 2, 5, 10] as $m) {
-        if ($m * $mag >= $max) { $niceMax = $m * $mag; break; }
-    }
-    $niceMax = max(4, (int)$niceMax);
-    $W = 700; $H = 220; $L = 34; $B = 26; $T = 8;
-    $plotH = $H - $B - $T;
-    $slot = ($W - $L) / count($days);
-    $barW = max(6, $slot - 8);
-    ?>
-    <div class="chart" id="chart">
-      <svg viewBox="0 0 <?= $W ?> <?= $H ?>" role="img" aria-label="Bar chart of offers completed per day for the last 14 days">
-        <?php for ($g = 0; $g <= 4; $g++): $y = $T + $plotH - $plotH * $g / 4; ?>
-          <line class="grid-line" x1="<?= $L ?>" x2="<?= $W ?>" y1="<?= $y ?>" y2="<?= $y ?>"/>
-          <text class="axis-label" x="<?= $L - 8 ?>" y="<?= $y + 4 ?>" text-anchor="end"><?= rtrim(rtrim(number_format($niceMax * $g / 4, 1), '0'), '.') ?></text>
-        <?php endfor; ?>
-        <?php $i = 0; foreach ($days as $d => $n):
-            $x = $L + $i * $slot + ($slot - $barW) / 2;
-            $h = $n ? max(4, $plotH * $n / $niceMax) : 0;
-            $y = $T + $plotH - $h; ?>
-          <g class="col" data-tip="<?= e(date('D, M j', strtotime($d))) ?>: <?= $n ?> completed" data-x="<?= ($x + $barW / 2) / $W ?>" data-y="<?= $y / $H ?>">
-            <rect class="hit" x="<?= $L + $i * $slot ?>" y="<?= $T ?>" width="<?= $slot ?>" height="<?= $plotH ?>"/>
-            <?php if ($h): ?><path class="bar" d="M<?= $x ?>,<?= $T + $plotH ?> V<?= $y + 4 ?> Q<?= $x ?>,<?= $y ?> <?= $x + 4 ?>,<?= $y ?> H<?= $x + $barW - 4 ?> Q<?= $x + $barW ?>,<?= $y ?> <?= $x + $barW ?>,<?= $y + 4 ?> V<?= $T + $plotH ?> Z"/><?php endif; ?>
-            <?php if ($i % 2 === 1 || count($days) <= 7): ?><text class="axis-label" x="<?= $x + $barW / 2 ?>" y="<?= $H - 6 ?>" text-anchor="middle"><?= e(date('M j', strtotime($d))) ?></text><?php endif; ?>
-          </g>
-        <?php $i++; endforeach; ?>
-      </svg>
-      <div class="chart-tip" id="chart-tip"></div>
-    </div>
+    <?= bar_chart($days, 'completed', 'Bar chart of offers completed per day for the last 14 days') ?>
   </div>
 
   <div class="card">
@@ -157,19 +128,19 @@ admin_header('Dashboard', 'Last 30 days at a glance',
 </div>
 
 <div class="card">
-  <div class="card-head"><h2>Latest unlocks</h2><a href="postbacks.php" class="muted">Postback log →</a></div>
+  <div class="card-head"><h2>Latest unlocks</h2><a href="reports.php" class="muted">Reports →</a></div>
   <?php if (!$recent): ?><p class="muted">None yet. Open a product while logged in and use "Simulate completed offer" to test.</p><?php else: ?>
   <div class="table-wrap"><table>
-    <thead><tr><th>When</th><th>Product</th><th>Network</th><th>Offer</th><th class="num">Payout</th><th>IP</th></tr></thead>
+    <thead><tr><th>When</th><th>Product</th><th>Network</th><th>Offer</th><th class="num">Payout</th><th>Country</th></tr></thead>
     <tbody>
     <?php foreach ($recent as $r): ?>
       <tr>
         <td><?= e(date('M j, H:i', (int)$r['completed_at'])) ?></td>
-        <td><?= e($r['title']) ?></td>
+        <td><?= $r['link_id'] ? icon('link', 14) . ' ' : '' ?><?= e((string)$r['title']) ?></td>
         <td><span class="tag <?= $r['network'] === 'test' ? '' : 'tag-accent' ?>"><?= e($r['network']) ?></span></td>
         <td><?= e($r['offer_id']) ?></td>
         <td class="num">$<?= number_format((float)$r['payout'], 2) ?></td>
-        <td class="muted"><?= e($r['ip']) ?></td>
+        <td class="muted"><?= $r['country'] !== '' ? flag($r['country']) . ' ' . e($r['country']) : '—' ?></td>
       </tr>
     <?php endforeach; ?>
     </tbody>
@@ -177,18 +148,4 @@ admin_header('Dashboard', 'Last 30 days at a glance',
   <?php endif; ?>
 </div>
 
-<script>
-(function () {
-  var chart = document.getElementById('chart'), tip = document.getElementById('chart-tip');
-  chart.querySelectorAll('.col').forEach(function (g) {
-    g.addEventListener('mouseenter', function () {
-      tip.textContent = g.dataset.tip;
-      tip.style.left = (g.dataset.x * 100) + '%';
-      tip.style.top = (g.dataset.y * 100) + '%';
-      tip.classList.add('show');
-    });
-    g.addEventListener('mouseleave', function () { tip.classList.remove('show'); });
-  });
-})();
-</script>
 <?php admin_footer();

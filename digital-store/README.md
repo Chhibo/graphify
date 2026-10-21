@@ -139,6 +139,50 @@ To also get them by email, open **Settings → Contact us page**, enter your ema
 
 Real visitors see the same thing after they finish an offer and the network sends the postback (usually seconds, sometimes a few minutes).
 
+## Earning more
+
+### Telegram alerts (Admin → Alerts, ads & email)
+1. In Telegram, open **@BotFather**, send `/newbot`, and copy the bot token.
+2. Open your new bot and press **Start**.
+3. Open **@userinfobot** and copy your Id: that's your chat ID.
+4. Paste both, then click **Save & send test message**.
+You get a message for every completed offer (payout, product, network, country), and optionally for new contact messages and subscribers.
+
+### Country routing
+Each network in **CPA Networks** has **Only for these countries** and **Never for these countries** boxes (two-letter codes like `US, GB, CA`).
+Example: OGAds *only* for `US, GB, CA, AU`, and AdBlueMedia for everyone else.
+Countries are detected through **Cloudflare** (tick "My site is behind Cloudflare" in Settings) or your host's GeoIP. When the country is unknown, every network may serve.
+
+### Reports (Admin → Reports)
+Pick a date range and see earnings by day, product/link, network, country and **offer** (clicks, completions and conversion rate per offer). Every view can be exported to CSV.
+
+### Link locker (Admin → Link locker)
+Lock any link (Mega, Google Drive, a Discord invite, a coupon page…) behind an offer. You get a short address like `your-domain.com/go.php?c=texture-pack`
+(or `your-domain.com/l/texture-pack` with readable links) to share on TikTok, YouTube, Telegram or Instagram. The real link is never shown until an offer is confirmed.
+
+### Ad slots
+Paste AdSense, Adsterra or Monetag code for the top of every page, product pages and the bottom of every page. Ads never appear inside the offer popup.
+Check your CPA network's rules about showing other ads on the same page.
+
+## More product options
+- **Gallery & video**: up to 8 extra pictures and a YouTube preview per product.
+- **Details**: file size (filled in automatically when you upload), format, version and "works with".
+- **Likes**: visitors can ♥ products; counts show on cards.
+- **Publish later**: choose "Publish later" and a date; the product appears automatically.
+- **Readable links** (Settings → Readable links): `your-domain.com/product/golden-hour-presets`. The store tests your host before switching them on.
+  Works on Apache/LiteSpeed hosts (most cPanel hosts). On Nginx, ask your host to add the rules from `.htaccess`.
+
+## Growing your audience
+- **Email list**: switch on the signup box in **Alerts, ads & email**. Subscribers are in **Admin → Subscribers** with CSV export for Mailchimp, Brevo or MailerLite.
+- **Import products** (Admin → Import products): download the CSV template, fill it in Excel or Google Sheets, and upload. Cover pictures are downloaded from the `image_url` links, and new categories are created automatically.
+- **Cookie banner**: switch it on for EU/UK visitors. Your tracking code (Google Analytics, Pixel) can wait until the visitor clicks Accept.
+
+## Security
+- **Login lock**: after 5 wrong passwords, that IP is locked out for 15 minutes.
+- **Two-step login** (Settings → Two-step login): scan the QR code with Google Authenticator, Microsoft Authenticator or Authy. Keep the key somewhere safe.
+  **Lost your phone?** In your hosting File Manager, create an empty file named `disable-2fa` inside the `data` folder, then open the login page: two-step login is switched off and the file is deleted.
+- **Abuse protection**: limit how many lockers one IP can open per hour (default 30), and block countries you don't want.
+
 ## Demo content
 
 Demo products, categories and pages show how the store looks before you add your own.
@@ -156,7 +200,9 @@ your own products stay, and a demo category is kept if you put your own products
 
 | Path | What it is |
 |---|---|
-| `index.php`, `product.php`, `category.php` | Store front |
+| `index.php`, `product.php`, `category.php`, `search.php` | Store front |
+| `go.php` | Locked-link page |
+| `subscribe.php`, `api/click.php`, `api/like.php` | Email signup, offer click tracking, likes |
 | `page.php`, `contact.php` | Custom pages and the contact form |
 | `assets/locker.js` | The offer popup (loads offers, waits for unlock) |
 | `api/offers.php` | Gets offers from the active network |

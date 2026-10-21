@@ -9,7 +9,14 @@ declare(strict_types=1);
  */
 function network_definitions(): array
 {
-    return [
+    // Country routing fields shared by every network.
+    $geo = [
+        'countries_only' => ['label' => 'Only for these countries (optional)', 'default' => '',
+            'help' => 'Two-letter codes, e.g. US, GB, CA. Leave empty for all countries. Needs Cloudflare or a GeoIP host (see Settings).'],
+        'countries_never' => ['label' => 'Never for these countries (optional)', 'default' => '',
+            'help' => 'Visitors from these countries get the next network instead.'],
+    ];
+    $defs = [
         'ogads' => [
             'label' => 'OGAds',
             'fields' => [
@@ -44,6 +51,11 @@ function network_definitions(): array
             'offer_macro' => '{offer_id}',
         ],
     ];
+    foreach ($defs as &$def) {
+        $def['fields'] += $geo;
+    }
+    unset($def);
+    return $defs;
 }
 
 function network_setting(string $net, string $field): string
@@ -58,10 +70,22 @@ function network_enabled(string $net): bool
     return setting("net_{$net}_enabled") === '1';
 }
 
-/** Enabled networks, in the order they should be tried. */
-function networks_to_try(): array
+/** Enabled networks for this visitor's country, in the order they should be tried. */
+function networks_to_try(string $country = ''): array
 {
-    $enabled = array_values(array_filter(array_keys(network_definitions()), 'network_enabled'));
+    $enabled = array_values(array_filter(array_keys(network_definitions()), function ($net) use ($country) {
+        if (!network_enabled($net)) {
+            return false;
+        }
+        if ($country === '') {
+            return true; // unknown country: every network may serve
+        }
+        $only = country_list(network_setting($net, 'countries_only'));
+        if ($only && !in_array($country, $only, true)) {
+            return false;
+        }
+        return !in_array($country, country_list(network_setting($net, 'countries_never')), true);
+    }));
     if (setting('network_mode', 'priority') === 'random') {
         shuffle($enabled);
         return $enabled;

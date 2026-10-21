@@ -10,7 +10,7 @@ $cat = $stmt->fetch();
 if (!$cat) {
     http_response_code(404);
     page_header('Not found');
-    echo empty_state('This category does not exist. <a href="index.php">Back to the store</a>', 'folder');
+    echo empty_state('This category does not exist. <a href="' . e(base_url()) . '">Back to the store</a>', 'folder');
     page_footer();
     exit;
 }
@@ -30,21 +30,21 @@ $chips = array_filter(all_categories(), fn($c) => $c['items'] > 0);
 page_header($cat['name'], 'cat:' . $cat['slug'], ['description' => 'Free ' . $cat['name'] . ' downloads at ' . setting('store_name') . '.']);
 ?>
 <section class="page-banner">
-  <nav class="breadcrumb"><a href="index.php"><?= icon('home', 14) ?> Home</a> <?= icon('chevron-right', 14) ?> <span><?= e($cat['name']) ?></span></nav>
+  <nav class="breadcrumb"><a href="<?= e(base_url()) ?>"><?= icon('home', 14) ?> Home</a> <?= icon('chevron-right', 14) ?> <span><?= e($cat['name']) ?></span></nav>
   <h1><?= e($cat['name']) ?></h1>
   <p><?= $total ?> free item<?= $total === 1 ? '' : 's' ?></p>
 </section>
 <?php if (count($chips) > 1): ?>
   <nav class="chips" aria-label="Categories">
     <?php foreach ($chips as $c): ?>
-      <a class="chip<?= $c['slug'] === $cat['slug'] ? ' active' : '' ?>" href="category.php?slug=<?= e(rawurlencode($c['slug'])) ?>"><?= e($c['name']) ?> <span><?= (int)$c['items'] ?></span></a>
+      <a class="chip<?= $c['slug'] === $cat['slug'] ? ' active' : '' ?>" href="<?= e(url_category($c['slug'])) ?>"><?= e($c['name']) ?> <span><?= (int)$c['items'] ?></span></a>
     <?php endforeach; ?>
   </nav>
 <?php endif; ?>
 <section class="home-section">
   <?php if ($products): ?>
     <?= product_grid($products) ?>
-    <?= pagination($page, $pages, base_url('category.php?slug=' . rawurlencode($cat['slug']))) ?>
+    <?= pagination($page, $pages, url_category($cat['slug'])) ?>
   <?php else: ?>
     <?= empty_state('No items in this category yet.', 'folder') ?>
   <?php endif; ?>

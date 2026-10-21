@@ -82,7 +82,8 @@ admin_header('Products', $total . ' product' . ($total === 1 ? '' : 's') . ' in 
           <?php if ($p['badge'] !== ''): ?><br><span class="tag tag-accent"><?= e($p['badge']) ?></span><?php endif; ?></div>
       </div></td>
       <td><?= $p['category_name'] !== null ? e($p['category_name']) : '<span class="muted">—</span>' ?></td>
-      <td><span class="tag <?= $p['active'] ? 'tag-ok' : '' ?>"><?= $p['active'] ? 'Visible' : 'Hidden' ?></span></td>
+      <td><?php if ($p['publish_at']): ?><span class="tag tag-accent" title="Publishes automatically"><?= icon('clock', 12) ?> <?= e(date('M j, H:i', (int)$p['publish_at'])) ?></span>
+        <?php else: ?><span class="tag <?= $p['active'] ? 'tag-ok' : '' ?>"><?= $p['active'] ? 'Visible' : 'Hidden' ?></span><?php endif; ?></td>
       <td class="num"><?= number_format((int)$p['views']) ?></td>
       <td class="num"><?= number_format((int)$p['unlocks']) ?></td>
       <td class="num"><?= $conv ?>%</td>
@@ -92,7 +93,7 @@ admin_header('Products', $total . ' product' . ($total === 1 ? '' : 's') . ' in 
           <button class="star <?= $p['featured'] ? 'on' : '' ?>" name="action" value="feature" title="<?= $p['featured'] ? 'Remove from Featured' : 'Add to Featured' ?>">★</button></form>
       </td>
       <td class="actions">
-        <a class="icon-btn" href="../product.php?id=<?= (int)$p['id'] ?>" target="_blank" title="View"><?= icon('external', 16) ?></a>
+        <a class="icon-btn" href="<?= e(url_product($p)) ?>" target="_blank" title="View"><?= icon('external', 16) ?></a>
         <a class="icon-btn" href="product_edit.php?id=<?= (int)$p['id'] ?>" title="Edit"><?= icon('pencil', 16) ?></a>
         <form method="post"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$p['id'] ?>">
           <button class="icon-btn" name="action" value="toggle" title="<?= $p['active'] ? 'Hide' : 'Show' ?>"><?= icon($p['active'] ? 'eye' : 'x', 16) ?></button></form>

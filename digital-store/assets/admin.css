@@ -272,3 +272,9 @@ input.color { width: 56px; height: 40px; padding: 3px; border: 1px solid var(--b
 .checks li { padding: 4px 0; }
 .empty { text-align: center; padding: 40px 10px; color: var(--muted); }
 .empty .icon { opacity: .5; }
+
+/* Gallery editor */
+.gallery-edit { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.gallery-item { margin: 0 !important; font-weight: 500 !important; font-size: .82rem !important; }
+.gallery-item img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; display: block; margin-bottom: 4px; }
+.gallery-item span { display: flex; align-items: center; gap: 5px; color: var(--muted); }

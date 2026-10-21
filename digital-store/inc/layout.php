@@ -150,7 +150,7 @@ function page_header(string $title, string $active = '', array $meta = []): void
 <?php endif; ?>
 <link rel="stylesheet" href="<?= e(base_url('assets/style.css')) ?>?v=3">
 <?php if (trim($css) !== ''): ?><style><?= str_replace('</', '<\/', $css) ?></style><?php endif; ?>
-<?= setting('head_code') ?>
+<?= tracking_code('head_code') ?>
 </head>
 <body>
 <?php if (setting('announce_show') === '1' && trim(setting('announce_text')) !== ''): ?>
@@ -168,10 +168,10 @@ function page_header(string $title, string $active = '', array $meta = []): void
     <nav class="site-nav" id="site-nav">
       <a href="<?= e(base_url()) ?>" class="<?= $active === 'home' ? 'active' : '' ?>">Home</a>
       <?php foreach ($cats as $c): ?>
-        <a href="<?= e(base_url('category.php?slug=' . rawurlencode($c['slug']))) ?>" class="<?= $active === 'cat:' . $c['slug'] ? 'active' : '' ?>"><?= e($c['name']) ?></a>
+        <a href="<?= e(url_category($c['slug'])) ?>" class="<?= $active === 'cat:' . $c['slug'] ? 'active' : '' ?>"><?= e($c['name']) ?></a>
       <?php endforeach; ?>
       <?php foreach ($pages as $pg): ?>
-        <a href="<?= e(base_url('page.php?slug=' . rawurlencode($pg['slug']))) ?>" class="<?= $active === 'page:' . $pg['slug'] ? 'active' : '' ?>"><?= e($pg['title']) ?></a>
+        <a href="<?= e(url_page($pg['slug'])) ?>" class="<?= $active === 'page:' . $pg['slug'] ? 'active' : '' ?>"><?= e($pg['title']) ?></a>
       <?php endforeach; ?>
       <?php if ($contact): ?>
         <a href="<?= e(base_url('contact.php')) ?>" class="<?= $active === 'contact' ? 'active' : '' ?>">Contact</a>
@@ -195,7 +195,15 @@ function page_header(string $title, string $active = '', array $meta = []): void
   </div>
 </header>
 <main class="container">
+<?= ad_slot('ad_top') ?>
 <?php
+}
+
+/** Ad code pasted in Admin -> Growth & alerts. Admin-only input, printed as-is. */
+function ad_slot(string $key): string
+{
+    $code = trim(setting($key));
+    return $code !== '' ? '<div class="ad-slot ad-' . e(str_replace('ad_', '', $key)) . '">' . $code . '</div>' : '';
 }
 
 function page_footer(): void
@@ -205,8 +213,10 @@ function page_footer(): void
     $cats = array_slice(array_filter(all_categories(), fn($c) => $c['items'] > 0), 0, 8);
     $pages = menu_pages('footer');
     ?>
+<?= ad_slot('ad_bottom') ?>
 </main>
 <footer class="site-footer">
+  <?= newsletter_box() ?>
   <div class="footer-grid">
     <div class="footer-brand">
       <a class="brand" href="<?= e(base_url()) ?>"><?= site_logo() ?></a>
@@ -222,13 +232,13 @@ function page_footer(): void
     <?php if ($cats): ?>
       <div>
         <h4>Categories</h4>
-        <?php foreach ($cats as $c): ?><a href="<?= e(base_url('category.php?slug=' . rawurlencode($c['slug']))) ?>"><?= e($c['name']) ?></a><?php endforeach; ?>
+        <?php foreach ($cats as $c): ?><a href="<?= e(url_category($c['slug'])) ?>"><?= e($c['name']) ?></a><?php endforeach; ?>
       </div>
     <?php endif; ?>
     <div>
       <h4>Information</h4>
       <?php foreach ($pages as $pg): ?>
-        <a href="<?= e(base_url('page.php?slug=' . rawurlencode($pg['slug']))) ?>"><?= e($pg['title']) ?></a>
+        <a href="<?= e(url_page($pg['slug'])) ?>"><?= e($pg['title']) ?></a>
       <?php endforeach; ?>
       <a href="<?= e(base_url('contact.php')) ?>">Contact us</a>
     </div>
@@ -242,7 +252,8 @@ function page_footer(): void
 function toggleTheme(){var r=document.documentElement,d=r.classList.contains('theme-dark')||(!r.classList.contains('theme-light')&&matchMedia('(prefers-color-scheme: dark)').matches);r.classList.remove('theme-light','theme-dark');r.classList.add(d?'theme-light':'theme-dark');try{localStorage.setItem('theme',d?'light':'dark')}catch(e){}}
 (function(){var b=document.querySelector('.to-top');addEventListener('scroll',function(){b.classList.toggle('show',scrollY>600)},{passive:true})})();
 </script>
-<?= setting('footer_code') ?>
+<?= tracking_code('footer_code') ?>
+<?= cookie_banner() ?>
 </body>
 </html>
 <?php
@@ -252,7 +263,7 @@ function product_card(array $p): string
 {
     $showCount = setting('show_downloads', '1') === '1';
     ob_start(); ?>
-    <a class="product-card" href="<?= e(base_url('product.php?id=' . (int)$p['id'])) ?>">
+    <a class="product-card" href="<?= e(url_product($p)) ?>">
       <div class="thumb">
         <?php if ($p['image']): ?><img src="<?= e(base_url('uploads/' . $p['image'])) ?>" alt="" loading="lazy">
         <?php else: ?><span class="thumb-empty"><?= icon('package', 40) ?></span><?php endif; ?>
@@ -269,6 +280,7 @@ function product_card(array $p): string
           <?php if ($showCount && (int)$p['downloads'] > 0): ?>
             <span class="card-stat"><?= icon('download', 13) ?> <?= short_number((int)$p['downloads']) ?></span>
           <?php endif; ?>
+          <?php if ((int)($p['likes'] ?? 0) > 0): ?><span class="card-stat card-likes">♥ <?= short_number((int)$p['likes']) ?></span><?php endif; ?>
           <span class="card-go"><?= icon('arrow-right', 16) ?></span>
         </div>
       </div>
@@ -319,4 +331,129 @@ function pagination(int $page, int $pages, string $baseUrl): string
 function empty_state(string $text, string $icon = 'package'): string
 {
     return '<div class="empty-state">' . icon($icon, 40) . '<p>' . $text . '</p></div>';
+}
+
+/** The offer popup used by product pages and locked links. */
+function locker_modal(string $title, string $image = '', string $heading = ''): string
+{
+    ob_start(); ?>
+<div class="locker" id="locker" hidden>
+  <div class="locker-box" role="dialog" aria-modal="true" aria-labelledby="locker-title">
+    <button class="locker-close" id="locker-close" aria-label="Close"><?= icon('x', 20) ?></button>
+    <div class="locker-head">
+      <?php if ($image !== ''): ?><img src="<?= e($image) ?>" alt=""><?php endif; ?>
+      <div>
+        <span class="locker-product"><?= e($title) ?></span>
+        <h2 id="locker-title"><?= e($heading !== '' ? $heading : setting_or('locker_title', 'Complete one offer to unlock your free download')) ?></h2>
+      </div>
+    </div>
+    <ol class="locker-steps" id="locker-steps">
+      <li class="active" data-step="1"><span>1</span> Pick an offer</li>
+      <li data-step="2"><span>2</span> Complete it</li>
+      <li data-step="3"><span>3</span> Download</li>
+    </ol>
+    <div id="locker-offers" class="offers"><div class="offer-skeleton"></div><div class="offer-skeleton"></div><div class="offer-skeleton"></div></div>
+    <p class="locker-status" id="locker-status" hidden>
+      <span class="spinner"></span> Waiting for the offer to be confirmed. This can take a few minutes. Keep this page open.
+    </p>
+    <p class="locker-note"><?= icon('shield', 14) ?> Offers are provided by our advertising partners. Read each offer's terms before you start.</p>
+    <?php if (is_admin()): ?>
+      <p class="admin-test">Admin only: <button class="btn btn-small" id="simulate-btn" data-csrf="<?= e(csrf_token()) ?>">Simulate completed offer</button></p>
+    <?php endif; ?>
+  </div>
+</div>
+
+<script>window.STORE_BASE = <?= json_encode(base_url()) ?>;</script>
+<script src="<?= e(base_url('assets/locker.js')) ?>?v=4"></script>
+<?php return (string)ob_get_clean();
+}
+
+/** Analytics code from Settings; held back until cookie consent when the owner asks for that. */
+function tracking_code(string $key): string
+{
+    $code = setting($key);
+    if (trim($code) === '') {
+        return '';
+    }
+    if (setting('cookie_banner') === '1' && setting('cookie_wait', '1') === '1') {
+        return '<template class="consent-code">' . $code . '</template>';
+    }
+    return $code;
+}
+
+function cookie_banner(): string
+{
+    if (setting('cookie_banner') !== '1') {
+        return '';
+    }
+    $text = setting_or('cookie_text', 'We use cookies to run this site and, with your consent, for analytics. Offers are provided by advertising partners who may collect data.');
+    $privacy = db()->query("SELECT slug FROM pages WHERE slug = 'privacy-policy'")->fetchColumn();
+    ob_start(); ?>
+<div class="cookie-banner" id="cookie-banner" hidden role="dialog" aria-label="Cookie consent">
+  <p><?= e($text) ?><?php if ($privacy): ?> <a href="<?= e(url_page('privacy-policy')) ?>">Privacy Policy</a><?php endif; ?></p>
+  <div class="cookie-actions">
+    <button class="btn btn-small btn-light" type="button" data-consent="no">Decline</button>
+    <button class="btn btn-small" type="button" data-consent="yes">Accept</button>
+  </div>
+</div>
+<script>
+(function () {
+  var box = document.getElementById('cookie-banner');
+  function load() {
+    document.querySelectorAll('template.consent-code').forEach(function (t) {
+      Array.prototype.forEach.call(t.content.childNodes, function (n) {
+        if (n.nodeName === 'SCRIPT') {
+          var s = document.createElement('script');
+          Array.prototype.forEach.call(n.attributes, function (a) { s.setAttribute(a.name, a.value); });
+          s.text = n.text;
+          document.body.appendChild(s);
+        } else {
+          document.body.appendChild(n.cloneNode(true));
+        }
+      });
+      t.remove();
+    });
+  }
+  var c = null;
+  try { c = localStorage.getItem('cookie_consent'); } catch (e) {}
+  if (c === 'yes') load();
+  if (!c) box.hidden = false;
+  box.addEventListener('click', function (e) {
+    var v = e.target.getAttribute('data-consent');
+    if (!v) return;
+    try { localStorage.setItem('cookie_consent', v); } catch (err) {}
+    box.hidden = true;
+    if (v === 'yes') load();
+  });
+})();
+</script>
+<?php return (string)ob_get_clean();
+}
+
+function newsletter_box(): string
+{
+    if (setting('newsletter_show') !== '1') {
+        return '';
+    }
+    $state = (string)($_GET['subscribed'] ?? '');
+    ob_start(); ?>
+  <section class="newsletter" id="newsletter">
+    <div>
+      <h3><?= icon('mail', 20) ?> <?= e(setting_or('newsletter_title', 'Get new freebies first')) ?></h3>
+      <p><?= e(setting_or('newsletter_text', 'One email when we add something new. No spam.')) ?></p>
+    </div>
+    <?php if ($state === '1'): ?>
+      <p class="newsletter-ok"><?= icon('circle-check', 18) ?> You're subscribed. Thank you!</p>
+    <?php else: ?>
+      <form method="post" action="<?= e(base_url('subscribe.php')) ?>">
+        <?= csrf_field() ?>
+        <input type="hidden" name="back" value="<?= e($_SERVER['REQUEST_URI'] ?? '/') ?>">
+        <label class="hp" aria-hidden="true">Website <input name="website" tabindex="-1" autocomplete="off"></label>
+        <input type="email" name="email" required placeholder="Your email" aria-label="Your email">
+        <button class="btn">Subscribe</button>
+      </form>
+      <?php if ($state === 'bad'): ?><p class="newsletter-bad">Please enter a valid email address.</p><?php endif; ?>
+    <?php endif; ?>
+  </section>
+<?php return (string)ob_get_clean();
 }

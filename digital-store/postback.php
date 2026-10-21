@@ -44,7 +44,8 @@ if (!isset(network_definitions()[$network])) {
     exit('unknown network');
 }
 
-$q = db()->prepare('SELECT id, completed_at FROM unlocks WHERE token = ?');
+$q = db()->prepare('SELECT u.id, u.completed_at, u.country, COALESCE(p.title, l.title) AS title FROM unlocks u
+    LEFT JOIN products p ON p.id = u.product_id LEFT JOIN links l ON l.id = u.link_id WHERE u.token = ?');
 $q->execute([$token]);
 $unlock = $q->fetch();
 if (!$unlock) {
@@ -59,4 +60,16 @@ if ($unlock['completed_at']) {
 db()->prepare('UPDATE unlocks SET completed_at = ?, network = ?, payout = ?, offer_id = ? WHERE id = ?')
     ->execute([time(), $network, $payout, $offer, $unlock['id']]);
 $log('unlocked');
-exit('1');
+
+// Answer the network right away, then send the alert.
+echo '1';
+if (function_exists('fastcgi_finish_request')) {
+    fastcgi_finish_request();
+}
+if (setting('tg_on_lead', '1') === '1' && telegram_ready()) {
+    telegram_send("💰 New lead: $" . number_format($payout, 2) . "\n"
+        . "📦 " . $unlock['title'] . "\n"
+        . "🌐 " . (network_definitions()[$network]['label'] ?? $network) . ($offer !== '' ? " · offer $offer" : '')
+        . ($unlock['country'] !== '' ? "\n" . flag($unlock['country']) . ' ' . $unlock['country'] : ''));
+}
+exit;

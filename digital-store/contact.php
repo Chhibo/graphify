@@ -46,6 +46,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $headers = 'From: ' . setting('store_name') . " <no-reply@$host>\r\nReply-To: {$form['email']}\r\nContent-Type: text/plain; charset=utf-8";
             @mail($to, str_replace(["\r", "\n"], ' ', $subject), $body, $headers);
         }
+        if (setting('tg_on_message', '1') === '1' && telegram_ready()) {
+            telegram_send("✉️ New message from {$form['name']} <{$form['email']}>\n"
+                . ($form['subject'] !== '' ? $form['subject'] . "\n" : '') . "\n" . mb_substr($form['message'], 0, 1000));
+        }
         redirect('contact.php?sent=1');
     }
 }
@@ -53,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 page_header('Contact us', 'contact');
 ?>
 <section class="page-banner">
-  <nav class="breadcrumb"><a href="index.php"><?= icon('home', 14) ?> Home</a> <?= icon('chevron-right', 14) ?> <span>Contact</span></nav>
+  <nav class="breadcrumb"><a href="<?= e(base_url()) ?>"><?= icon('home', 14) ?> Home</a> <?= icon('chevron-right', 14) ?> <span>Contact</span></nav>
   <h1><?= e(setting_or('contact_title', 'Contact us')) ?></h1>
   <p>We usually reply within a day.</p>
 </section>
@@ -77,7 +81,7 @@ page_header('Contact us', 'contact');
         <?= icon('circle-check', 48) ?>
         <h2>Message sent</h2>
         <p>Thank you! We'll reply by email as soon as we can.</p>
-        <a class="btn" href="index.php">Back to the store</a>
+        <a class="btn" href="<?= e(base_url()) ?>">Back to the store</a>
       </div>
     <?php else: ?>
       <?php foreach ($errors as $err): ?><p class="alert alert-bad"><?= e($err) ?></p><?php endforeach; ?>

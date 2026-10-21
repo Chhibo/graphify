@@ -413,3 +413,59 @@ code { font-size: .9em; background: var(--surface-2); border-radius: 6px; paddin
 @media (prefers-color-scheme: dark) {
   :root:not(.theme-light) .hero:not(.has-image) { box-shadow: inset 0 0 0 100vmax rgba(5, 6, 15, .38); }
 }
+
+/* ---------- Locked link page ---------- */
+.link-lock { display: grid; place-items: center; padding: 20px 0 40px; }
+.link-card { width: 100%; max-width: 560px; text-align: center; }
+.link-cover { width: 100%; border-radius: var(--radius); margin-bottom: 18px; display: block; }
+.link-icon { display: inline-grid; place-items: center; width: 76px; height: 76px; border-radius: 22px; margin-bottom: 14px; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.hero-kicker-dark { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 99px; font-size: .8rem; font-weight: 700; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.link-card h1 { margin: 12px 0 10px; font-size: clamp(1.5rem, 4vw, 2rem); }
+.link-card #unlock-btn { width: 100%; margin-top: 8px; }
+.link-note { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: .85rem; margin: 14px 0 0; }
+
+/* ---------- Ad slots ---------- */
+.ad-slot { margin: 0 auto 28px; text-align: center; overflow: hidden; max-width: 100%; }
+.ad-slot:empty { display: none; }
+
+/* ---------- Newsletter & cookie banner ---------- */
+.newsletter {
+  max-width: 1160px; margin: 32px auto 0; padding: 24px 28px; border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: space-between; gap: 18px 32px; flex-wrap: wrap; color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.newsletter h3 { margin: 0 0 4px; display: flex; align-items: center; gap: 8px; font-size: 1.2rem; }
+.newsletter p { margin: 0; opacity: .9; }
+.newsletter form { display: flex; gap: 8px; flex: 1 1 320px; max-width: 460px; }
+.newsletter input[type=email] { flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 0; font: inherit; background: #fff; color: #171a2b; }
+.newsletter .btn { background: #11131c; color: #fff; }
+.newsletter-ok { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.newsletter-bad { width: 100%; font-weight: 600; }
+@media (max-width: 1200px) { .newsletter { margin: 32px 20px 0; } }
+.cookie-banner {
+  position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 90; max-width: 560px; margin: 0 auto;
+  display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 16px 18px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-lg); font-size: .9rem;
+}
+.cookie-banner[hidden] { display: none; }
+.cookie-banner p { margin: 0; flex: 1 1 260px; }
+.cookie-actions { display: flex; gap: 8px; }
+
+/* ---------- Product gallery, video, details, likes ---------- */
+.media-main { position: relative; }
+.thumbs { display: flex; gap: 8px; margin-top: 12px; overflow-x: auto; padding-bottom: 4px; }
+.thumbs button { flex: none; width: 76px; height: 58px; padding: 0; border-radius: 10px; overflow: hidden; cursor: pointer; border: 2px solid transparent; background: var(--surface-2); }
+.thumbs button.active { border-color: var(--accent); }
+.thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 0; box-shadow: none; }
+.video { position: relative; margin-top: 14px; aspect-ratio: 16 / 9; border-radius: var(--radius); overflow: hidden; background: #000; box-shadow: var(--shadow); }
+.video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.details { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 0 0 24px; }
+.details div { padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+.details dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; }
+.details dd { margin: 2px 0 0; font-weight: 600; }
+.share .like-btn { gap: 6px; padding: 0 12px; }
+.share .like-btn.liked { color: #e11d48; border-color: #e11d48; }
+.share .like-btn.liked svg { fill: currentColor; }
+.alert-bad { margin-bottom: 16px; }
+.card-likes { color: #e11d48; }
+.prose > :first-child { margin-top: 0; }

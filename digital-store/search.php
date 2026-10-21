@@ -31,7 +31,7 @@ page_header($q !== '' ? 'Search: ' . $q : 'Search');
 ?>
 <section class="page-banner">
   <h1><?= $q !== '' ? 'Results for “' . e($q) . '”' : 'Search' ?></h1>
-  <form class="hero-search" action="search.php" method="get" role="search">
+  <form class="hero-search" action="<?= e(base_url('search.php')) ?>" method="get" role="search">
     <?= icon('search', 20) ?>
     <input type="search" name="q" value="<?= e($q) ?>" placeholder="Search downloads…" aria-label="Search" autofocus>
     <button class="btn">Search</button>
@@ -43,7 +43,7 @@ page_header($q !== '' ? 'Search: ' . $q : 'Search');
     <?= product_grid($products) ?>
     <?= pagination($page, $pages, base_url('search.php?q=' . rawurlencode($q))) ?>
   <?php elseif ($q !== ''): ?>
-    <?= empty_state('Nothing found. Try another word, or <a href="index.php">browse everything</a>.', 'search') ?>
+    <?= empty_state('Nothing found. Try another word, or <a href="' . e(base_url()) . '">browse everything</a>.', 'search') ?>
   <?php endif; ?>
 </section>
 <?php page_footer();

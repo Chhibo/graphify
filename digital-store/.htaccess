@@ -1,2 +1,11 @@
 Options -Indexes
 DirectoryIndex index.php
+
+# Readable links (switch them on in Admin -> Settings -> Readable links).
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^product/([^/]+)/?$ product.php?slug=$1 [L,QSA]
+  RewriteRule ^category/([^/]+)/?$ category.php?slug=$1 [L,QSA]
+  RewriteRule ^page/([^/]+)/?$ page.php?slug=$1 [L,QSA]
+  RewriteRule ^l/([^/]+)/?$ go.php?c=$1 [L,QSA]
+</IfModule>

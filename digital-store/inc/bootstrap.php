@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
 require_once __DIR__ . '/icons.php';
+require_once __DIR__ . '/features.php';
 define('DATA_DIR', APP_ROOT . '/data');
 define('FILES_DIR', DATA_DIR . '/files');
 define('UPLOADS_DIR', APP_ROOT . '/uploads');
@@ -33,8 +34,18 @@ function db(): PDO
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
         $pdo->exec('PRAGMA foreign_keys = ON');
         migrate($pdo);
+        publish_scheduled($pdo);
     }
     return $pdo;
+}
+
+/** Scheduled products become visible once their publish time has passed. */
+function publish_scheduled(PDO $pdo): void
+{
+    $now = time();
+    if ($pdo->query("SELECT 1 FROM products WHERE publish_at > 0 AND publish_at <= $now LIMIT 1")->fetchColumn()) {
+        $pdo->exec("UPDATE products SET active = 1, publish_at = 0 WHERE publish_at > 0 AND publish_at <= $now");
+    }
 }
 
 function is_installed(): bool
@@ -134,6 +145,76 @@ function migrate(PDO $pdo): void
             ALTER TABLE products ADD COLUMN badge TEXT NOT NULL DEFAULT '';
             CREATE INDEX IF NOT EXISTS idx_unlocks_completed ON unlocks(completed_at);
         ",
+        4 => "
+            CREATE TABLE links (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                code        TEXT NOT NULL UNIQUE,
+                title       TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                image       TEXT NOT NULL DEFAULT '',
+                target_url  TEXT NOT NULL,
+                active      INTEGER NOT NULL DEFAULT 1,
+                views       INTEGER NOT NULL DEFAULT 0,
+                created_at  INTEGER NOT NULL
+            );
+            CREATE TABLE unlocks_new (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                token        TEXT NOT NULL UNIQUE,
+                product_id   INTEGER REFERENCES products(id) ON DELETE CASCADE,
+                link_id      INTEGER REFERENCES links(id) ON DELETE CASCADE,
+                network      TEXT NOT NULL DEFAULT '',
+                ip           TEXT NOT NULL DEFAULT '',
+                country      TEXT NOT NULL DEFAULT '',
+                created_at   INTEGER NOT NULL,
+                completed_at INTEGER,
+                offer_id     TEXT NOT NULL DEFAULT '',
+                payout       REAL NOT NULL DEFAULT 0
+            );
+            INSERT INTO unlocks_new (id, token, product_id, network, ip, created_at, completed_at, offer_id, payout)
+                SELECT id, token, product_id, network, ip, created_at, completed_at, offer_id, payout FROM unlocks;
+            DROP TABLE unlocks;
+            ALTER TABLE unlocks_new RENAME TO unlocks;
+            CREATE INDEX idx_unlocks_product ON unlocks(product_id);
+            CREATE INDEX idx_unlocks_link ON unlocks(link_id);
+            CREATE INDEX idx_unlocks_completed ON unlocks(completed_at);
+            CREATE INDEX idx_unlocks_ip ON unlocks(ip, created_at);
+            ALTER TABLE products ADD COLUMN slug TEXT NOT NULL DEFAULT '';
+            ALTER TABLE products ADD COLUMN gallery TEXT NOT NULL DEFAULT '';
+            ALTER TABLE products ADD COLUMN video_url TEXT NOT NULL DEFAULT '';
+            ALTER TABLE products ADD COLUMN file_size TEXT NOT NULL DEFAULT '';
+            ALTER TABLE products ADD COLUMN file_format TEXT NOT NULL DEFAULT '';
+            ALTER TABLE products ADD COLUMN version TEXT NOT NULL DEFAULT '';
+            ALTER TABLE products ADD COLUMN requirements TEXT NOT NULL DEFAULT '';
+            ALTER TABLE products ADD COLUMN publish_at INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE products ADD COLUMN likes INTEGER NOT NULL DEFAULT 0;
+            CREATE TABLE offer_clicks (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                token      TEXT NOT NULL,
+                network    TEXT NOT NULL DEFAULT '',
+                offer_id   TEXT NOT NULL DEFAULT '',
+                offer_name TEXT NOT NULL DEFAULT '',
+                country    TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX idx_clicks_time ON offer_clicks(created_at);
+            CREATE TABLE subscribers (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                email      TEXT NOT NULL UNIQUE,
+                ip         TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL
+            );
+            CREATE TABLE login_attempts (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip         TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+            CREATE TABLE likes (
+                product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                voter      TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                PRIMARY KEY (product_id, voter)
+            );
+        ",
     ];
     foreach ($steps as $to => $sql) {
         if ($version >= $to) {
@@ -143,6 +224,19 @@ function migrate(PDO $pdo): void
         $pdo->exec($sql);
         if ($to === 2) {
             seed_default_pages($pdo);
+        }
+        if ($to === 4) {
+            // Give existing products a web address made from their title.
+            $taken = [];
+            foreach ($pdo->query('SELECT id, title FROM products ORDER BY id')->fetchAll() as $row) {
+                $slug = $base = slugify($row['title']);
+                for ($i = 2; isset($taken[$slug]); $i++) {
+                    $slug = "$base-$i";
+                }
+                $taken[$slug] = true;
+                $pdo->prepare('UPDATE products SET slug = ? WHERE id = ?')->execute([$slug, $row['id']]);
+            }
+            $pdo->exec('CREATE UNIQUE INDEX idx_products_slug ON products(slug)');
         }
         $pdo->exec('PRAGMA user_version = ' . $to);
         $pdo->commit();

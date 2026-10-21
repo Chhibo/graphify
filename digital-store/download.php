@@ -4,13 +4,34 @@ require __DIR__ . '/inc/bootstrap.php';
 require_installed();
 
 $token = (string)($_GET['token'] ?? '');
-$q = db()->prepare('SELECT u.completed_at, p.* FROM unlocks u JOIN products p ON p.id = u.product_id WHERE u.token = ?');
+$q = db()->prepare('SELECT completed_at, product_id, link_id FROM unlocks WHERE token = ?');
 $q->execute([$token]);
-$row = $q->fetch();
+$unlock = $q->fetch();
 
-if (!$row || !$row['completed_at'] || $row['completed_at'] + download_ttl() < time()) {
+if (!$unlock || !$unlock['completed_at'] || $unlock['completed_at'] + download_ttl() < time()) {
     http_response_code(403);
     exit('This download link is not valid or has expired. Go back to the product page to unlock it again.');
+}
+
+// Locked link: send the visitor to the hidden address.
+if ($unlock['link_id']) {
+    $l = db()->prepare('SELECT target_url FROM links WHERE id = ?');
+    $l->execute([$unlock['link_id']]);
+    $target = (string)$l->fetchColumn();
+    if (!preg_match('#^https?://#i', $target)) {
+        http_response_code(404);
+        exit('This link no longer exists.');
+    }
+    header('Location: ' . $target);
+    exit;
+}
+
+$q = db()->prepare('SELECT * FROM products WHERE id = ?');
+$q->execute([$unlock['product_id']]);
+$row = $q->fetch();
+if (!$row) {
+    http_response_code(404);
+    exit('This product no longer exists.');
 }
 
 db()->prepare('UPDATE products SET downloads = downloads + 1 WHERE id = ?')->execute([$row['id']]);

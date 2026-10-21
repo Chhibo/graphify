@@ -6,14 +6,14 @@ require_installed();
 
 header('Content-Type: application/xml; charset=utf-8');
 $urls = [[base_url(), null]];
-foreach (db()->query('SELECT id, created_at FROM products WHERE active = 1 ORDER BY id DESC') as $p) {
-    $urls[] = [base_url('product.php?id=' . $p['id']), (int)$p['created_at']];
+foreach (db()->query('SELECT id, slug, created_at FROM products WHERE active = 1 ORDER BY id DESC') as $p) {
+    $urls[] = [url_product($p), (int)$p['created_at']];
 }
 foreach (db()->query('SELECT slug FROM categories') as $c) {
-    $urls[] = [base_url('category.php?slug=' . rawurlencode($c['slug'])), null];
+    $urls[] = [url_category($c['slug']), null];
 }
 foreach (db()->query('SELECT slug, updated_at FROM pages') as $pg) {
-    $urls[] = [base_url('page.php?slug=' . rawurlencode($pg['slug'])), (int)$pg['updated_at']];
+    $urls[] = [url_page($pg['slug']), (int)$pg['updated_at']];
 }
 $urls[] = [base_url('contact.php'), null];
 

@@ -14,13 +14,18 @@ function admin_header(string $title, string $subtitle = '', string $actions = ''
             'categories.php' => ['Categories', 'folder'],
             'pages.php' => ['Pages', 'file'],
             'messages.php' => ['Messages', 'mail'],
+            'subscribers.php' => ['Subscribers', 'user'],
         ],
         'Money' => [
+            'reports.php' => ['Reports', 'trending'],
+            'links.php' => ['Link locker', 'link'],
             'networks.php' => ['CPA Networks', 'plug'],
             'postbacks.php' => ['Postback log', 'activity'],
         ],
         'Setup' => [
             'appearance.php' => ['Appearance', 'palette'],
+            'growth.php' => ['Alerts, ads & email', 'megaphone'],
+            'import.php' => ['Import products', 'database'],
             'settings.php' => ['Settings', 'sliders'],
         ],
     ];
@@ -90,4 +95,66 @@ function notice(string $text, string $linkUrl = '', string $linkText = '', strin
 {
     $link = $linkUrl !== '' ? '<a href="' . e($linkUrl) . '">' . e($linkText) . ' →</a>' : '';
     return '<div class="notice notice-' . $type . '">' . icon($ico) . ' <span>' . $text . '</span>' . $link . '</div>';
+}
+
+/**
+ * One-series bar chart with a hover tooltip. $series: ['Y-m-d' => number].
+ */
+function bar_chart(array $series, string $unit, string $aria, string $prefix = ''): string
+{
+    static $n = 0;
+    $id = 'chart' . (++$n);
+    $max = max(1, max($series ?: [0]));
+    $mag = 10 ** floor(log10($max));
+    $niceMax = 10 * $mag;
+    foreach ([1, 2, 5, 10] as $m) {
+        if ($m * $mag >= $max) {
+            $niceMax = $m * $mag;
+            break;
+        }
+    }
+    $niceMax = max(4, $niceMax);
+    $W = 700; $H = 220; $L = 40; $B = 26; $T = 8;
+    $plotH = $H - $B - $T;
+    $count = max(1, count($series));
+    $slot = ($W - $L) / $count;
+    $barW = max(2, $slot - max(2, min(8, $slot * .3)));
+    $r = min(4, $barW / 2);
+    $every = max(1, (int)ceil($count / 7));
+    $fmt = fn($v) => $prefix . rtrim(rtrim(number_format($v, $prefix ? 2 : 1), '0'), '.');
+    ob_start(); ?>
+    <div class="chart" id="<?= $id ?>">
+      <svg viewBox="0 0 <?= $W ?> <?= $H ?>" role="img" aria-label="<?= e($aria) ?>">
+        <?php for ($g = 0; $g <= 4; $g++): $y = $T + $plotH - $plotH * $g / 4; ?>
+          <line class="grid-line" x1="<?= $L ?>" x2="<?= $W ?>" y1="<?= $y ?>" y2="<?= $y ?>"/>
+          <text class="axis-label" x="<?= $L - 8 ?>" y="<?= $y + 4 ?>" text-anchor="end"><?= e($fmt($niceMax * $g / 4)) ?></text>
+        <?php endfor; ?>
+        <?php $i = 0; foreach ($series as $d => $v):
+            $x = $L + $i * $slot + ($slot - $barW) / 2;
+            $h = $v > 0 ? max($r + 1, $plotH * $v / $niceMax) : 0;
+            $y = $T + $plotH - $h; ?>
+          <g class="col" data-tip="<?= e(date('D, M j', strtotime($d)) . ': ' . $fmt((float)$v) . ' ' . $unit) ?>" data-x="<?= ($x + $barW / 2) / $W ?>" data-y="<?= $y / $H ?>">
+            <rect class="hit" x="<?= $L + $i * $slot ?>" y="<?= $T ?>" width="<?= $slot ?>" height="<?= $plotH ?>"/>
+            <?php if ($h): ?><path class="bar" d="M<?= $x ?>,<?= $T + $plotH ?> V<?= $y + $r ?> Q<?= $x ?>,<?= $y ?> <?= $x + $r ?>,<?= $y ?> H<?= $x + $barW - $r ?> Q<?= $x + $barW ?>,<?= $y ?> <?= $x + $barW ?>,<?= $y + $r ?> V<?= $T + $plotH ?> Z"/><?php endif; ?>
+            <?php if (($count - 1 - $i) % $every === 0): ?><text class="axis-label" x="<?= $x + $barW / 2 ?>" y="<?= $H - 6 ?>" text-anchor="middle"><?= e(date('M j', strtotime($d))) ?></text><?php endif; ?>
+          </g>
+        <?php $i++; endforeach; ?>
+      </svg>
+      <div class="chart-tip"></div>
+    </div>
+    <script>
+    (function () {
+      var c = document.getElementById('<?= $id ?>'), tip = c.querySelector('.chart-tip');
+      c.querySelectorAll('.col').forEach(function (g) {
+        g.addEventListener('mouseenter', function () {
+          tip.textContent = g.dataset.tip;
+          tip.style.left = (g.dataset.x * 100) + '%';
+          tip.style.top = (g.dataset.y * 100) + '%';
+          tip.classList.add('show');
+        });
+        g.addEventListener('mouseleave', function () { tip.classList.remove('show'); });
+      });
+    })();
+    </script>
+    <?php return (string)ob_get_clean();
 }

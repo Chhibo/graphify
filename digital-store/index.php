@@ -48,7 +48,7 @@ page_header(setting('store_name'), 'home');
     <span class="hero-kicker"><?= icon('gift', 15) ?> <?= e(setting_or('hero_kicker', '100% free downloads')) ?></span>
     <h1><?= e(setting_or('hero_title', setting('store_name'))) ?></h1>
     <p><?= e(setting_or('store_tagline', 'Free digital downloads. Pick one and unlock it in minutes.')) ?></p>
-    <form class="hero-search" action="search.php" method="get" role="search">
+    <form class="hero-search" action="<?= e(base_url('search.php')) ?>" method="get" role="search">
       <?= icon('search', 20) ?>
       <input type="search" name="q" placeholder="What are you looking for?" aria-label="Search downloads">
       <button class="btn">Search</button>
@@ -67,7 +67,7 @@ page_header(setting('store_name'), 'home');
 <?php if ($page === 1 && $chips && setting('show_chips', '1') === '1'): ?>
   <nav class="chips" aria-label="Categories">
     <?php foreach ($chips as $c): ?>
-      <a class="chip" href="category.php?slug=<?= e(rawurlencode($c['slug'])) ?>"><?= icon('folder', 15) ?> <?= e($c['name']) ?> <span><?= (int)$c['items'] ?></span></a>
+      <a class="chip" href="<?= e(url_category($c['slug'])) ?>"><?= icon('folder', 15) ?> <?= e($c['name']) ?> <span><?= (int)$c['items'] ?></span></a>
     <?php endforeach; ?>
   </nav>
 <?php endif; ?>
@@ -93,7 +93,7 @@ page_header(setting('store_name'), 'home');
 
 <?php foreach ($catSections as [$cat, $rows]): ?>
 <section class="home-section">
-  <?= section_head($cat['name'], 'category.php?slug=' . rawurlencode($cat['slug'])) ?>
+  <?= section_head($cat['name'], url_category($cat['slug'])) ?>
   <?= product_grid($rows) ?>
 </section>
 <?php endforeach; ?>

@@ -11,6 +11,33 @@
     });
   }
 
+  // Picture gallery thumbnails.
+  var main = document.getElementById('main-img');
+  document.querySelectorAll('.thumbs button').forEach(function (t) {
+    t.addEventListener('click', function () {
+      if (main) main.src = t.dataset.src;
+      document.querySelectorAll('.thumbs button').forEach(function (o) { o.classList.toggle('active', o === t); });
+    });
+  });
+
+  // Like button.
+  var like = document.getElementById('like-btn');
+  if (like) {
+    like.addEventListener('click', function () {
+      var body = new FormData();
+      body.append('id', like.dataset.id);
+      body.append('csrf', like.dataset.csrf);
+      fetch((window.STORE_BASE || '') + 'api/like.php', { method: 'POST', body: body, credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) return;
+          like.classList.toggle('liked', d.liked);
+          like.setAttribute('aria-pressed', d.liked ? 'true' : 'false');
+          like.querySelector('span').textContent = d.likes;
+        });
+    });
+  }
+
   var btn = document.getElementById('unlock-btn');
   if (!btn) return;
 
@@ -20,7 +47,9 @@
   var statusBox = document.getElementById('locker-status');
   var steps = document.querySelectorAll('#locker-steps li');
   var simulateBtn = document.getElementById('simulate-btn');
-  var productId = btn.getAttribute('data-product');
+  // Either a product or a locked link.
+  var lockQuery = btn.getAttribute('data-link') ? 'link=' + encodeURIComponent(btn.getAttribute('data-link'))
+                                             : 'product=' + encodeURIComponent(btn.getAttribute('data-product'));
   var token = null;
   var pollTimer = null;
   var skeleton = offersBox.innerHTML;
@@ -77,9 +106,24 @@
       if (o.description) text.appendChild(el('span', '', o.description));
       a.appendChild(text);
       a.appendChild(el('span', 'offer-go', 'Start'));
-      a.addEventListener('click', function () { setStep(2); startPolling(); });
+      a.addEventListener('click', function () {
+        setStep(2);
+        startPolling();
+        trackClick(o);
+      });
       offersBox.appendChild(a);
     });
+  }
+
+  // Tell the store which offer was clicked (for the offer reports).
+  function trackClick(o) {
+    if (!token) return;
+    var body = new FormData();
+    body.append('token', token);
+    body.append('offer_id', o.id || '');
+    body.append('offer_name', o.title || '');
+    if (navigator.sendBeacon) navigator.sendBeacon(base + 'api/click.php', body);
+    else fetch(base + 'api/click.php', { method: 'POST', body: body, credentials: 'same-origin', keepalive: true });
   }
 
   function checkStatus() {
@@ -111,7 +155,7 @@
     document.body.classList.add('no-scroll');
     offersBox.innerHTML = skeleton;
     setStep(1);
-    fetch(base + 'api/offers.php?product=' + encodeURIComponent(productId), { credentials: 'same-origin' })
+    fetch(base + 'api/offers.php?' + lockQuery, { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         token = d.token || null;

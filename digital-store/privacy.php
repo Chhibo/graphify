@@ -4,4 +4,4 @@ declare(strict_types=1);
 require __DIR__ . '/inc/bootstrap.php';
 require_installed();
 
-header('Location: ' . base_url('page.php?slug=privacy-policy'), true, 301);
+header('Location: ' . url_page('privacy-policy'), true, 301);

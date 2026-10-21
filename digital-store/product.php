@@ -4,13 +4,19 @@ require __DIR__ . '/inc/bootstrap.php';
 require __DIR__ . '/inc/layout.php';
 require_installed();
 
-$stmt = db()->prepare(product_select() . ' WHERE p.id = ? AND p.active = 1');
-$stmt->execute([(int)($_GET['id'] ?? 0)]);
+// Found by number (product.php?id=12) or by web address (/product/my-product).
+if (isset($_GET['slug'])) {
+    $stmt = db()->prepare(product_select() . ' WHERE p.slug = ? AND (p.active = 1 OR ?)');
+    $stmt->execute([(string)$_GET['slug'], is_admin() ? 1 : 0]);
+} else {
+    $stmt = db()->prepare(product_select() . ' WHERE p.id = ? AND (p.active = 1 OR ?)');
+    $stmt->execute([(int)($_GET['id'] ?? 0), is_admin() ? 1 : 0]);
+}
 $p = $stmt->fetch();
 if (!$p) {
     http_response_code(404);
     page_header('Not found');
-    echo empty_state('This product does not exist. <a href="index.php">Back to the store</a>');
+    echo empty_state('This product does not exist. <a href="' . e(base_url()) . '">Back to the store</a>');
     page_footer();
     exit;
 }
@@ -27,7 +33,14 @@ $related = db()->prepare(product_select() . ' WHERE p.active = 1 AND p.id != ?
 $related->execute([$p['id'], $p['category_id'], $p['category_id']]);
 $related = $related->fetchAll();
 
-$url = base_url('product.php?id=' . (int)$p['id']);
+$url = url_product($p);
+$gallery = array_values(array_filter((array)json_decode($p['gallery'] ?: '[]', true), 'is_string'));
+$images = array_merge($p['image'] ? [$p['image']] : [], $gallery);
+$video = youtube_id($p['video_url']);
+$details = array_filter([
+    'File size' => $p['file_size'], 'Format' => $p['file_format'], 'Version' => $p['version'], 'Works with' => $p['requirements'],
+]);
+$liked = !empty($_SESSION['liked'][$p['id']]);
 $shareText = rawurlencode($p['title'] . ' (free download)');
 $showCount = setting('show_downloads', '1') === '1';
 
@@ -37,23 +50,38 @@ page_header($p['title'], $p['category_slug'] ? 'cat:' . $p['category_slug'] : ''
     'type' => 'product',
 ]);
 ?>
+<?php if (!$p['active']): ?><p class="alert alert-bad"><?= $p['publish_at'] ? 'Scheduled for ' . e(date('M j, Y H:i', (int)$p['publish_at'])) . '.' : 'Hidden.' ?> Only you can see this page.</p><?php endif; ?>
 <nav class="breadcrumb" aria-label="Breadcrumb">
-  <a href="index.php"><?= icon('home', 14) ?> Home</a> <?= icon('chevron-right', 14) ?>
+  <a href="<?= e(base_url()) ?>"><?= icon('home', 14) ?> Home</a> <?= icon('chevron-right', 14) ?>
   <?php if ($p['category_name']): ?>
-    <a href="category.php?slug=<?= e(rawurlencode($p['category_slug'])) ?>"><?= e($p['category_name']) ?></a> <?= icon('chevron-right', 14) ?>
+    <a href="<?= e(url_category($p['category_slug'])) ?>"><?= e($p['category_name']) ?></a> <?= icon('chevron-right', 14) ?>
   <?php endif; ?>
   <span><?= e($p['title']) ?></span>
 </nav>
 
 <article class="product">
   <div class="product-media">
-    <?php if ($p['image']): ?><img src="uploads/<?= e($p['image']) ?>" alt="<?= e($p['title']) ?>">
-    <?php else: ?><div class="thumb-empty big"><?= icon('package', 64) ?></div><?php endif; ?>
-    <?php if ($p['badge'] !== ''): ?><span class="ribbon big"><?= e($p['badge']) ?></span><?php endif; ?>
+    <div class="media-main">
+      <?php if ($images): ?><img id="main-img" src="<?= e(base_url('uploads/' . $images[0])) ?>" alt="<?= e($p['title']) ?>">
+      <?php else: ?><div class="thumb-empty big"><?= icon('package', 64) ?></div><?php endif; ?>
+      <?php if ($p['badge'] !== ''): ?><span class="ribbon big"><?= e($p['badge']) ?></span><?php endif; ?>
+    </div>
+    <?php if (count($images) > 1): ?>
+      <div class="thumbs">
+        <?php foreach ($images as $i => $img): ?>
+          <button type="button" class="<?= $i ? '' : 'active' ?>" data-src="<?= e(base_url('uploads/' . $img)) ?>" aria-label="Picture <?= $i + 1 ?>">
+            <img src="<?= e(base_url('uploads/' . $img)) ?>" alt="" loading="lazy"></button>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+    <?php if ($video !== ''): ?>
+      <div class="video"><iframe src="https://www.youtube-nocookie.com/embed/<?= e($video) ?>" title="Video preview" loading="lazy"
+        allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>
+    <?php endif; ?>
   </div>
   <div class="product-body">
     <?php if ($p['category_name']): ?>
-      <a class="card-cat" href="category.php?slug=<?= e(rawurlencode($p['category_slug'])) ?>"><?= e($p['category_name']) ?></a>
+      <a class="card-cat" href="<?= e(url_category($p['category_slug'])) ?>"><?= e($p['category_name']) ?></a>
     <?php endif; ?>
     <h1><?= e($p['title']) ?></h1>
     <div class="product-meta">
@@ -62,6 +90,11 @@ page_header($p['title'], $p['category_slug'] ? 'cat:' . $p['category_slug'] : ''
       <span><?= icon('clock', 15) ?> Added <?= e(date('M j, Y', (int)$p['created_at'])) ?></span>
     </div>
     <div class="description"><?= render_content($p['description']) ?></div>
+    <?php if ($details): ?>
+      <dl class="details">
+        <?php foreach ($details as $label => $value): ?><div><dt><?= e($label) ?></dt><dd><?= e($value) ?></dd></div><?php endforeach; ?>
+      </dl>
+    <?php endif; ?>
 
     <button class="btn btn-big btn-glow" id="unlock-btn" data-product="<?= (int)$p['id'] ?>"><?= icon('download', 20) ?> <?= e(setting_or('download_button', 'Download for free')) ?></button>
 
@@ -72,6 +105,9 @@ page_header($p['title'], $p['category_slug'] ? 'cat:' . $p['category_slug'] : ''
     </ul>
 
     <div class="share">
+      <button type="button" class="like-btn<?= $liked ? ' liked' : '' ?>" id="like-btn" data-id="<?= (int)$p['id'] ?>" data-csrf="<?= e(csrf_token()) ?>" aria-pressed="<?= $liked ? 'true' : 'false' ?>">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+        <span><?= (int)$p['likes'] ?></span></button>
       <span>Share:</span>
       <a href="https://www.facebook.com/sharer/sharer.php?u=<?= e(rawurlencode($url)) ?>" target="_blank" rel="noopener" aria-label="Share on Facebook"><?= icon('facebook', 16) ?></a>
       <a href="https://twitter.com/intent/tweet?url=<?= e(rawurlencode($url)) ?>&text=<?= e($shareText) ?>" target="_blank" rel="noopener" aria-label="Share on X"><?= icon('x-brand', 16) ?></a>
@@ -82,6 +118,8 @@ page_header($p['title'], $p['category_slug'] ? 'cat:' . $p['category_slug'] : ''
   </div>
 </article>
 
+<?= ad_slot('ad_product') ?>
+
 <?php if ($related): ?>
 <section class="home-section related">
   <?= section_head('You may also like') ?>
@@ -89,32 +127,5 @@ page_header($p['title'], $p['category_slug'] ? 'cat:' . $p['category_slug'] : ''
 </section>
 <?php endif; ?>
 
-<div class="locker" id="locker" hidden>
-  <div class="locker-box" role="dialog" aria-modal="true" aria-labelledby="locker-title">
-    <button class="locker-close" id="locker-close" aria-label="Close"><?= icon('x', 20) ?></button>
-    <div class="locker-head">
-      <?php if ($p['image']): ?><img src="uploads/<?= e($p['image']) ?>" alt=""><?php endif; ?>
-      <div>
-        <span class="locker-product"><?= e($p['title']) ?></span>
-        <h2 id="locker-title"><?= e(setting_or('locker_title', 'Complete one offer to unlock your free download')) ?></h2>
-      </div>
-    </div>
-    <ol class="locker-steps" id="locker-steps">
-      <li class="active" data-step="1"><span>1</span> Pick an offer</li>
-      <li data-step="2"><span>2</span> Complete it</li>
-      <li data-step="3"><span>3</span> Download</li>
-    </ol>
-    <div id="locker-offers" class="offers"><div class="offer-skeleton"></div><div class="offer-skeleton"></div><div class="offer-skeleton"></div></div>
-    <p class="locker-status" id="locker-status" hidden>
-      <span class="spinner"></span> Waiting for the offer to be confirmed. This can take a few minutes. Keep this page open.
-    </p>
-    <p class="locker-note"><?= icon('shield', 14) ?> Offers are provided by our advertising partners. Read each offer's terms before you start.</p>
-    <?php if (is_admin()): ?>
-      <p class="admin-test">Admin only: <button class="btn btn-small" id="simulate-btn" data-csrf="<?= e(csrf_token()) ?>">Simulate completed offer</button></p>
-    <?php endif; ?>
-  </div>
-</div>
-
-<script>window.STORE_BASE = <?= json_encode(base_url()) ?>;</script>
-<script src="assets/locker.js?v=3"></script>
+<?= locker_modal($p['title'], $p['image'] ? base_url('uploads/' . $p['image']) : '') ?>
 <?php page_footer();
