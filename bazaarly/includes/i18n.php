@@ -249,6 +249,7 @@ const I18N_EXTRA = [
     'Active', 'Pending', 'Rejected', 'Sold', 'Expired', 'Banned', 'Open', 'Resolved', 'Approved', 'Accepted', 'Declined', 'Countered', 'Withdrawn',
     '{n} year ago', '{n} years ago', '{n} month ago', '{n} months ago', '{n} week ago', '{n} weeks ago',
     '{n} day ago', '{n} days ago', '{n} hour ago', '{n} hours ago', '{n} minute ago', '{n} minutes ago',
+    'Newest first', 'Oldest first', 'Price: low to high', 'Price: high to low', 'Most viewed',
     'Scam or fraud', 'Wrong category', 'Prohibited item', 'Duplicate ad', 'Offensive content', 'Item already sold', 'Other',
     'Passport', 'National ID card', 'Driving licence', 'Business registration',
     'Fixed price', 'Negotiable', 'Free', 'Ask for price', 'Not applicable', 'New', 'Like new', 'Used', 'Refurbished',

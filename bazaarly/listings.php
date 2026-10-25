@@ -179,7 +179,7 @@ $qs = function (array $changes) use ($query, $sort, $view): string {
             <?php endforeach; ?>
             <select name="sort" aria-label="<?= t('Sort by') ?>" data-autosubmit>
               <?php foreach (['newest' => 'Newest first', 'oldest' => 'Oldest first', 'price_asc' => 'Price: low to high', 'price_desc' => 'Price: high to low', 'popular' => 'Most viewed'] as $k => $lbl): ?>
-                <option value="<?= $k ?>" <?= $sort === $k ? 'selected' : '' ?>><?= e($lbl) ?></option>
+                <option value="<?= $k ?>" <?= $sort === $k ? 'selected' : '' ?>><?= t($lbl) ?></option>
               <?php endforeach; ?>
             </select>
           </form>
