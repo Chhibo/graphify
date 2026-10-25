@@ -37,6 +37,7 @@ $adminNav = [
         'activity' => ['admin/activity.php', 'activity', 'Activity log'],
         'backup' => ['admin/backup.php', 'database', 'Backup'],
         'security' => ['admin/security.php', 'lock', 'My security (2FA)'],
+        'license' => ['admin/license.php', 'key', 'Purchase code'],
     ],
 ];
 $brand = valid_color(setting('primary_color'), '#0d9488');
@@ -89,4 +90,5 @@ $brand = valid_color(setting('primary_color'), '#0d9488');
       </div>
     </header>
     <div class="admin-content">
+      <?php if (($adminActive ?? '') !== 'license' && ($_licenseProblem = license_problem()) !== ''): ?><div class="alert alert-warning"><?= icon('key') ?><span><?= e($_licenseProblem) ?> <a href="<?= e(url('admin/license.php')) ?>">Open purchase code settings</a></span></div><?php endif; ?>
       <?= render_flashes() ?>

@@ -37,6 +37,23 @@ No frameworks, no Composer, no Node — upload it and run the installer.
 - Settings: branding, colours, texts, currency, approval, expiry, photo limits, ads per day, reviews, maps, phone privacy,
   sign-up & email verification, Google/Facebook login, captcha, banned words, clean URLs, PWA, ad spaces, cron, maintenance mode
 
+## Purchase code protection (1.3)
+
+The installer asks for a purchase code (`BZR-XXXX-XXXX-XXXX-XXXX`) before it creates anything.
+
+- `includes/license-data.php` contains only one-way fingerprints of the valid codes — the real codes cannot be read from
+  the script. You keep the real codes (the CSV file) private.
+- **One code = one website**: set your license server address in `includes/license.php`
+  (`const LICENSE_SERVER = 'https://yoursite.com/licenses/api.php';`). The installer registers the domain there and a
+  second website using the same code is refused. Without a server address, only the offline code check is done.
+- Test installs on `localhost`, `*.test` and `*.local` don't use up a code.
+- If the license server can't be reached, the install still works and the domain is registered later automatically.
+- Installed sites re-check their code about once a week. A blocked code shows a warning in the admin panel only —
+  the public website is never switched off.
+- Site owners can enter or change the code in **Admin → Purchase code** (e.g. after moving to a new domain).
+
+The license server is a separate small app (`bazaarly-license-server/`) with its own README.
+
 ## What's new in 1.2
 
 | Feature | Where to turn it on / find it |

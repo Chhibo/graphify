@@ -623,6 +623,7 @@ function run_cron(): array
     $log[] = 'Saved-search alerts sent: ' . run_saved_search_alerts();
     $log[] = 'Expiry reminders sent: ' . run_expiry_reminders();
     $log[] = 'Queued emails sent: ' . process_mail_queue(200);
+    $log[] = 'Purchase code: ' . license_recheck();
     if (setting('duplicate_detection', 'flag') !== 'off') {
         $log[] = 'Photo fingerprints added: ' . backfill_phashes();
     }

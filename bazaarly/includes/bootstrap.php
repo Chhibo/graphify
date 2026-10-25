@@ -5,7 +5,7 @@
 declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.2.0');
+define('APP_VERSION', '1.3.0');
 
 require APP_ROOT . '/includes/functions.php';
 require APP_ROOT . '/includes/icons.php';
@@ -14,6 +14,7 @@ require APP_ROOT . '/includes/features.php';
 require APP_ROOT . '/includes/htaccess.php';
 require APP_ROOT . '/includes/i18n.php';
 require APP_ROOT . '/includes/extras.php';
+require APP_ROOT . '/includes/license.php';
 
 $configFile = APP_ROOT . '/config.php';
 $GLOBALS['config'] = is_file($configFile) ? require $configFile : null;

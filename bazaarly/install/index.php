@@ -6,7 +6,7 @@
 declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.2.0');
+define('APP_VERSION', '1.3.0');
 
 if (PHP_VERSION_ID < 80100) {
     http_response_code(500);
@@ -20,6 +20,7 @@ require APP_ROOT . '/includes/features.php';
 require APP_ROOT . '/includes/htaccess.php';
 require APP_ROOT . '/includes/i18n.php';
 require APP_ROOT . '/includes/extras.php';
+require APP_ROOT . '/includes/license.php';
 require APP_ROOT . '/includes/schema.php';
 require APP_ROOT . '/includes/demo.php';
 
@@ -64,7 +65,9 @@ $in = [
     'db_host' => 'localhost', 'db_port' => '3306', 'db_name' => '', 'db_user' => '', 'db_pass' => '',
     'site_name' => 'Bazaarly', 'currency_symbol' => '$',
     'admin_name' => '', 'admin_username' => 'admin', 'admin_email' => '', 'demo' => '1',
+    'purchase_code' => '',
 ];
+$license = null;
 
 if (!$installed && $_SERVER['REQUEST_METHOD'] === 'POST' && $canInstall) {
     foreach ($in as $k => $_) {
@@ -74,6 +77,15 @@ if (!$installed && $_SERVER['REQUEST_METHOD'] === 'POST' && $canInstall) {
     $pw = (string) ($_POST['admin_password'] ?? '');
     $in['admin_email'] = strtolower($in['admin_email']);
 
+    // purchase code first: nothing is created until it is accepted
+    if ($in['purchase_code'] === '') {
+        $errors[] = 'Enter your purchase code.';
+    } else {
+        $license = license_activate($in['purchase_code']);
+        if (!$license['ok']) {
+            $errors[] = $license['error'];
+        }
+    }
     if (!in_array($in['db_driver'], ['sqlite', 'mysql'], true)) $errors[] = 'Choose a database type.';
     if ($in['db_driver'] === 'sqlite' && !extension_loaded('pdo_sqlite')) $errors[] = 'SQLite is not available on this server. Choose MySQL.';
     if ($in['db_driver'] === 'mysql' && !extension_loaded('pdo_mysql')) $errors[] = 'MySQL support (pdo_mysql) is not available on this server.';
@@ -120,6 +132,7 @@ if (!$installed && $_SERVER['REQUEST_METHOD'] === 'POST' && $canInstall) {
                 $pdo->exec($sql);
             }
             seed_languages();
+            license_store($in['purchase_code'], $license);
             save_settings([
                 'site_name' => $in['site_name'],
                 'currency_symbol' => $in['currency_symbol'] ?: '$',
@@ -223,7 +236,12 @@ $step = $done ? 3 : (($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['setu
       <h1>Set up your website</h1>
       <?php foreach ($errors as $er): ?><div class="alert alert-error"><?= icon('alert') ?><span><?= e($er) ?></span></div><?php endforeach; ?>
 
-      <h2 class="h-sm">1. Database</h2>
+      <h2 class="h-sm">1. Purchase code</h2>
+      <div class="field"><label for="purchase_code">Your purchase code</label>
+        <input id="purchase_code" name="purchase_code" value="<?= e($in['purchase_code']) ?>" placeholder="BZR-XXXX-XXXX-XXXX-XXXX" required autocomplete="off" spellcheck="false" class="mono" maxlength="40">
+        <small class="help">You received it with your purchase. Each code can be used on one website (test installs on localhost are free).</small></div>
+
+      <h2 class="h-sm">2. Database</h2>
       <div class="db-choice">
         <label class="choice-card"><input type="radio" name="db_driver" value="sqlite" <?= $in['db_driver'] === 'sqlite' ? 'checked' : '' ?> <?= extension_loaded('pdo_sqlite') ? '' : 'disabled' ?> data-db-choice>
           <span><strong><?= icon('zap') ?>Easy (SQLite)</strong><small>Recommended for beginners. Nothing to configure — the database is a file inside the <code>data</code> folder.</small></span></label>
@@ -240,13 +258,13 @@ $step = $done ? 3 : (($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['setu
         <div class="field"><label for="db_pass">Database password</label><input id="db_pass" type="password" name="db_pass" value="<?= e($in['db_pass']) ?>"></div>
       </div>
 
-      <h2 class="h-sm">2. Your website</h2>
+      <h2 class="h-sm">3. Your website</h2>
       <div class="form-grid">
         <div class="field"><label for="site_name">Website name</label><input id="site_name" name="site_name" value="<?= e($in['site_name']) ?>" required></div>
         <div class="field"><label for="currency_symbol">Currency symbol</label><input id="currency_symbol" name="currency_symbol" value="<?= e($in['currency_symbol']) ?>" maxlength="5"><small class="help">e.g. $, €, £, ৳, ₹, AED</small></div>
       </div>
 
-      <h2 class="h-sm">3. Administrator account</h2>
+      <h2 class="h-sm">4. Administrator account</h2>
       <div class="form-grid">
         <div class="field"><label for="admin_name">Your name</label><input id="admin_name" name="admin_name" value="<?= e($in['admin_name']) ?>" required></div>
         <div class="field"><label for="admin_username">Username</label><input id="admin_username" name="admin_username" value="<?= e($in['admin_username']) ?>" required></div>
