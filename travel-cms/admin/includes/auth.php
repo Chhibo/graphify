@@ -2,6 +2,7 @@
 /**
  * Loaded by every admin page: boots the app and enforces login.
  */
+define('ADMIN_AREA', true);
 require dirname(__DIR__, 2) . '/includes/bootstrap.php';
 require __DIR__ . '/layout.php';
 
@@ -24,9 +25,9 @@ function admin_roles(): array
 {
     return [
         'admin' => ['Administrator', 'Full access, including settings and staff accounts.', ['*']],
-        'manager' => ['Manager', 'Bookings, trips, destinations, blog, pages, reviews, messages and subscribers. No settings or staff accounts.',
-            ['dashboard', 'bookings', 'bookings_delete', 'content', 'reviews', 'messages', 'subscribers']],
-        'agent' => ['Booking Agent', 'Bookings, calendar and contact messages only. Cannot delete bookings.',
+        'manager' => ['Manager', 'Bookings, trip requests, trips, destinations, FAQs, blog, pages, reviews, messages, subscribers and reports. No settings, languages, templates, backups or staff accounts.',
+            ['dashboard', 'bookings', 'bookings_delete', 'content', 'reviews', 'messages', 'subscribers', 'reports']],
+        'agent' => ['Booking Agent', 'Bookings, trip requests, calendar and contact messages only. Cannot delete bookings.',
             ['dashboard', 'bookings', 'messages']],
     ];
 }

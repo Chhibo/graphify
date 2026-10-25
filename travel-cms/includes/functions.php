@@ -104,8 +104,21 @@ function settings_all(bool $refresh = false): array
 
 function setting(string $key, $default = '')
 {
+    // Texts translated in Settings (per language) win over the default-language value.
     $all = settings_all();
-    return (isset($all[$key]) && $all[$key] !== '') ? $all[$key] : $default;
+    $value = (isset($all[$key]) && $all[$key] !== '') ? $all[$key] : $default;
+    if (function_exists('current_lang') && !defined('ADMIN_AREA')) {
+        $lang = current_lang();
+        if ($lang !== default_lang()) {
+            $tr = setting_translations($lang);
+            if (isset($tr[$key])) {
+                return $tr[$key];
+            }
+            // Untranslated default texts still get the built-in translation of the language pack.
+            return is_string($value) && $value !== '' ? __($value, $lang) : $value;
+        }
+    }
+    return $value;
 }
 
 function save_setting(string $key, $value): void
@@ -168,29 +181,36 @@ function money($amount): string
     return setting('currency_position', 'before') === 'after' ? $formatted . ' ' . $symbol : $symbol . $formatted;
 }
 
-function format_date(?string $date, string $format = ''): string
+function format_date(?string $date, string $format = '', ?string $lang = null): string
 {
     if (!$date) {
         return '';
     }
     $ts = strtotime($date);
-    return $ts ? date($format ?: setting('date_format', 'M j, Y'), $ts) : '';
+    if (!$ts) {
+        return '';
+    }
+    $format = $format ?: setting('date_format', 'M j, Y');
+    return function_exists('localized_date') ? localized_date($ts, $format, $lang) : date($format, $ts);
 }
 
 function time_ago(string $datetime): string
 {
     $diff = time() - strtotime($datetime);
     if ($diff < 60) {
-        return 'just now';
+        return __('just now');
     }
-    $units = [31536000 => 'year', 2592000 => 'month', 604800 => 'week', 86400 => 'day', 3600 => 'hour', 60 => 'minute'];
-    foreach ($units as $secs => $label) {
+    $units = [
+        31536000 => ['%d year ago', '%d years ago'], 2592000 => ['%d month ago', '%d months ago'], 604800 => ['%d week ago', '%d weeks ago'],
+        86400 => ['%d day ago', '%d days ago'], 3600 => ['%d hour ago', '%d hours ago'], 60 => ['%d minute ago', '%d minutes ago'],
+    ];
+    foreach ($units as $secs => [$one, $many]) {
         if ($diff >= $secs) {
             $n = (int) floor($diff / $secs);
-            return $n . ' ' . $label . ($n > 1 ? 's' : '') . ' ago';
+            return sprintf(__($n === 1 ? $one : $many), $n);
         }
     }
-    return 'just now';
+    return __('just now');
 }
 
 function excerpt(?string $text, int $length = 160): string
@@ -319,11 +339,11 @@ function client_ip(): string
 function spam_check(string $form, int $seconds = 15): ?string
 {
     if (!empty($_POST['website'])) {
-        return 'Your submission could not be processed.';
+        return __('Your submission could not be processed.');
     }
     $key = '_throttle_' . $form;
     if (!empty($_SESSION[$key]) && (time() - $_SESSION[$key]) < $seconds) {
-        return 'Please wait a few seconds before submitting again.';
+        return __('Please wait a few seconds before submitting again.');
     }
     $_SESSION[$key] = time();
     return null;
@@ -422,19 +442,36 @@ function delete_upload(?string $value): void
  * Domain helpers
  * ---------------------------------------------------------------------- */
 
-function booking_statuses(): array
+function trip_request_statuses(): array
 {
     return [
-        'pending' => ['Pending', 'bg-amber-100 text-amber-700'],
-        'confirmed' => ['Confirmed', 'bg-emerald-100 text-emerald-700'],
-        'completed' => ['Completed', 'bg-sky-100 text-sky-700'],
-        'cancelled' => ['Cancelled', 'bg-rose-100 text-rose-700'],
+        'new' => ['New', 'bg-accent-100 text-accent-600'],
+        'contacted' => ['In progress', 'bg-sky-100 text-sky-700'],
+        'quoted' => ['Proposal sent', 'bg-violet-100 text-violet-700'],
+        'booked' => ['Booked', 'bg-emerald-100 text-emerald-700'],
+        'closed' => ['Closed', 'bg-slate-200 text-slate-600'],
     ];
 }
 
-function status_badge(string $status): string
+function request_status_badge(string $status): string
 {
-    $map = booking_statuses();
+    [$label, $cls] = trip_request_statuses()[$status] ?? [ucfirst($status), 'bg-slate-100 text-slate-700'];
+    return '<span class="inline-block px-2.5 py-1 rounded-lg text-xs font-bold ' . $cls . '">' . e($label) . '</span>';
+}
+
+function booking_statuses(?string $lang = null): array
+{
+    return [
+        'pending' => [__('Pending', $lang), 'bg-amber-100 text-amber-700'],
+        'confirmed' => [__('Confirmed', $lang), 'bg-emerald-100 text-emerald-700'],
+        'completed' => [__('Completed', $lang), 'bg-sky-100 text-sky-700'],
+        'cancelled' => [__('Cancelled', $lang), 'bg-rose-100 text-rose-700'],
+    ];
+}
+
+function status_badge(string $status, ?string $lang = null): string
+{
+    $map = booking_statuses($lang);
     [$label, $cls] = $map[$status] ?? [ucfirst($status), 'bg-slate-100 text-slate-700'];
     return '<span class="inline-block px-2.5 py-1 rounded-lg text-xs font-bold ' . $cls . '">' . e($label) . '</span>';
 }
@@ -450,21 +487,28 @@ function generate_booking_reference(): string
 
 function voucher_url(array $booking): string
 {
-    return url('voucher.php?ref=' . urlencode($booking['reference']) . '&t=' . urlencode($booking['access_token']));
+    return url('voucher.php?ref=' . urlencode($booking['reference']) . '&t=' . urlencode($booking['access_token']) . booking_lang_param($booking));
+}
+
+/** "&lang=xx" so links sent to a guest open in the language they booked in. */
+function booking_lang_param(array $booking): string
+{
+    $lang = (string) ($booking['lang'] ?? '');
+    return ($lang !== '' && function_exists('default_lang') && $lang !== default_lang() && isset(languages()[$lang])) ? '&lang=' . urlencode($lang) : '';
 }
 
 function categories(): array
 {
     static $cats = null;
     if ($cats === null) {
-        $cats = db_all('SELECT * FROM ' . tbl('categories') . ' ORDER BY sort_order, name');
+        $cats = localize_rows(db_all('SELECT * FROM ' . tbl('categories') . ' ORDER BY sort_order, name'), 'category');
     }
     return $cats;
 }
 
 function bookable_tours(): array
 {
-    return db_all('SELECT id, type, title, price, child_price, infant_price, allow_children, allow_infants, hide_price, max_guests FROM ' . tbl('tours') . " WHERE status = 'active' ORDER BY type DESC, sort_order, title");
+    return localize_rows(db_all('SELECT id, type, title, price, child_price, infant_price, allow_children, allow_infants, hide_price, max_guests FROM ' . tbl('tours') . " WHERE status = 'active' ORDER BY type DESC, sort_order, title"), 'tour');
 }
 
 /* ---------------- Prices ---------------- */
@@ -489,7 +533,7 @@ function tour_prices(array $tour): array
 /** Price shown for a trip/activity: the adult price, or "Price on request" when hidden. */
 function tour_price(array $tour): string
 {
-    return prices_hidden($tour) ? setting('price_hidden_text', 'Price on request') : money($tour['price']);
+    return prices_hidden($tour) ? setting('price_hidden_text', __('Price on request')) : money($tour['price']);
 }
 
 /** Price fields and total for a booking of $tour. */
@@ -509,36 +553,36 @@ function booking_quote(array $tour, int $adults, int $children, int $infants): a
 }
 
 /** Amount of a booking: the total, or "To be confirmed" when the price is on request. */
-function booking_total(array $booking): string
+function booking_total(array $booking, ?string $lang = null): string
 {
-    return !empty($booking['price_on_request']) ? 'To be confirmed' : money($booking['total']);
+    return !empty($booking['price_on_request']) ? __('To be confirmed', $lang) : money($booking['total']);
 }
 
 /** "2 adults, 1 child, 1 infant" */
-function guests_summary(array $b): string
+function guests_summary(array $b, ?string $lang = null): string
 {
     $parts = [];
-    foreach (['adults' => ['adult', 'adults'], 'children' => ['child', 'children'], 'infants' => ['infant', 'infants']] as $key => [$one, $many]) {
+    foreach (['adults' => ['%d adult', '%d adults'], 'children' => ['%d child', '%d children'], 'infants' => ['%d infant', '%d infants']] as $key => [$one, $many]) {
         $n = (int) ($b[$key] ?? 0);
         if ($n > 0) {
-            $parts[] = $n . ' ' . ($n === 1 ? $one : $many);
+            $parts[] = sprintf(__($n === 1 ? $one : $many, $lang), $n);
         }
     }
-    return $parts ? implode(', ', $parts) : (int) ($b['guests'] ?? 0) . ' guests';
+    return $parts ? implode(__(', ', $lang), $parts) : sprintf(__('%d guests', $lang), (int) ($b['guests'] ?? 0));
 }
 
 /** Price lines of a booking, e.g. [["2 adults × $100", "$200"], ...]. Empty when on request. */
-function booking_lines(array $b): array
+function booking_lines(array $b, ?string $lang = null): array
 {
     if (!empty($b['price_on_request'])) {
         return [];
     }
     $lines = [];
-    foreach (['adults' => ['unit_price', 'adult', 'adults'], 'children' => ['child_price', 'child', 'children'], 'infants' => ['infant_price', 'infant', 'infants']] as $key => [$priceKey, $one, $many]) {
+    foreach (['adults' => ['unit_price', '%d adult', '%d adults'], 'children' => ['child_price', '%d child', '%d children'], 'infants' => ['infant_price', '%d infant', '%d infants']] as $key => [$priceKey, $one, $many]) {
         $n = (int) ($b[$key] ?? 0);
         if ($n > 0) {
             $price = (float) $b[$priceKey];
-            $lines[] = [$n . ' ' . ($n === 1 ? $one : $many) . ' × ' . money($price), $price > 0 ? money($n * $price) : 'Free'];
+            $lines[] = [sprintf(__($n === 1 ? $one : $many, $lang), $n) . ' × ' . money($price), $price > 0 ? money($n * $price) : __('Free', $lang)];
         }
     }
     return $lines;
@@ -548,7 +592,7 @@ function booking_lines(array $b): array
 
 function destinations(bool $featuredOnly = false): array
 {
-    return db_all('SELECT d.*, (SELECT COUNT(*) FROM ' . tbl('tours') . " t WHERE t.destination_id = d.id AND t.status = 'active') AS tours_count FROM " . tbl('destinations') . " d WHERE d.status = 'active'" . ($featuredOnly ? ' AND d.is_featured = 1' : '') . ' ORDER BY d.sort_order, d.name');
+    return localize_rows(db_all('SELECT d.*, (SELECT COUNT(*) FROM ' . tbl('tours') . " t WHERE t.destination_id = d.id AND t.status = 'active') AS tours_count FROM " . tbl('destinations') . " d WHERE d.status = 'active'" . ($featuredOnly ? ' AND d.is_featured = 1' : '') . ' ORDER BY d.sort_order, d.name'), 'destination');
 }
 
 /* ---------------- Wishlist (stored in a cookie, no account needed) ---------------- */
@@ -579,7 +623,7 @@ function valid_unsubscribe_token(string $email, string $token): bool
 }
 
 /** Add a subscriber. Returns 'new', 'reactivated' or 'exists'. */
-function subscribe_email(string $email, string $name = '', string $source = 'footer'): string
+function subscribe_email(string $email, string $name = '', string $source = 'footer', string $lang = ''): string
 {
     $email = strtolower(trim($email));
     $row = db_one('SELECT id, status FROM ' . tbl('subscribers') . ' WHERE email = ?', [$email]);
@@ -590,7 +634,7 @@ function subscribe_email(string $email, string $name = '', string $source = 'foo
         }
         return 'exists';
     }
-    db_insert('subscribers', ['email' => $email, 'name' => mb_substr($name, 0, 150), 'status' => 'active', 'source' => $source, 'ip_address' => client_ip(), 'created_at' => now()]);
+    db_insert('subscribers', ['email' => $email, 'name' => mb_substr($name, 0, 150), 'status' => 'active', 'source' => $source, 'lang' => $lang, 'ip_address' => client_ip(), 'created_at' => now()]);
     return 'new';
 }
 
@@ -627,6 +671,21 @@ function run_migrations(): void
         // Bookings made before adult/child pricing: every guest was an adult.
         db_exec('UPDATE ' . tbl('bookings') . ' SET adults = guests WHERE children = 0 AND infants = 0');
     }
+    if ($current < 4 && !setting('languages')) {
+        // Multi-language: English as default; Arabic (right-to-left) ready to enable in Admin > Languages.
+        save_setting('languages', json_encode([
+            ['code' => 'en', 'name' => 'English', 'dir' => 'ltr', 'enabled' => true],
+            ['code' => 'ar', 'name' => 'العربية', 'dir' => 'rtl', 'enabled' => false],
+        ], JSON_UNESCAPED_UNICODE));
+        save_setting('default_language', 'en');
+    }
+    if ($current < 4) {
+        // The newsletter welcome text moved to Message Templates.
+        $welcome = trim((string) setting('newsletter_welcome_text'));
+        if ($welcome !== '' && !setting('tpl_email_newsletter_welcome_body')) {
+            save_setting('tpl_email_newsletter_welcome_body', $welcome . "\n\n{unsubscribe_link}");
+        }
+    }
     save_setting('db_version', (string) SCHEMA_VERSION);
     settings_all(true);
 }
@@ -641,7 +700,7 @@ function stars(int $rating): string
  * Email
  * ---------------------------------------------------------------------- */
 
-function send_mail(string $to, string $subject, string $bodyHtml): bool
+function send_mail(string $to, string $subject, string $bodyHtml, ?string $lang = null): bool
 {
     if (!setting('mail_enabled', '1') || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
         return false;
@@ -654,7 +713,8 @@ function send_mail(string $to, string $subject, string $bodyHtml): bool
         'From: ' . mb_encode_mimeheader($fromName) . ' <' . $fromEmail . '>',
         'Reply-To: ' . setting('contact_email', $fromEmail),
     ];
-    $html = '<div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto;color:#1e293b">'
+    $dir = function_exists('lang_dir') ? lang_dir($lang ?: default_lang()) : 'ltr';
+    $html = '<div dir="' . $dir . '" style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:auto;color:#1e293b;text-align:' . ($dir === 'rtl' ? 'right' : 'left') . '">'
         . '<div style="background:#0d9488;color:#fff;padding:20px 24px;border-radius:12px 12px 0 0;font-size:20px;font-weight:bold">' . e($fromName) . '</div>'
         . '<div style="border:1px solid #e2e8f0;border-top:0;padding:24px;border-radius:0 0 12px 12px;font-size:14px;line-height:1.6">' . $bodyHtml . '</div></div>';
     if (setting('smtp_host')) {
@@ -731,24 +791,51 @@ function smtp_send(string $to, string $subject, string $html, string $fromEmail,
     return $ok;
 }
 
-function booking_email_table(array $b): string
+function booking_email_table(array $b, ?string $lang = null): string
 {
+    $lang = $lang ?: ($b['lang'] ?? '') ?: default_lang();
+    $tour = !empty($b['tour_id']) ? localize_row(db_one('SELECT id, title FROM ' . tbl('tours') . ' WHERE id = ?', [$b['tour_id']]), 'tour', $lang) : null;
     $rows = [
-        'Reference' => $b['reference'],
-        'Experience' => $b['tour_title'],
-        'Travel date' => format_date($b['travel_date']),
-        'Guests' => guests_summary($b),
+        __('Reference', $lang) => $b['reference'],
+        __('Experience', $lang) => $tour['title'] ?? $b['tour_title'],
+        __('Travel date', $lang) => format_date($b['travel_date'], '', $lang),
+        __('Guests', $lang) => guests_summary($b, $lang),
     ];
-    foreach (booking_lines($b) as [$label, $amount]) {
+    foreach (booking_lines($b, $lang) as [$label, $amount]) {
         $rows[$label] = $amount;
     }
     $rows += [
-        'Amount due on arrival' => booking_total($b),
-        'Status' => ucfirst($b['status']),
+        __('Amount due on arrival', $lang) => booking_total($b, $lang),
+        __('Status', $lang) => booking_statuses($lang)[$b['status']][0] ?? $b['status'],
     ];
-    $html = '<table style="width:100%;border-collapse:collapse;margin:16px 0">';
-    foreach ($rows as $k => $v) {
-        $html .= '<tr><td style="padding:8px;border-bottom:1px solid #f1f5f9;color:#64748b">' . e($k) . '</td><td style="padding:8px;border-bottom:1px solid #f1f5f9;font-weight:bold">' . e($v) . '</td></tr>';
+    return email_table($rows);
+}
+
+/** A guest can review a booking once the trip took place (completed, or confirmed with a past date). */
+function booking_can_review(array $b): bool
+{
+    if (setting('booking_reviews', '1') !== '1') {
+        return false;
     }
-    return $html . '</table>';
+    return $b['status'] === 'completed' || ($b['status'] === 'confirmed' && strtotime($b['travel_date']) < strtotime('today'));
+}
+
+/**
+ * Keep a trip's rating and review count in sync with its approved reviews
+ * (only when "Calculate trip ratings from reviews" is on in Settings).
+ */
+function recalc_tour_rating(int $tourId): void
+{
+    if (setting('auto_tour_rating', '0') !== '1' || !$tourId) {
+        return;
+    }
+    $stats = db_one('SELECT COUNT(*) AS n, AVG(rating) AS avg FROM ' . tbl('reviews') . " WHERE tour_id = ? AND status = 'approved'", [$tourId]);
+    if ((int) $stats['n'] > 0) {
+        db_exec('UPDATE ' . tbl('tours') . ' SET rating = ?, reviews_count = ? WHERE id = ?', [round((float) $stats['avg'], 1), (int) $stats['n'], $tourId]);
+    }
+}
+
+function review_url(array $booking): string
+{
+    return url('review-booking.php?ref=' . urlencode($booking['reference']) . '&t=' . urlencode($booking['access_token']) . booking_lang_param($booking));
 }

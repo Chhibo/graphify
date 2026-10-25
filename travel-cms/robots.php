@@ -9,7 +9,7 @@ if (setting('search_engines', '1') === '0') {
 }
 $base = rtrim((string) parse_url(base_url(), PHP_URL_PATH), '/');
 echo "User-agent: *\n";
-foreach (['/admin/', '/install/', '/includes/', '/book.php', '/voucher.php', '/my-booking.php', '/wishlist.php', '/subscribe.php', '/unsubscribe.php'] as $path) {
+foreach (['/admin/', '/install/', '/includes/', '/book.php', '/voucher.php', '/my-booking.php', '/wishlist.php', '/subscribe.php', '/unsubscribe.php', '/review-booking.php', '/review.php'] as $path) {
     echo 'Disallow: ' . $base . $path . "\n";
 }
 echo "\nSitemap: " . url('sitemap.php') . "\n";

@@ -1,5 +1,25 @@
 /* WanderLuxe Travel CMS - front-end interactions */
+function t(key) {
+    return (window.TCMS && window.TCMS.i18n && window.TCMS.i18n[key]) || key;
+}
+
 (function () {
+    /* ---------- Dark / light mode ---------- */
+    document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var dark = !document.documentElement.classList.contains('dark');
+            document.documentElement.classList.toggle('dark', dark);
+            try { localStorage.setItem('tcms_theme', dark ? 'dark' : 'light'); } catch (e) {}
+        });
+    });
+
+    // Close the language menu when clicking elsewhere
+    document.addEventListener('click', function (e) {
+        document.querySelectorAll('details.lang-menu[open]').forEach(function (d) {
+            if (!d.contains(e.target)) d.removeAttribute('open');
+        });
+    });
+
     var header = document.getElementById('mainHeader');
     function onScroll() {
         if (!header) return;
@@ -65,14 +85,14 @@
         var count = num(fields.adults) + num(fields.children) + num(fields.infants);
         var err = document.getElementById('bookGuestsError');
         if (err) {
-            err.textContent = count > max ? 'Maximum ' + max + ' guests per booking for this experience.' : '';
+            err.textContent = count > max ? t('maxGuests').replace('%d', max) : '';
             err.classList.toggle('hidden', count <= max);
         }
         var hidden = opt.getAttribute('data-price') === '';
         var prices = { adult: parseFloat(opt.getAttribute('data-price') || '0'), child: parseFloat(opt.getAttribute('data-child') || '0'), infant: parseFloat(opt.getAttribute('data-infant') || '0') };
         document.querySelectorAll('[data-price-label]').forEach(function (el) {
             var p = prices[el.getAttribute('data-price-label')];
-            el.textContent = hidden ? '' : (p > 0 ? fmt(p) + ' each' : 'Free');
+            el.textContent = hidden ? '' : (p > 0 ? fmt(p) + ' ' + t('each') : t('free'));
         });
         if (hidden) {
             estimate.textContent = estimate.getAttribute('data-hidden-text');
@@ -150,9 +170,9 @@
             b.classList.toggle('text-rose-500', on);
             b.classList.toggle('text-slate-400', !on);
             var label = b.querySelector('[data-wishlist-label]');
-            if (label) label.textContent = on ? 'Saved' : 'Save';
+            if (label) label.textContent = on ? t('saved') : t('save');
         });
-        showToast(on ? 'Saved to your wishlist' : 'Removed from your wishlist');
+        showToast(on ? t('savedToast') : t('removedToast'));
         if (!on && btn.hasAttribute('data-wishlist-remove-card')) {
             var card = btn.closest('[data-wishlist-card]');
             if (card) card.remove();
@@ -164,11 +184,11 @@
     document.querySelectorAll('[data-share-copy]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             var link = btn.getAttribute('data-share-copy');
-            var done = function () { showToast('Link copied to clipboard'); };
+            var done = function () { showToast(t('copied')); };
             if (navigator.clipboard) {
-                navigator.clipboard.writeText(link).then(done, function () { window.prompt('Copy this link:', link); });
+                navigator.clipboard.writeText(link).then(done, function () { window.prompt(t('copyPrompt'), link); });
             } else {
-                window.prompt('Copy this link:', link);
+                window.prompt(t('copyPrompt'), link);
             }
         });
     });
@@ -201,6 +221,25 @@
                 .finally(function () { btn.disabled = false; });
         });
     });
+
+    /* ---------- FAQ search (faq.php) ---------- */
+    var faqSearch = document.getElementById('faqSearch');
+    if (faqSearch) {
+        faqSearch.addEventListener('input', function () {
+            var q = faqSearch.value.trim().toLowerCase();
+            var shown = 0;
+            document.querySelectorAll('[data-faq]').forEach(function (item) {
+                var match = !q || item.textContent.toLowerCase().indexOf(q) !== -1;
+                item.classList.toggle('hidden', !match);
+                if (match) { shown++; if (q) item.setAttribute('open', ''); }
+            });
+            document.querySelectorAll('[data-faq-group]').forEach(function (g) {
+                g.classList.toggle('hidden', !g.querySelector('[data-faq]:not(.hidden)'));
+            });
+            var empty = document.getElementById('faqEmpty');
+            if (empty) empty.classList.toggle('hidden', shown > 0);
+        });
+    }
 
     /* ---------- Newsletter popup ---------- */
     var popup = document.getElementById('newsletterPopup');

@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data['created_at'] = now();
         $id = db_insert('pages', $data);
     }
+    save_translations_from_post('page', $id);
     flash('success', 'Page saved.');
     redirect('admin/page-edit.php?id=' . $id);
 }
@@ -54,5 +55,6 @@ admin_header($page ? 'Edit page' : 'New page', 'pages');
         <button class="btn btn-primary w-full justify-center"><i class="fa-solid fa-floppy-disk"></i> Save page</button>
         <?php if ($page): ?><a href="<?= e(url('page.php?slug=' . urlencode($page['slug']))) ?>" target="_blank" class="btn btn-light w-full justify-center"><i class="fa-solid fa-eye"></i> View</a><?php endif; ?>
     </div>
+    <div class="xl:col-span-2"><?php translations_card('page', (int) ($page['id'] ?? 0)); ?></div>
 </form>
 <?php admin_footer(); ?>

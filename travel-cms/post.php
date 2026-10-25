@@ -2,17 +2,18 @@
 require __DIR__ . '/includes/bootstrap.php';
 require APP_ROOT . '/includes/cards.php';
 
-$post = db_one('SELECT * FROM ' . tbl('posts') . " WHERE slug = ? AND status = 'published' AND published_at <= ?", [(string) ($_GET['slug'] ?? ''), now()]);
+$post = localize_row(db_one('SELECT * FROM ' . tbl('posts') . " WHERE slug = ? AND status = 'published' AND published_at <= ?", [(string) ($_GET['slug'] ?? ''), now()]), 'post');
 if (!$post) {
     http_response_code(404);
-    $pageTitle = 'Story not found';
+    $pageTitle = __('Story not found');
+    $noindex = true;
     require APP_ROOT . '/includes/header.php';
-    page_banner('Story not found', 'This article may have been moved or removed.');
-    echo '<div class="text-center py-16"><a href="' . e(url('blog.php')) . '" class="px-6 py-3 bg-brand-600 text-white rounded-xl font-bold">Back to the blog</a></div>';
+    page_banner(__('Story not found'), __('This article may have been moved or removed.'));
+    echo '<div class="text-center py-16"><a href="' . e(url('blog.php')) . '" class="px-6 py-3 bg-brand-600 text-white rounded-xl font-bold">' . e(__('Back to the blog')) . '</a></div>';
     require APP_ROOT . '/includes/footer.php';
     exit;
 }
-$more = db_all('SELECT * FROM ' . tbl('posts') . " WHERE status = 'published' AND published_at <= ? AND id <> ? ORDER BY published_at DESC LIMIT 3", [now(), $post['id']]);
+$more = localize_rows(db_all('SELECT * FROM ' . tbl('posts') . " WHERE status = 'published' AND published_at <= ? AND id <> ? ORDER BY published_at DESC LIMIT 3", [now(), $post['id']]), 'post');
 
 $link = url('post.php?slug=' . urlencode($post['slug']));
 $pageTitle = $post['title'];
@@ -36,27 +37,27 @@ require APP_ROOT . '/includes/header.php';
 page_banner($post['title'], '', $post['tag'], $post['image']);
 ?>
 <article class="py-14 max-w-3xl mx-auto px-4">
-    <div class="flex items-center space-x-3 text-xs text-slate-400 pb-6 mb-6 border-b border-slate-200">
-        <?php if ($post['author']): ?><span><i class="fa-solid fa-user-pen mr-1 text-brand-500"></i>By <?= e($post['author']) ?></span><span>•</span><?php endif; ?>
+    <div class="flex items-center gap-3 text-xs text-slate-400 pb-6 mb-6 border-b border-slate-200">
+        <?php if ($post['author']): ?><span><i class="fa-solid fa-user-pen me-1 text-brand-500"></i><?= e(__f('By %s', $post['author'])) ?></span><span>•</span><?php endif; ?>
         <span><?= e(format_date($post['published_at'])) ?></span>
         <?php if ($post['read_time']): ?><span>•</span><span><?= e($post['read_time']) ?></span><?php endif; ?>
     </div>
     <div class="prose-content"><?= rich_text($post['content']) ?></div>
     <div class="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 py-4 mt-8">
-        <span class="text-sm font-bold text-slate-700">Share this story</span>
+        <span class="text-sm font-bold text-slate-700"><?= e(__('Share this story')) ?></span>
         <?php share_buttons($link, $post['title']); ?>
     </div>
     <div class="mt-10 p-6 rounded-2xl bg-gradient-to-r from-brand-700 to-brand-500 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
-            <h3 class="font-serif text-xl font-bold">Ready for your own adventure?</h3>
-            <p class="text-sm text-brand-100">Book now and pay on arrival &mdash; no card needed.</p>
+            <h3 class="font-serif text-xl font-bold"><?= e(__('Ready for your own adventure?')) ?></h3>
+            <p class="text-sm text-brand-100"><?= e(__('Book now and pay on arrival. No card needed.')) ?></p>
         </div>
-        <button type="button" onclick="openBookingModal()" class="px-6 py-3 bg-accent-500 hover:bg-accent-600 rounded-xl font-bold text-sm whitespace-nowrap">Book a Trip</button>
+        <button type="button" onclick="openBookingModal()" class="px-6 py-3 bg-accent-500 hover:bg-accent-600 rounded-xl font-bold text-sm whitespace-nowrap"><?= e(__('Book a Trip')) ?></button>
     </div>
 </article>
 <?php if ($more): ?>
 <section class="pb-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <h2 class="font-serif text-3xl font-bold text-slate-900 mb-8">More Travel Stories</h2>
+    <h2 class="font-serif text-3xl font-bold text-slate-900 mb-8"><?= e(__('More Travel Stories')) ?></h2>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8"><?php foreach ($more as $p) { post_card($p); } ?></div>
 </section>
 <?php endif; ?>

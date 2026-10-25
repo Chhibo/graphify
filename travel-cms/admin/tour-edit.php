@@ -112,6 +112,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // FAQs of this trip: edit / remove existing ones, add new ones.
+    $faqRows = is_array($_POST['faq'] ?? null) ? $_POST['faq'] : [];
+    $order = 0;
+    foreach ($faqRows as $row) {
+        $fid = (int) ($row['id'] ?? 0);
+        $q = trim((string) ($row['question'] ?? ''));
+        $a = trim((string) ($row['answer'] ?? ''));
+        $remove = !empty($row['delete']) || ($q === '' && $a === '');
+        if ($fid) {
+            if ($remove) {
+                db_exec('DELETE FROM ' . tbl('faqs') . ' WHERE id = ? AND tour_id = ?', [$fid, $id]);
+                delete_translations('faq', $fid);
+            } else {
+                db_exec('UPDATE ' . tbl('faqs') . ' SET question = ?, answer = ?, sort_order = ? WHERE id = ? AND tour_id = ?', [mb_substr($q, 0, 500), $a, $order++, $fid, $id]);
+            }
+        } elseif (!$remove && $q !== '') {
+            db_insert('faqs', ['tour_id' => $id, 'category' => '', 'question' => mb_substr($q, 0, 500), 'answer' => $a, 'sort_order' => $order++, 'status' => 'active', 'created_at' => now()]);
+        }
+    }
+    save_translations_from_post('tour', $id);
+
     flash('success', 'Saved successfully.' . ($added ? " $added photo(s) added to the gallery." : ''));
     redirect('admin/tour-edit.php?id=' . $id);
 }
@@ -124,6 +145,7 @@ $destOptions = ['' => '— None —'];
 foreach (db_all('SELECT id, name, country FROM ' . tbl('destinations') . ' ORDER BY name') as $d) {
     $destOptions[$d['id']] = $d['name'] . ($d['country'] && $d['country'] !== $d['name'] ? ' (' . $d['country'] . ')' : '');
 }
+$tourFaqs = $tour ? db_all('SELECT * FROM ' . tbl('faqs') . ' WHERE tour_id = ? ORDER BY sort_order, id', [$id]) : [];
 $gallery = $tour ? db_all('SELECT * FROM ' . tbl('tour_images') . ' WHERE tour_id = ? ORDER BY sort_order, id', [$id]) : [];
 $cur = setting('currency_symbol', '$');
 $priceOrEmpty = fn ($v) => $v === null ? '' : (string) (float) $v;
@@ -201,6 +223,27 @@ admin_header($tour ? 'Edit: ' . $tour['title'] : 'New ' . ($type === 'trip' ? 't
             </div>
         </div>
 
+        <div class="card p-6 space-y-4" id="faq">
+            <div class="flex items-center justify-between">
+                <h2 class="font-bold">FAQ for this <?= $type === 'trip' ? 'trip' : 'activity' ?></h2>
+                <button type="button" class="btn btn-light !py-1.5" onclick="addFaqRow()"><i class="fa-solid fa-plus"></i> Add question</button>
+            </div>
+            <p class="help">Shown as an accordion on the trip page and sent to Google as FAQ data. Translate them in <a class="text-brand-600 underline" href="<?= e(url('admin/faqs.php' . ($tour ? '?tour=' . $id : ''))) ?>">FAQs</a>.</p>
+            <div id="faqRows" class="space-y-3">
+                <?php $rows = $tourFaqs ?: [['id' => 0, 'question' => '', 'answer' => '']];
+                foreach ($rows as $i => $f): ?>
+                    <div class="border border-slate-200 rounded-xl p-3 space-y-2" data-faq-row>
+                        <input type="hidden" name="faq[<?= $i ?>][id]" value="<?= (int) $f['id'] ?>">
+                        <input class="inp" name="faq[<?= $i ?>][question]" value="<?= e($f['question']) ?>" placeholder="Question, e.g. Is hotel pickup included?">
+                        <textarea class="inp" name="faq[<?= $i ?>][answer]" rows="2" placeholder="Answer"><?= e($f['answer']) ?></textarea>
+                        <?php if ($f['id']): ?><label class="text-xs text-rose-600 font-semibold flex items-center gap-1"><input type="checkbox" name="faq[<?= $i ?>][delete]" value="1"> Remove this question</label><?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
+        <?php translations_card('tour', (int) ($tour['id'] ?? 0)); ?>
+
         <div class="card p-6 space-y-4" id="seo">
             <h2 class="font-bold">Search engines (SEO)</h2>
             <?php f_input('SEO title', 'seo_title', $t['seo_title'], 'text', 'maxlength="200" placeholder="' . e($t['title'] ? $t['title'] . ' | ' . setting('site_name') : '') . '"', 'Shown in Google results and the browser tab. Leave empty for "Title | Site name". Ideal: up to 60 characters.'); ?>
@@ -231,6 +274,17 @@ admin_header($tour ? 'Edit: ' . $tour['title'] : 'New ' . ($type === 'trip' ? 't
     </div>
 </form>
 <script>
+function addFaqRow() {
+    var wrap = document.getElementById('faqRows');
+    var i = Date.now();
+    var div = document.createElement('div');
+    div.className = 'border border-slate-200 rounded-xl p-3 space-y-2';
+    div.innerHTML = '<input type="hidden" name="faq[' + i + '][id]" value="0">'
+        + '<input class="inp" name="faq[' + i + '][question]" placeholder="Question">'
+        + '<textarea class="inp" name="faq[' + i + '][answer]" rows="2" placeholder="Answer"></textarea>';
+    wrap.appendChild(div);
+    div.querySelector('input.inp').focus();
+}
 (function () {
     var box = document.querySelector('input[type=checkbox][name=hide_price]');
     var price = document.getElementById('f_price');

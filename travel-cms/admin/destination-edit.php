@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($selected) {
         db_exec('UPDATE ' . tbl('tours') . ' SET destination_id = ? WHERE id IN (' . implode(',', array_fill(0, count($selected), '?')) . ')', array_merge([$id], $selected));
     }
+    save_translations_from_post('destination', $id);
     flash('success', 'Destination saved.');
     redirect('admin/destination-edit.php?id=' . $id);
 }
@@ -80,6 +81,7 @@ admin_header($dest ? 'Edit: ' . $dest['name'] : 'New destination', 'destinations
                 <?php if (!$tours): ?><p class="text-sm text-slate-400">No trips yet.</p><?php endif; ?>
             </div>
         </div>
+        <?php translations_card('destination', (int) ($dest['id'] ?? 0)); ?>
         <div class="card p-6 space-y-4">
             <h2 class="font-bold">Search engines (SEO)</h2>
             <?php f_input('SEO title', 'seo_title', $d['seo_title'], 'text', 'maxlength="200"', 'Leave empty for "Name Tours & Activities | Site name".'); ?>

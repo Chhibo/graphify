@@ -6,7 +6,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('index.php#reviews');
 }
 if (!verify_csrf()) {
-    flash('error', 'Your session expired. Please submit your review again.');
+    flash('error', __('Your session expired. Please submit your review again.'));
     redirect('index.php#reviews');
 }
 if ($err = spam_check('review', 30)) {
@@ -20,7 +20,7 @@ $content = mb_substr(post('content'), 0, 2000);
 $rating = max(1, min(5, (int) post('rating', 5)));
 
 if ($name === '' || $trip === '' || mb_strlen($content) < 10) {
-    flash('error', 'Please fill in all fields (review must be at least 10 characters).');
+    flash('error', __('Please fill in all fields (review must be at least 10 characters).'));
     redirect('index.php#reviews');
 }
 
@@ -32,9 +32,10 @@ db_insert('reviews', [
     'content' => $content,
     'avatar' => '',
     'status' => $auto ? 'approved' : 'pending',
+    'lang' => current_lang(),
     'ip_address' => client_ip(),
     'created_at' => now(),
 ]);
 
-flash('success', $auto ? 'Thank you! Your review has been published.' : 'Thank you! Your review will appear after moderation.');
+flash('success', $auto ? __('Thank you! Your review has been published.') : __('Thank you! Your review will appear after moderation.'));
 redirect('index.php#reviews');

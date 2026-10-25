@@ -11,7 +11,16 @@ if ($id && !$booking) {
 $isNew = !$booking;
 $statuses = booking_statuses();
 $tours = db_all('SELECT id, type, title, price, child_price, infant_price, hide_price, status FROM ' . tbl('tours') . ' ORDER BY type DESC, title');
-$self = 'admin/booking.php' . ($id ? '?id=' . $id : '');
+$fromRequest = !$booking && !empty($_GET['request']) ? db_one('SELECT * FROM ' . tbl('trip_requests') . ' WHERE id = ?', [(int) $_GET['request']]) : null;
+$self = 'admin/booking.php' . ($id ? '?id=' . $id : ($fromRequest ? '?request=' . $fromRequest['id'] : ''));
+
+/** Email the guest asking for a verified review, and remember when it was sent. */
+function send_review_request(array $b): bool
+{
+    $sent = send_booking_email('review_request', $b);
+    db_update('bookings', ['review_requested_at' => now()], (int) $b['id']);
+    return $sent;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf($self);
@@ -20,6 +29,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         db_exec('DELETE FROM ' . tbl('bookings') . ' WHERE id = ?', [$id]);
         flash('success', 'Booking ' . $booking['reference'] . ' deleted.');
         redirect('admin/bookings.php');
+    }
+    if (post('action') === 'review_request' && $booking) {
+        $sent = send_review_request($booking);
+        flash($sent ? 'success' : 'error', $sent ? 'Review request emailed to the guest.' : 'Email could not be sent (check Settings > Email).');
+        redirect($self);
     }
 
     $tour = db_one('SELECT * FROM ' . tbl('tours') . ' WHERE id = ?', [(int) post('tour_id')]);
@@ -78,30 +92,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data += [
             'reference' => generate_booking_reference(),
             'access_token' => bin2hex(random_bytes(16)),
+            'lang' => isset(languages()[post('lang')]) ? post('lang') : default_lang(),
+            'request_id' => $fromRequest['id'] ?? null,
             'ip_address' => client_ip(),
             'created_at' => now(),
         ];
         $id = db_insert('bookings', $data);
+        if ($fromRequest) {
+            db_update('trip_requests', ['status' => 'booked', 'updated_at' => now()], (int) $fromRequest['id']);
+        }
         flash('success', 'Booking ' . $data['reference'] . ' created.');
     } else {
+        if (isset(languages()[post('lang')])) {
+            $data['lang'] = post('lang');
+        }
         db_update('bookings', $data, $id);
         flash('success', 'Booking updated.');
     }
 
     $fresh = db_one('SELECT * FROM ' . tbl('bookings') . ' WHERE id = ?', [$id]);
     if (post('notify') === '1') {
-        $messages = [
-            'pending' => 'We have received your booking request and will confirm it shortly.',
-            'confirmed' => 'Great news! Your booking is <b>confirmed</b>. We look forward to welcoming you.',
-            'completed' => 'Thank you for travelling with us! We hope you had an amazing time. We would love a review on our website.',
-            'cancelled' => 'Your booking has been <b>cancelled</b>. If this is unexpected, please contact us.',
-        ];
-        $body = '<p>Hi ' . e($fresh['customer_name']) . ',</p><p>' . $messages[$fresh['status']] . '</p>'
-            . booking_email_table($fresh)
-            . (post('message') !== '' ? '<p>' . nl2br(e(post('message'))) . '</p>' : '')
-            . '<p><a href="' . e(voucher_url($fresh)) . '" style="display:inline-block;background:#f97316;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:bold">View your voucher</a></p>';
-        $sent = send_mail($fresh['customer_email'], 'Booking ' . $fresh['reference'] . ' – ' . ucfirst($fresh['status']), $body);
+        // Uses the editable "Status: ..." templates (Admin > Message Templates), in the guest's language.
+        $sent = send_booking_email('status_' . $fresh['status'], $fresh, null, ['{message}' => post('message')]);
+        if ($sent && $fresh['status'] === 'completed') {
+            db_update('bookings', ['review_requested_at' => now()], $id); // the "completed" email contains the review link
+        }
         flash($sent ? 'success' : 'error', $sent ? 'Email sent to the guest.' : 'Email could not be sent (check mail settings / server mail function).');
+    }
+    // Ask for a verified review automatically when a trip is marked completed.
+    $justCompleted = $fresh['status'] === 'completed' && ($booking['status'] ?? '') !== 'completed';
+    if ($justCompleted && !$fresh['review_requested_at'] && setting('review_request_on_complete', '1') === '1' && setting('booking_reviews', '1') === '1'
+        && !(post('notify') === '1')) {
+        send_review_request($fresh);
+        flash('success', 'A review request was emailed to the guest.');
     }
     redirect('admin/booking.php?id=' . $id);
 }
@@ -114,9 +137,29 @@ function price_field(?array $b, string $field): string
 
 $b = $booking ?: [
     'tour_id' => (int) ($_GET['tour'] ?? 0), 'travel_date' => date('Y-m-d', strtotime('+1 day')), 'adults' => 2, 'children' => 0, 'infants' => 0,
-    'unit_price' => '', 'child_price' => '', 'infant_price' => '', 'price_on_request' => 0,
+    'unit_price' => '', 'child_price' => '', 'infant_price' => '', 'price_on_request' => 0, 'lang' => default_lang(),
     'customer_name' => '', 'customer_email' => '', 'customer_phone' => '', 'notes' => '', 'status' => 'confirmed', 'admin_notes' => '',
 ];
+if ($fromRequest) {
+    $b = array_merge($b, [
+        'customer_name' => $fromRequest['name'], 'customer_email' => $fromRequest['email'], 'customer_phone' => $fromRequest['phone'],
+        'adults' => $fromRequest['adults'], 'children' => $fromRequest['children'], 'lang' => $fromRequest['lang'] ?: default_lang(),
+        'travel_date' => $fromRequest['start_date'] ?: $b['travel_date'],
+        'admin_notes' => 'From trip request ' . $fromRequest['reference'] . ($fromRequest['destinations'] ? ' (' . $fromRequest['destinations'] . ')' : ''),
+        'notes' => (string) $fromRequest['message'],
+    ]);
+}
+$bookingLang = $b['lang'] ?: default_lang();
+$waTemplates = [];
+if ($booking && $booking['customer_phone']) {
+    $vars = booking_vars($booking, $bookingLang);
+    foreach (whatsapp_templates() as $key => [$name, , $group]) {
+        if ($group === 'booking') {
+            $waTemplates[$key] = [$name, whatsapp_text($key, $vars, $bookingLang)];
+        }
+    }
+}
+$review = $booking ? db_one('SELECT id, rating, status FROM ' . tbl('reviews') . ' WHERE booking_id = ?', [$booking['id']]) : null;
 
 admin_header($isNew ? 'New booking' : 'Booking ' . $booking['reference'], 'bookings');
 ?>
@@ -126,7 +169,7 @@ admin_header($isNew ? 'New booking' : 'Booking ' . $booking['reference'], 'booki
     <form method="post" class="card p-6 xl:col-span-2 space-y-6">
         <?= csrf_field() ?>
         <div class="flex items-center justify-between">
-            <h2 class="font-bold text-lg"><?= $isNew ? 'Create a booking (phone / walk-in)' : 'Booking details' ?></h2>
+            <h2 class="font-bold text-lg"><?= $isNew ? ($fromRequest ? 'Create a booking from trip request ' . e($fromRequest['reference']) : 'Create a booking (phone / walk-in)') : 'Booking details' ?></h2>
             <?php if (!$isNew): ?><?= status_badge($booking['status']) ?><?php endif; ?>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -161,6 +204,9 @@ admin_header($isNew ? 'New booking' : 'Booking ' . $booking['reference'], 'booki
             <?php f_input('Email', 'customer_email', $b['customer_email'], 'email', 'required'); ?>
             <?php f_input('Phone / WhatsApp', 'customer_phone', $b['customer_phone']); ?>
         </div>
+        <?php if (count(languages()) > 1): ?>
+            <div class="sm:w-1/3"><?php f_select('Guest language (emails & WhatsApp)', 'lang', array_map(fn ($l) => $l['name'], languages()), $bookingLang); ?></div>
+        <?php endif; ?>
         <?php f_textarea('Guest special requests', 'notes', $b['notes'], 3); ?>
         <?php f_textarea('Internal admin notes (never shown to the guest)', 'admin_notes', $b['admin_notes'], 3); ?>
         <div class="bg-slate-50 rounded-xl p-4 space-y-3">
@@ -174,6 +220,7 @@ admin_header($isNew ? 'New booking' : 'Booking ' . $booking['reference'], 'booki
     <div class="space-y-6">
         <div class="card p-6 space-y-3 text-sm">
             <h2 class="font-bold">Summary</h2>
+            <?php if (count(languages()) > 1): ?><div class="flex justify-between"><span class="text-slate-500">Language</span><span><?= e(languages()[$bookingLang]['name'] ?? $bookingLang) ?></span></div><?php endif; ?>
             <div class="flex justify-between"><span class="text-slate-500">Reference</span><b class="font-mono"><?= e($booking['reference']) ?></b></div>
             <div class="flex justify-between"><span class="text-slate-500">Guests</span><span><?= e(guests_summary($booking)) ?></span></div>
             <?php foreach (booking_lines($booking) as [$label, $amount]): ?>
@@ -185,12 +232,47 @@ admin_header($isNew ? 'New booking' : 'Booking ' . $booking['reference'], 'booki
             <?php if ($booking['ip_address']): ?><div class="flex justify-between"><span class="text-slate-500">IP</span><span class="text-xs"><?= e($booking['ip_address']) ?></span></div><?php endif; ?>
             <a href="<?= e(voucher_url($booking)) ?>" target="_blank" class="btn btn-light w-full justify-center"><i class="fa-solid fa-ticket"></i> Open guest voucher</a>
         </div>
+        <?php if ($waTemplates): ?>
+        <div class="card p-6 space-y-3 text-sm">
+            <div class="flex items-center justify-between">
+                <h2 class="font-bold"><i class="fa-brands fa-whatsapp text-emerald-500"></i> WhatsApp messages</h2>
+                <?php if (can('settings')): ?><a href="<?= e(url('admin/templates.php?tab=wa')) ?>" class="text-xs text-brand-600 font-semibold">Edit templates</a><?php endif; ?>
+            </div>
+            <p class="help -mt-1">Ready-made messages in <?= e(languages()[$bookingLang]['name'] ?? $bookingLang) ?>, filled with this booking. Click to open WhatsApp, edit before sending if needed.</p>
+            <?php foreach ($waTemplates as $key => [$name, $text]): ?>
+                <details class="border border-slate-200 rounded-xl">
+                    <summary class="cursor-pointer px-3 py-2 font-semibold flex items-center justify-between"><span><?= e($name) ?></span><i class="fa-solid fa-chevron-down text-xs text-slate-400"></i></summary>
+                    <div class="p-3 pt-0 space-y-2">
+                        <textarea id="wa_<?= e($key) ?>" class="inp text-xs" rows="5" dir="<?= lang_dir($bookingLang) ?>"><?= e($text) ?></textarea>
+                        <div class="flex gap-2">
+                            <a href="<?= e(whatsapp_link($booking['customer_phone'], $text)) ?>" data-wa-link="wa_<?= e($key) ?>" target="_blank" rel="noopener" class="btn flex-1 justify-center bg-emerald-500 text-white hover:bg-emerald-600"><i class="fa-brands fa-whatsapp"></i> Send</a>
+                            <button type="button" class="btn btn-light" data-copy="wa_<?= e($key) ?>" title="Copy"><i class="fa-solid fa-copy"></i></button>
+                        </div>
+                    </div>
+                </details>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
         <div class="card p-6 space-y-2 text-sm">
             <h2 class="font-bold mb-1">Contact guest</h2>
             <a href="mailto:<?= e($booking['customer_email']) ?>?subject=<?= rawurlencode('Your booking ' . $booking['reference']) ?>" class="btn btn-light w-full justify-center"><i class="fa-solid fa-envelope"></i> Email</a>
             <?php if ($booking['customer_phone']): ?>
-                <a href="https://wa.me/<?= e(preg_replace('/\D/', '', $booking['customer_phone'])) ?>?text=<?= rawurlencode('Hello ' . $booking['customer_name'] . ', regarding your booking ' . $booking['reference'] . ' (' . $booking['tour_title'] . ' on ' . format_date($booking['travel_date']) . ')') ?>" target="_blank" rel="noopener" class="btn w-full justify-center bg-emerald-500 text-white hover:bg-emerald-600"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>
                 <a href="tel:<?= e(preg_replace('/[^0-9+]/', '', $booking['customer_phone'])) ?>" class="btn btn-light w-full justify-center"><i class="fa-solid fa-phone"></i> Call</a>
+            <?php endif; ?>
+            <?php if ($booking['request_id']): ?>
+                <a href="<?= e(url('admin/request.php?id=' . $booking['request_id'])) ?>" class="btn btn-light w-full justify-center"><i class="fa-solid fa-route"></i> Original trip request</a>
+            <?php endif; ?>
+        </div>
+        <div class="card p-6 space-y-2 text-sm">
+            <h2 class="font-bold mb-1"><i class="fa-solid fa-star text-amber-400"></i> Verified review</h2>
+            <?php if ($review): ?>
+                <p>The guest left a <b><?= (int) $review['rating'] ?>/5</b> review (<?= e($review['status']) ?>).</p>
+                <?php if (can('reviews')): ?><a href="<?= e(url('admin/reviews.php?edit=' . $review['id'])) ?>" class="btn btn-light w-full justify-center">Open review</a><?php endif; ?>
+            <?php else: ?>
+                <p class="help"><?= $booking['review_requested_at'] ? 'Review requested ' . e(time_ago($booking['review_requested_at'])) . '.' : 'Ask the guest to review the trip. Their review gets a "Verified booking" badge.' ?></p>
+                <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="review_request"><button class="btn btn-light w-full justify-center"><i class="fa-solid fa-envelope"></i> Email review request</button></form>
+                <input type="hidden" id="reviewLink" value="<?= e(review_url($booking)) ?>">
+                <button type="button" class="btn btn-light w-full justify-center" data-copy="reviewLink"><i class="fa-solid fa-link"></i> Copy review link</button>
             <?php endif; ?>
         </div>
         <?php if (can('bookings_delete')): ?>
@@ -204,6 +286,11 @@ admin_header($isNew ? 'New booking' : 'Booking ' . $booking['reference'], 'booki
     <?php endif; ?>
 </div>
 <script>
+// Keep the WhatsApp "Send" links in sync with edits made in the text boxes.
+document.querySelectorAll('[data-wa-link]').forEach(function (a) {
+    var box = document.getElementById(a.getAttribute('data-wa-link'));
+    box.addEventListener('input', function () { a.href = a.href.split('?')[0] + '?text=' + encodeURIComponent(box.value); });
+});
 (function () {
     var box = document.querySelector('input[type=checkbox][name=price_on_request]');
     var prices = document.querySelector('[data-booking-prices]');

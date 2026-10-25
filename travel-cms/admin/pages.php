@@ -6,6 +6,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf('admin/pages.php');
     if (post('action') === 'delete') {
         db_exec('DELETE FROM ' . tbl('pages') . ' WHERE id = ?', [(int) post('id')]);
+        delete_translations('page', (int) post('id'));
         flash('success', 'Page deleted.');
     }
     redirect('admin/pages.php');

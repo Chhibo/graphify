@@ -36,10 +36,10 @@ function booking_fail(string $msg, array $input, string $back): void
 }
 
 if (!verify_csrf()) {
-    booking_fail('Your session expired. Please submit the form again.', $input, $back);
+    booking_fail(__('Your session expired. Please submit the form again.'), $input, $back);
 }
 if (setting('bookings_enabled', '1') === '0') {
-    booking_fail('Online bookings are temporarily closed. Please contact us directly.', $input, $back);
+    booking_fail(__('Online bookings are temporarily closed. Please contact us directly.'), $input, $back);
 }
 if ($err = spam_check('booking', 10)) {
     booking_fail($err, $input, $back);
@@ -47,24 +47,24 @@ if ($err = spam_check('booking', 10)) {
 
 $tour = db_one('SELECT * FROM ' . tbl('tours') . " WHERE id = ? AND status = 'active'", [$input['tour_id']]);
 if (!$tour) {
-    booking_fail('Please select a valid tour or activity.', $input, $back);
+    booking_fail(__('Please select a valid tour or activity.'), $input, $back);
 }
 
 $date = DateTime::createFromFormat('Y-m-d', $input['travel_date']);
 $minDate = new DateTime('today +' . max(0, (int) setting('booking_min_days', 1)) . ' days');
 $maxDate = new DateTime('today +' . max(1, (int) setting('booking_max_months', 18)) . ' months');
 if (!$date || $date->format('Y-m-d') !== $input['travel_date']) {
-    booking_fail('Please choose a valid travel date.', $input, $back);
+    booking_fail(__('Please choose a valid travel date.'), $input, $back);
 }
 if ($date < $minDate) {
-    booking_fail('The earliest available travel date is ' . format_date($minDate->format('Y-m-d')) . '.', $input, $back);
+    booking_fail(__f('The earliest available travel date is %s.', format_date($minDate->format('Y-m-d'))), $input, $back);
 }
 if ($date > $maxDate) {
-    booking_fail('Bookings can only be made up to ' . (int) setting('booking_max_months', 18) . ' months ahead.', $input, $back);
+    booking_fail(__f('Bookings can only be made up to %d months ahead.', (int) setting('booking_max_months', 18)), $input, $back);
 }
 $blocked = lines(setting('blocked_dates', ''));
 if (in_array($input['travel_date'], $blocked, true)) {
-    booking_fail('Sorry, we are fully booked on ' . format_date($input['travel_date']) . '. Please choose another date.', $input, $back);
+    booking_fail(__f('Sorry, we are fully booked on %s. Please choose another date.', format_date($input['travel_date'])), $input, $back);
 }
 if (!$tour['allow_children']) {
     $input['children'] = 0;
@@ -74,13 +74,13 @@ if (!$tour['allow_infants']) {
 }
 $guests = $input['adults'] + $input['children'] + $input['infants'];
 if ($input['adults'] < 1) {
-    booking_fail('At least one adult is required per booking.', $input, $back);
+    booking_fail(__('At least one adult is required per booking.'), $input, $back);
 }
 if ($guests > (int) $tour['max_guests']) {
-    booking_fail('This experience accepts up to ' . (int) $tour['max_guests'] . ' guests per booking.', $input, $back);
+    booking_fail(__f('This experience accepts up to %d guests per booking.', (int) $tour['max_guests']), $input, $back);
 }
 if ($input['name'] === '' || !filter_var($input['email'], FILTER_VALIDATE_EMAIL) || !preg_match('/^[0-9 +().\-]{6,}$/', $input['phone'])) {
-    booking_fail('Please enter your name, a valid email address and phone number.', $input, $back);
+    booking_fail(__('Please enter your name, a valid email address and phone number.'), $input, $back);
 }
 
 // Optional daily capacity per tour (0 = unlimited).
@@ -89,7 +89,7 @@ if ($capacity > 0) {
     $booked = (int) db_value('SELECT COALESCE(SUM(guests),0) FROM ' . tbl('bookings') . " WHERE tour_id = ? AND travel_date = ? AND status IN ('pending','confirmed')", [$tour['id'], $input['travel_date']]);
     if ($booked + $guests > $capacity) {
         $left = max(0, $capacity - $booked);
-        booking_fail($left ? "Only {$left} spot(s) left on this date." : 'This date is fully booked. Please choose another date.', $input, $back);
+        booking_fail($left ? __f('Only %d spot(s) left on this date.', $left) : __('This date is fully booked. Please choose another date.'), $input, $back);
     }
 }
 
@@ -109,29 +109,23 @@ $booking = [
     'customer_phone' => $input['phone'],
     'notes' => $input['notes'],
     'status' => $autoConfirm ? 'confirmed' : 'pending',
+    'lang' => current_lang(),
     'ip_address' => client_ip(),
     'created_at' => now(),
     'updated_at' => now(),
 ];
 $booking += booking_quote($tour, $input['adults'], $input['children'], $input['infants']);
-db_insert('bookings', $booking);
+$booking['id'] = db_insert('bookings', $booking);
 
-// Notify the guest
-$guestBody = '<p>Hi ' . e($booking['customer_name']) . ',</p>'
-    . '<p>Thank you for your reservation! ' . ($autoConfirm ? 'Your booking is <b>confirmed</b>.' : 'We have received your booking request and our team will confirm it shortly.') . ' No payment has been charged &mdash; you pay on arrival.</p>'
-    . booking_email_table($booking)
-    . '<p><a href="' . e(voucher_url($booking)) . '" style="display:inline-block;background:#f97316;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:bold">View &amp; print your voucher</a></p>'
-    . '<p style="color:#64748b;font-size:12px">' . e(setting('voucher_note', 'Please present this voucher to your guide on arrival.')) . '</p>';
-send_mail($booking['customer_email'], 'Your reservation ' . $booking['reference'] . ' - ' . setting('site_name', 'WanderLuxe'), $guestBody);
-
-// Notify the admin
+// Notify the guest (in the language they booked in) and the admin, using the editable templates.
+$lang = $booking['lang'];
+send_booking_email('booking_guest', $booking, null, [
+    '{status_message}' => $autoConfirm ? __('Your booking is confirmed.', $lang) : __('We have received your booking request and our team will confirm it shortly.', $lang),
+    '{voucher_note}' => setting('voucher_note', __('Please present this voucher to your guide on arrival.', $lang)),
+]);
 $adminEmail = setting('admin_notify_email', setting('contact_email'));
 if ($adminEmail) {
-    $adminBody = '<p>A new booking request was received.</p>' . booking_email_table($booking)
-        . '<p><b>Guest:</b> ' . e($booking['customer_name']) . '<br><b>Email:</b> ' . e($booking['customer_email']) . '<br><b>Phone:</b> ' . e($booking['customer_phone']) . '</p>'
-        . ($booking['notes'] ? '<p><b>Notes:</b><br>' . nl2br(e($booking['notes'])) . '</p>' : '')
-        . '<p><a href="' . e(url('admin/bookings.php')) . '">Open the admin panel</a></p>';
-    send_mail($adminEmail, 'New booking ' . $booking['reference'] . ' - ' . $booking['tour_title'], $adminBody);
+    send_booking_email('booking_admin', $booking, $adminEmail, [], default_lang());
 }
 
 clear_input();

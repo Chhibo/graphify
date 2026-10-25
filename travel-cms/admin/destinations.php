@@ -10,6 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'delete':
                 db_exec('UPDATE ' . tbl('tours') . ' SET destination_id = NULL WHERE destination_id = ?', [$dest['id']]);
                 db_exec('DELETE FROM ' . tbl('destinations') . ' WHERE id = ?', [$dest['id']]);
+                delete_translations('destination', (int) $dest['id']);
                 delete_upload($dest['image']);
                 flash('success', '"' . $dest['name'] . '" deleted. Its trips were kept.');
                 break;

@@ -18,6 +18,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     delete_upload($img['image']);
                 }
                 db_exec('DELETE FROM ' . tbl('tour_images') . ' WHERE tour_id = ?', [$id]);
+                db_exec('DELETE FROM ' . tbl('faqs') . ' WHERE tour_id = ?', [$id]);
+                delete_translations('tour', $id);
                 flash('success', '"' . $tour['title'] . '" deleted. Existing bookings are kept.');
                 break;
             case 'toggle':

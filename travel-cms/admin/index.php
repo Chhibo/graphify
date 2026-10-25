@@ -39,6 +39,12 @@ admin_header('Dashboard', 'dashboard');
 <?php if (is_dir(APP_ROOT . '/install')): ?>
     <div class="mb-6 px-4 py-3 rounded-xl text-sm bg-amber-50 text-amber-800 border border-amber-200"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Security: please delete the <code>/install</code> folder from your server.</div>
 <?php endif; ?>
+<?php $newRequests = (int) db_value('SELECT COUNT(*) FROM ' . tbl('trip_requests') . " WHERE status = 'new'"); if ($newRequests): ?>
+    <a href="<?= e(url('admin/requests.php?status=new')) ?>" class="mb-6 flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm bg-accent-100 text-accent-600 border border-orange-200 font-semibold hover:shadow-md transition">
+        <span><i class="fa-solid fa-route mr-1"></i> <?= $newRequests ?> new custom trip request<?= $newRequests === 1 ? '' : 's' ?> waiting for a reply</span>
+        <span>Open <i class="fa-solid fa-arrow-right ml-1"></i></span>
+    </a>
+<?php endif; ?>
 
 <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
     <?php foreach ($stats as [$label, $value, $icon, $cls, $href]): ?>

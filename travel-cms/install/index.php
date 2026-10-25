@@ -8,7 +8,7 @@
  */
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.1.0');
+define('APP_VERSION', '1.2.0');
 $configFile = APP_ROOT . '/config.php';
 
 session_start();

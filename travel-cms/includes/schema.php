@@ -5,7 +5,7 @@
  * and bump SCHEMA_VERSION: existing sites are upgraded on their next page view.
  */
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 function schema_tables(): array
 {
@@ -121,6 +121,9 @@ function schema_tables(): array
                 'infant_price' => 'DECIMAL(10,2) NOT NULL DEFAULT 0',
                 'total' => 'DECIMAL(10,2) NOT NULL DEFAULT 0',
                 'price_on_request' => 'TINYINT(1) NOT NULL DEFAULT 0',
+                'lang' => "VARCHAR(10) NOT NULL DEFAULT ''",
+                'request_id' => 'INT UNSIGNED NULL',
+                'review_requested_at' => 'DATETIME NULL',
                 'customer_name' => 'VARCHAR(150) NOT NULL',
                 'customer_email' => 'VARCHAR(190) NOT NULL',
                 'customer_phone' => 'VARCHAR(60) NOT NULL',
@@ -160,11 +163,16 @@ function schema_tables(): array
                 'rating' => 'TINYINT NOT NULL DEFAULT 5',
                 'content' => 'TEXT NOT NULL',
                 'avatar' => "VARCHAR(500) NOT NULL DEFAULT ''",
+                'photos' => 'TEXT NULL',
+                'booking_id' => 'INT UNSIGNED NULL',
+                'tour_id' => 'INT UNSIGNED NULL',
+                'verified' => 'TINYINT(1) NOT NULL DEFAULT 0',
+                'lang' => "VARCHAR(10) NOT NULL DEFAULT ''",
                 'status' => "VARCHAR(20) NOT NULL DEFAULT 'pending'",
                 'ip_address' => 'VARCHAR(45) NULL',
                 'created_at' => 'DATETIME NOT NULL',
             ],
-            'keys' => ['PRIMARY KEY (`id`)', 'KEY `idx_status` (`status`)'],
+            'keys' => ['PRIMARY KEY (`id`)', 'KEY `idx_status` (`status`)', 'KEY `idx_tour` (`tour_id`)', 'KEY `idx_booking` (`booking_id`)'],
         ],
         'pages' => [
             'columns' => $id + [
@@ -198,11 +206,62 @@ function schema_tables(): array
                 'name' => "VARCHAR(150) NOT NULL DEFAULT ''",
                 'status' => "VARCHAR(20) NOT NULL DEFAULT 'active'",
                 'source' => "VARCHAR(30) NOT NULL DEFAULT 'footer'",
+                'lang' => "VARCHAR(10) NOT NULL DEFAULT ''",
                 'ip_address' => 'VARCHAR(45) NULL',
                 'created_at' => 'DATETIME NOT NULL',
                 'unsubscribed_at' => 'DATETIME NULL',
             ],
             'keys' => ['PRIMARY KEY (`id`)', 'UNIQUE KEY `uniq_email` (`email`)', 'KEY `idx_status` (`status`)'],
+        ],
+        // "Plan my trip" custom requests.
+        'trip_requests' => [
+            'columns' => $id + [
+                'reference' => 'VARCHAR(20) NOT NULL',
+                'name' => 'VARCHAR(150) NOT NULL',
+                'email' => 'VARCHAR(190) NOT NULL',
+                'phone' => "VARCHAR(60) NOT NULL DEFAULT ''",
+                'destinations' => 'TEXT NULL',
+                'start_date' => 'DATE NULL',
+                'flexible_dates' => 'TINYINT(1) NOT NULL DEFAULT 0',
+                'nights' => 'INT NOT NULL DEFAULT 0',
+                'adults' => 'INT NOT NULL DEFAULT 1',
+                'children' => 'INT NOT NULL DEFAULT 0',
+                'budget' => "VARCHAR(60) NOT NULL DEFAULT ''",
+                'styles' => "VARCHAR(255) NOT NULL DEFAULT ''",
+                'accommodation' => "VARCHAR(60) NOT NULL DEFAULT ''",
+                'message' => 'TEXT NULL',
+                'status' => "VARCHAR(20) NOT NULL DEFAULT 'new'",
+                'admin_notes' => 'TEXT NULL',
+                'lang' => "VARCHAR(10) NOT NULL DEFAULT ''",
+                'ip_address' => 'VARCHAR(45) NULL',
+                'created_at' => 'DATETIME NOT NULL',
+                'updated_at' => 'DATETIME NOT NULL',
+            ],
+            'keys' => ['PRIMARY KEY (`id`)', 'UNIQUE KEY `uniq_reference` (`reference`)', 'KEY `idx_status` (`status`)'],
+        ],
+        // FAQs: tour_id NULL = general FAQ page, otherwise shown on that trip.
+        'faqs' => [
+            'columns' => $id + [
+                'tour_id' => 'INT UNSIGNED NULL',
+                'category' => "VARCHAR(100) NOT NULL DEFAULT ''",
+                'question' => 'VARCHAR(500) NOT NULL',
+                'answer' => 'TEXT NOT NULL',
+                'sort_order' => 'INT NOT NULL DEFAULT 0',
+                'status' => "VARCHAR(20) NOT NULL DEFAULT 'active'",
+                'created_at' => 'DATETIME NOT NULL',
+            ],
+            'keys' => ['PRIMARY KEY (`id`)', 'KEY `idx_tour` (`tour_id`)'],
+        ],
+        // Translations of content (trips, pages, settings...) and interface texts.
+        'translations' => [
+            'columns' => $id + [
+                'lang' => 'VARCHAR(10) NOT NULL',
+                'type' => 'VARCHAR(30) NOT NULL',
+                'item_id' => 'INT UNSIGNED NOT NULL DEFAULT 0',
+                'field' => 'VARCHAR(100) NOT NULL',
+                'value' => 'MEDIUMTEXT NULL',
+            ],
+            'keys' => ['PRIMARY KEY (`id`)', 'UNIQUE KEY `uniq_tr` (`lang`, `type`, `item_id`, `field`)', 'KEY `idx_type_item` (`type`, `item_id`)'],
         ],
     ];
 }

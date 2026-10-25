@@ -7,6 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $post = db_one('SELECT * FROM ' . tbl('posts') . ' WHERE id = ?', [(int) post('id')]);
     if ($post && post('action') === 'delete') {
         db_exec('DELETE FROM ' . tbl('posts') . ' WHERE id = ?', [$post['id']]);
+        delete_translations('post', (int) $post['id']);
         delete_upload($post['image']);
         flash('success', 'Post deleted.');
     }

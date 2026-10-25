@@ -45,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data['created_at'] = now();
         $id = db_insert('posts', $data);
     }
+    save_translations_from_post('post', $id);
     flash('success', 'Post saved.');
     redirect('admin/post-edit.php?id=' . $id);
 }
@@ -79,5 +80,6 @@ admin_header($post ? 'Edit post' : 'New post', 'posts');
             <?php f_textarea('Meta description', 'meta_description', $p['meta_description'], 3, 'Leave empty to use the excerpt.', 'maxlength="320"'); ?>
         </div>
     </div>
+    <div class="xl:col-span-2"><?php translations_card('post', (int) ($post['id'] ?? 0)); ?></div>
 </form>
 <?php admin_footer(); ?>

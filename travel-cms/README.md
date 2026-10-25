@@ -29,7 +29,7 @@ The design follows the WanderLuxe template: hero search, featured trips with cat
 
 ## Updating an existing site
 
-1. Back up your database and your `uploads/` folder.
+1. Back up your database and your `uploads/` folder (from version 1.2, use *Admin → Backup*).
 2. Upload the new files over the old ones. **Keep your `config.php`** and your `uploads/` folder, and don't upload the `/install` folder again.
 3. Open any page of your website. The database is upgraded automatically: new tables and fields are added and your existing data is kept.
 
@@ -51,6 +51,11 @@ The design follows the WanderLuxe template: hero search, featured trips with cat
 - Visitor reviews, held for moderation by default
 - Blog with tags, static pages (About, Terms, Privacy and so on) and a contact form
 - Floating WhatsApp button, social links, responsive layout
+- **Plan a custom trip:** a 4-step "Plan My Trip" form (destinations, dates, travellers, travel style, budget, accommodation, wishes). Requests get a `TR-12345` reference, the guest gets a confirmation email and you get an alert.
+- **FAQ:** a general FAQ page grouped by topic, with search, plus questions per trip on each trip page. Both include Google FAQ structured data.
+- **Verified reviews:** after a trip, the guest gets a private link to review the booking (stars, text, up to 3 photos). These reviews carry a "Verified booking" badge and are shown first.
+- **Multi-language** with right-to-left support. Visitors choose a language from the globe menu. Arabic is included (interface, emails and WhatsApp messages), and any other language can be added. Trips, destinations, posts, pages, FAQs, categories and homepage texts can be translated in the admin panel.
+- **Dark mode:** a moon/sun switch in the header (it can be turned off, and the default can be light, dark or the visitor's device setting)
 
 ### SEO
 - SEO title and meta description fields for every trip, destination, blog post and page
@@ -78,13 +83,23 @@ The design follows the WanderLuxe template: hero search, featured trips with cat
   | Role | Can access |
   |---|---|
   | Administrator | Everything, including Settings and staff accounts |
-  | Manager | Bookings, trips, destinations, blog, pages, reviews, messages, subscribers |
-  | Booking Agent | Bookings, calendar and messages only (cannot delete bookings) |
+  | Manager | Bookings, trip requests, trips, destinations, blog, pages, FAQs, reviews, messages, subscribers, reports |
+  | Booking Agent | Bookings, trip requests, calendar and messages only (cannot delete bookings) |
 - Every staff member has a profile page to change their own password
+- **Trip Requests:** list, filters and CSV export of "Plan My Trip" requests. Each request has a status (New, In progress, Proposal sent, Booked, Closed), internal notes, a ready WhatsApp reply, and a **Create booking** button that fills in a booking from the request.
+- **FAQs:** manage the general FAQ page and the questions of each trip (also editable in the trip editor)
+- **Message Templates:** edit every email (subject and text) and the WhatsApp messages, per language, with `{placeholders}` such as `{name}`, `{trip}`, `{date}`, `{total}` and `{voucher_link}`. Send yourself a test email, or reset a template to the default.
+- **WhatsApp templates on each booking:** "Booking received", "Booking confirmed", "Price confirmation", "Trip reminder", "Ask for a review" and "Booking cancelled". One click opens WhatsApp with the message ready, in the guest's language.
+- **Languages:** add languages, set the direction (left-to-right or right-to-left), choose the default, hide or show them, and translate or adjust every interface text
+- **Reports:** bookings, guests, revenue, cancellation rate, trip requests, subscribers and reviews for any date range (by booking date or travel date). Includes monthly charts, top experiences and destinations, status, busiest weekdays, booking language, and CSV export.
+- **Backup:** one click downloads a full backup (.zip with the database and uploaded images), the database only (.sql or .sql.gz) or the images only. Backups are never stored on the server. Administrators only.
 
 ### Emails
 - The guest gets a reservation email with a voucher link. The admin gets a new-booking alert.
 - When an admin changes a booking's status, they can email the guest with an optional message.
+- When a booking is marked **Completed**, the guest automatically gets a "How was your trip?" email with their review link (this can be turned off in Settings → Booking).
+- Guests receive emails in the language they used on the website, written right-to-left for Arabic and similar languages.
+- Every email text can be edited in *Admin → Message Templates*.
 - Uses PHP `mail()` by default. If your host blocks it, fill in **Settings → Email → SMTP** (Gmail, Zoho, cPanel mail and so on) and press **Send test**.
 
 ## Security
@@ -103,6 +118,14 @@ location = /sitemap.xml { rewrite ^ /sitemap.php last; }
 location = /robots.txt { rewrite ^ /robots.php last; }
 location ~ ^/uploads/.*\.php$ { deny all; }
 ```
+
+## Languages
+
+- English is the default language and Arabic is included. Enable or add languages in *Admin → Languages*.
+- **Interface texts** (buttons, labels, messages) come from `lang/xx.php`. Change any of them in *Admin → Languages → Translate interface*, so you never need to edit files. `lang/strings.php` lists every text of the website.
+- **Your content** (trips, destinations, posts, pages, FAQs, categories) has a *Translations* box at the bottom of each edit page. Homepage and other site texts are translated in *Settings*, using the language buttons at the top.
+- Untranslated content falls back to the default language.
+- Links can carry the language: `index.php?lang=ar`. The choice is remembered, and search engines get `hreflang` links and a sitemap entry per language.
 
 ## Customising
 
@@ -130,7 +153,10 @@ location ~ ^/uploads/.*\.php$ { deny all; }
 ├── blog.php / post.php  Blog
 ├── page.php             Static pages
 ├── contact.php          Contact form
-├── review.php           Review submission
+├── review.php           Review submission (review-booking.php = verified review from a booking)
+├── plan-trip.php        "Plan My Trip" custom request form
+├── faq.php              General FAQ page
+├── lang/                Language packs (ar.php) and the list of interface texts
 ├── admin/               Admin panel
 ├── install/             Web installer (delete after install)
 ├── includes/            Core functions, layout & database schema (schema.php)

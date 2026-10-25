@@ -14,6 +14,8 @@ function admin_nav(): array
             ['dashboard', 'index.php', 'fa-gauge-high', 'Dashboard', 'dashboard', null],
             ['bookings', 'bookings.php', 'fa-calendar-check', 'Bookings', 'bookings', 'SELECT COUNT(*) FROM ' . tbl('bookings') . " WHERE status = 'pending'"],
             ['calendar', 'calendar.php', 'fa-calendar-days', 'Calendar', 'bookings', null],
+            ['requests', 'requests.php', 'fa-route', 'Trip Requests', 'bookings', 'SELECT COUNT(*) FROM ' . tbl('trip_requests') . " WHERE status = 'new'"],
+            ['reports', 'reports.php', 'fa-chart-column', 'Reports', 'reports', null],
         ],
         'Content' => [
             ['trips', 'tours.php?type=trip', 'fa-plane-departure', 'Trips & Tours', 'content', null],
@@ -22,12 +24,16 @@ function admin_nav(): array
             ['categories', 'categories.php', 'fa-layer-group', 'Categories', 'content', null],
             ['posts', 'posts.php', 'fa-newspaper', 'Blog Posts', 'content', null],
             ['pages', 'pages.php', 'fa-file-lines', 'Pages', 'content', null],
+            ['faqs', 'faqs.php', 'fa-circle-question', 'FAQs', 'content', null],
             ['reviews', 'reviews.php', 'fa-star', 'Reviews', 'reviews', 'SELECT COUNT(*) FROM ' . tbl('reviews') . " WHERE status = 'pending'"],
             ['messages', 'messages.php', 'fa-envelope', 'Messages', 'messages', 'SELECT COUNT(*) FROM ' . tbl('messages') . ' WHERE is_read = 0'],
             ['subscribers', 'subscribers.php', 'fa-paper-plane', 'Subscribers', 'subscribers', null],
         ],
         'System' => [
             ['settings', 'settings.php', 'fa-sliders', 'Settings', 'settings', null],
+            ['languages', 'languages.php', 'fa-language', 'Languages', 'settings', null],
+            ['templates', 'templates.php', 'fa-comment-dots', 'Message Templates', 'settings', null],
+            ['backup', 'backup.php', 'fa-database', 'Backup', 'backup', null],
             ['users', 'users.php', 'fa-users-gear', 'Staff Accounts', 'users', null],
             ['profile', 'profile.php', 'fa-user-lock', 'My Profile', null, null],
         ],
@@ -129,6 +135,14 @@ function toggleSidebar() {
 document.querySelectorAll('[data-confirm]').forEach(function (el) {
     el.addEventListener('submit', function (e) { if (!confirm(el.getAttribute('data-confirm'))) e.preventDefault(); });
 });
+document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var text = document.getElementById(btn.getAttribute('data-copy')).value;
+        (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () {
+            var old = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied'; setTimeout(function () { btn.innerHTML = old; }, 1500);
+        }, function () { window.prompt('Copy:', text); });
+    });
+});
 document.querySelectorAll('[data-preview]').forEach(function (input) {
     input.addEventListener('change', function () {
         var img = document.getElementById(input.getAttribute('data-preview'));
@@ -210,4 +224,48 @@ function pagination(int $page, int $pages, callable $link): void
         echo '<a href="' . e($link($i)) . '" class="w-9 h-9 flex items-center justify-center rounded-lg text-xs font-bold ' . $cls . '">' . $i . '</a>';
     }
     echo '</nav>';
+}
+
+/**
+ * "Translations" box for an edit form: one collapsible block per extra language.
+ * Inputs are named tr[lang][field]; save them with save_translations_from_post().
+ */
+function translations_card(string $type, int $id, ?array $fields = null): void
+{
+    $fields = $fields ?? translatable_fields($type);
+    $others = array_filter(languages(), fn ($l) => $l['code'] !== default_lang());
+    echo '<div class="card p-6 space-y-3"><h2 class="font-bold"><i class="fa-solid fa-language text-brand-600 mr-1"></i> Translations</h2>';
+    if (!$others) {
+        echo '<p class="help">Add languages in <a class="text-brand-600 underline" href="' . e(url('admin/languages.php')) . '">Languages</a> to translate this content. Empty fields show the ' . e(languages()[default_lang()]['name']) . ' text.</p></div>';
+        return;
+    }
+    $saved = $id ? get_translations($type, $id) : [];
+    foreach ($others as $l) {
+        $filled = count(array_filter($saved[$l['code']] ?? [], fn ($v) => trim((string) $v) !== ''));
+        echo '<details class="border border-slate-200 rounded-xl"' . ($filled ? '' : '') . '><summary class="cursor-pointer px-4 py-3 font-semibold text-sm flex items-center justify-between">'
+            . '<span>' . e($l['name']) . ' <span class="text-xs text-slate-400 font-normal">(' . e($l['code']) . ($l['enabled'] ? '' : ', disabled') . ')</span></span>'
+            . '<span class="text-xs ' . ($filled ? 'text-emerald-600' : 'text-slate-400') . '">' . $filled . '/' . count($fields) . ' translated</span></summary>'
+            . '<div class="p-4 pt-0 space-y-3" dir="' . $l['dir'] . '">';
+        foreach ($fields as $field => $label) {
+            $name = 'tr[' . $l['code'] . '][' . $field . ']';
+            $value = $saved[$l['code']][$field] ?? '';
+            echo '<div><label class="lbl">' . e($label) . '</label>';
+            if (is_long_field($field)) {
+                echo '<textarea class="inp" name="' . e($name) . '" rows="' . (in_array($field, ['description', 'content'], true) ? 6 : 3) . '">' . e($value) . '</textarea>';
+            } else {
+                echo '<input class="inp" type="text" name="' . e($name) . '" value="' . e($value) . '">';
+            }
+            echo '</div>';
+        }
+        echo '</div></details>';
+    }
+    echo '<p class="help">Leave a field empty to show the ' . e(languages()[default_lang()]['name']) . ' text.</p></div>';
+}
+
+function save_translations_from_post(string $type, int $id, ?array $fields = null): void
+{
+    $data = $_POST['tr'] ?? [];
+    if (is_array($data) && $data) {
+        save_translations($type, $id, $data, $fields ? array_keys($fields) : null);
+    }
 }

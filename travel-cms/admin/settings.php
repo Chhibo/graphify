@@ -25,6 +25,8 @@ $groups = [
         'currency_position' => ['select', 'Currency position', 'before', '', ['before' => 'Before amount ($100)', 'after' => 'After amount (100 €)']],
         'date_format' => ['select', 'Date format', 'M j, Y', '', ['M j, Y' => date('M j, Y'), 'd/m/Y' => date('d/m/Y'), 'm/d/Y' => date('m/d/Y'), 'Y-m-d' => date('Y-m-d'), 'j F Y' => date('j F Y')]],
         'timezone' => ['select', 'Timezone', 'UTC', '', $tzOptions],
+        'dark_mode_toggle' => ['bool', 'Show the dark / light mode button in the header', '1'],
+        'dark_mode_default' => ['select', 'Default theme for new visitors', 'light', 'Visitors can switch with the moon/sun button; their choice is remembered.', ['light' => 'Light', 'dark' => 'Dark', 'auto' => "Follow the visitor's device setting"]],
     ]],
     'home' => ['Homepage', 'fa-house', [
         'hero_image' => ['image', 'Hero background image', 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=2000&q=80'],
@@ -61,6 +63,10 @@ $groups = [
         'feature_3_icon' => ['text', 'Feature 3 – icon', 'fa-headset'],
         'feature_3_title' => ['text', 'Feature 3 – title', '24/7 Dedicated Support'],
         'feature_3_text' => ['textarea', 'Feature 3 – text', 'Our concierge desk is available round-the-clock on WhatsApp & phone to assist with trip customisations.'],
+        'plan_cta_title' => ['text', 'Custom trip banner – title', "Can't find the perfect trip?"],
+        'plan_cta_text' => ['textarea', 'Custom trip banner – text', 'Tell us your dream destinations, dates and budget. Our travel experts will design a personalised itinerary for you, free of charge.'],
+        'faq_title' => ['text', 'FAQ page – title', 'Frequently Asked Questions'],
+        'faq_subtitle' => ['text', 'FAQ page – subtitle', 'Answers about booking, payment on arrival, cancellations and travelling with us.'],
         'banner_image' => ['image', 'Inner pages banner image', 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=2000&q=80'],
     ]],
     'booking' => ['Booking', 'fa-calendar-check', [
@@ -80,7 +86,11 @@ $groups = [
         'child_age_label' => ['text', 'Child age label', 'Ages 2-11', 'Shown next to the child price and in the booking form.'],
         'infant_age_label' => ['text', 'Infant age label', 'Under 2'],
         'voucher_note' => ['textarea', 'Voucher note', 'Please present this voucher to your guide on arrival.'],
-        'reviews_auto_approve' => ['bool', 'Publish visitor reviews without moderation', '0'],
+        'reviews_auto_approve' => ['bool', 'Publish visitor reviews without moderation', '0', 'For reviews written in the homepage form (not linked to a booking).'],
+        'booking_reviews' => ['bool', 'Verified reviews: let guests review their booking after the trip', '1', 'Guests get a review link on their voucher and by email. Their review shows a "Verified booking" badge.'],
+        'review_request_on_complete' => ['bool', 'Email the review link automatically when a booking is marked "Completed"', '1'],
+        'verified_reviews_auto_approve' => ['bool', 'Publish verified reviews without moderation', '1'],
+        'auto_tour_rating' => ['bool', 'Calculate trip ratings from approved reviews', '0', 'When on, a trip\'s star rating and review count are updated from its linked reviews.'],
     ]],
     'email' => ['Email', 'fa-envelope', [
         'mail_enabled' => ['bool', 'Send email notifications', '1', 'Uses the PHP mail() function of your hosting.'],
@@ -117,8 +127,7 @@ $groups = [
         'newsletter_popup_text' => ['textarea', 'Popup – text', 'Join our travel club for members-only offers, new destinations and insider tips. No spam, unsubscribe anytime.'],
         'newsletter_popup_button' => ['text', 'Popup – button text', 'Subscribe'],
         'newsletter_popup_image' => ['image', 'Popup – image (optional, shown on the left)', ''],
-        'newsletter_welcome' => ['bool', 'Send a welcome email to new subscribers', '1'],
-        'newsletter_welcome_text' => ['textarea', 'Welcome email text', "Thanks for subscribing! You'll be the first to hear about new trips, exclusive offers and travel tips."],
+        'newsletter_welcome' => ['bool', 'Send a welcome email to new subscribers', '1', 'Edit its text in Message Templates > Newsletter welcome.'],
         'newsletter_notify' => ['bool', 'Email me when someone subscribes', '0'],
     ]],
     'seo' => ['SEO', 'fa-magnifying-glass-chart', [
@@ -133,9 +142,25 @@ $groups = [
 ];
 
 $tab = isset($groups[$_GET['tab'] ?? '']) ? $_GET['tab'] : 'general';
+// Translation mode: ?lang=xx edits the texts of that language (stored as translations).
+$lang = (isset(languages()[$_GET['lang'] ?? '']) && $_GET['lang'] !== default_lang()) ? $_GET['lang'] : '';
+$notTranslatable = '/^(currency_|booking_prefix|budget_options|contact_(email|phone|whatsapp)|social_|map_embed_url|google_verification|mail_from|admin_notify_email|smtp_|feature_\d_icon|site_name|logo_text_)/';
+$isTranslatable = fn (string $key, array $def) => in_array($def[0], ['text', 'textarea'], true) && !preg_match($notTranslatable, $key);
+$selfUrl = 'admin/settings.php?tab=' . $tab . ($lang ? '&lang=' . $lang : '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    require_csrf('admin/settings.php?tab=' . $tab);
+    require_csrf($selfUrl);
+    if ($lang) {
+        $data = [];
+        foreach ($groups[$tab][2] as $key => $def) {
+            if ($isTranslatable($key, $def) && isset($_POST[$key])) {
+                $data[$key] = post($key);
+            }
+        }
+        save_translations('setting', 0, [$lang => $data], array_keys($data));
+        flash('success', languages()[$lang]['name'] . ' texts saved.');
+        redirect($selfUrl);
+    }
     if (post('action') === 'test_mail') {
         $to = $admin['email'];
         $ok = send_mail($to, 'Test email from ' . setting('site_name'), '<p>Your email settings work!</p>');
@@ -169,11 +194,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $values = settings_all();
+$trValues = $lang ? (get_translations('setting', 0)[$lang] ?? []) : [];
 admin_header('Settings', 'settings');
 ?>
+<?php if (count(languages()) > 1): ?>
+    <div class="flex flex-wrap items-center gap-2 mb-4 text-xs font-bold">
+        <span class="text-slate-500"><i class="fa-solid fa-language"></i> Editing texts in:</span>
+        <?php foreach (languages() as $l): $active = $l['code'] === ($lang ?: default_lang()); ?>
+            <a href="?tab=<?= $tab ?><?= $l['code'] !== default_lang() ? '&lang=' . $l['code'] : '' ?>" class="px-3 py-2 rounded-xl <?= $active ? 'bg-slate-900 text-white' : 'bg-white text-slate-600' ?>"><?= e($l['name']) ?><?= $l['code'] === default_lang() ? ' (default)' : '' ?></a>
+        <?php endforeach; ?>
+    </div>
+<?php endif; ?>
+<?php if ($lang): ?>
+    <div class="mb-4 px-4 py-3 rounded-xl text-sm bg-amber-50 text-amber-800 border border-amber-200">Translating the texts of this tab into <b><?= e(languages()[$lang]['name']) ?></b>. Empty fields show the text in grey (default language, or the built-in translation).</div>
+<?php endif; ?>
 <div class="flex flex-wrap gap-2 mb-4 text-xs font-bold">
-    <?php foreach ($groups as $key => [$label, $icon]): ?>
-        <a href="?tab=<?= $key ?>" class="px-4 py-2.5 rounded-xl <?= $tab === $key ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50' ?>"><i class="fa-solid <?= $icon ?> mr-1"></i><?= e($label) ?></a>
+    <?php foreach ($groups as $key => [$label, $icon]):
+        if ($lang && !array_filter($groups[$key][2], fn ($d, $k) => $isTranslatable($k, $d), ARRAY_FILTER_USE_BOTH)) continue; ?>
+        <a href="?tab=<?= $key ?><?= $lang ? '&lang=' . $lang : '' ?>" class="px-4 py-2.5 rounded-xl <?= $tab === $key ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50' ?>"><i class="fa-solid <?= $icon ?> mr-1"></i><?= e($label) ?></a>
     <?php endforeach; ?>
 </div>
 <form method="post" enctype="multipart/form-data" class="card p-6">
@@ -182,6 +220,20 @@ admin_header('Settings', 'settings');
         <?php foreach ($groups[$tab][2] as $key => $def):
             [$type, $label, $default] = $def;
             $help = $def[3] ?? '';
+            if ($lang) {
+                if (!$isTranslatable($key, $def)) {
+                    continue;
+                }
+                $shown = __(($values[$key] ?? '') !== '' ? $values[$key] : $default, $lang);
+                echo '<div class="' . ($type === 'textarea' ? 'md:col-span-2' : '') . '"><label class="lbl">' . e($label) . '</label>';
+                if ($type === 'textarea') {
+                    echo '<textarea class="inp" dir="' . lang_dir($lang) . '" name="' . e($key) . '" rows="3" placeholder="' . e($shown) . '">' . e($trValues[$key] ?? '') . '</textarea>';
+                } else {
+                    echo '<input class="inp" dir="' . lang_dir($lang) . '" name="' . e($key) . '" value="' . e($trValues[$key] ?? '') . '" placeholder="' . e($shown) . '">';
+                }
+                echo '</div>';
+                continue;
+            }
             $val = array_key_exists($key, $values) ? $values[$key] : $default;
             $wide = in_array($type, ['textarea', 'code', 'image'], true);
             echo '<div class="' . ($wide ? 'md:col-span-2' : '') . '">';
