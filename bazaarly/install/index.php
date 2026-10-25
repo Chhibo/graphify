@@ -6,7 +6,7 @@
 declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.1.0');
+define('APP_VERSION', '1.2.0');
 
 if (PHP_VERSION_ID < 80100) {
     http_response_code(500);
@@ -18,6 +18,8 @@ require APP_ROOT . '/includes/icons.php';
 require APP_ROOT . '/includes/mailer.php';
 require APP_ROOT . '/includes/features.php';
 require APP_ROOT . '/includes/htaccess.php';
+require APP_ROOT . '/includes/i18n.php';
+require APP_ROOT . '/includes/extras.php';
 require APP_ROOT . '/includes/schema.php';
 require APP_ROOT . '/includes/demo.php';
 
@@ -117,6 +119,7 @@ if (!$installed && $_SERVER['REQUEST_METHOD'] === 'POST' && $canInstall) {
             foreach (schema_statements($dbConf['driver']) as $sql) {
                 $pdo->exec($sql);
             }
+            seed_languages();
             save_settings([
                 'site_name' => $in['site_name'],
                 'currency_symbol' => $in['currency_symbol'] ?: '$',

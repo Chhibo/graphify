@@ -3,6 +3,8 @@
 $me = require_admin();
 $badges = [
     'listings' => (int) q_val("SELECT COUNT(*) FROM listings WHERE status = 'pending'"),
+    'verifications' => (int) q_val("SELECT COUNT(*) FROM verification_requests WHERE status = 'pending'"),
+    'shops' => (int) q_val("SELECT COUNT(*) FROM shops WHERE status = 'pending'"),
     'reports' => (int) q_val("SELECT COUNT(*) FROM reports WHERE status = 'open'"),
     'messages' => (int) q_val('SELECT COUNT(*) FROM contact_messages WHERE is_read = 0'),
 ];
@@ -14,22 +16,27 @@ $adminNav = [
         'listings' => ['admin/listings.php', 'package', 'Ads'],
         'categories' => ['admin/categories.php', 'folder', 'Categories'],
         'locations' => ['admin/locations.php', 'map-pin', 'Locations'],
+        'shops' => ['admin/shops.php', 'shop', 'Shops'],
         'import' => ['admin/import.php', 'upload', 'Import ads (CSV)'],
         'reports' => ['admin/reports.php', 'flag', 'Reports'],
         'reviews' => ['admin/reviews.php', 'star', 'Reviews'],
     ],
     'People' => [
         'users' => ['admin/users.php', 'users', 'Users'],
+        'verifications' => ['admin/verifications.php', 'id-card', 'ID verification'],
+        'newsletter' => ['admin/newsletter.php', 'newspaper', 'Newsletter'],
         'messages' => ['admin/messages.php', 'inbox', 'Contact inbox'],
     ],
     'Website' => [
         'pages' => ['admin/pages.php', 'file', 'Pages'],
+        'languages' => ['admin/languages.php', 'languages', 'Languages'],
         'emails' => ['admin/emails.php', 'mail', 'Emails & SMTP'],
         'settings' => ['admin/settings.php', 'settings', 'Settings'],
     ],
     'System' => [
         'activity' => ['admin/activity.php', 'activity', 'Activity log'],
         'backup' => ['admin/backup.php', 'database', 'Backup'],
+        'security' => ['admin/security.php', 'lock', 'My security (2FA)'],
     ],
 ];
 $brand = valid_color(setting('primary_color'), '#0d9488');

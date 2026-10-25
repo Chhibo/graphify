@@ -8,16 +8,16 @@ $rows = q_all(str_replace('FROM listings l', 'FROM favorites f JOIN listings l O
     . " WHERE f.user_id = ? ORDER BY f.created_at DESC LIMIT 12 OFFSET $offset", [$me['id']]);
 
 $dashActive = 'favorites';
-$pageTitle = 'Saved ads';
+$pageTitle = __('Saved ads');
 require APP_ROOT . '/includes/dash-top.php';
 ?>
-<div class="dash-head"><div><h1>Saved ads</h1><p class="muted">Ads you've tapped the heart on. Tap it again to remove.</p></div></div>
+<div class="dash-head"><div><h1><?= t('Saved ads') ?></h1><p class="muted"><?= t('Ads you\'ve tapped the heart on. Tap it again to remove.') ?></p></div></div>
 <?php if ($rows): ?>
   <div class="listing-grid cols-3">
     <?php foreach ($rows as $l) { include APP_ROOT . '/includes/partials/listing-card.php'; } ?>
   </div>
   <?= pagination_links($page, $pages) ?>
 <?php else: ?>
-  <div class="card empty-state"><?= icon('heart') ?><h3>No saved ads yet</h3><p>Tap the heart on any ad to save it for later.</p><a class="btn btn-primary" href="<?= e(search_url([])) ?>">Browse ads</a></div>
+  <div class="card empty-state"><?= icon('heart') ?><h3><?= t('No saved ads yet') ?></h3><p><?= t('Tap the heart on any ad to save it for later.') ?></p><a class="btn btn-primary" href="<?= e(search_url([])) ?>"><?= t('Browse ads') ?></a></div>
 <?php endif; ?>
 <?php require APP_ROOT . '/includes/dash-bottom.php';

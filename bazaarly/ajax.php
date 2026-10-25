@@ -35,6 +35,31 @@ if (input('action') === 'suggest' && !is_post()) {
     exit;
 }
 
+// chat: new messages + read receipts since the last message the browser has
+if (input('action') === 'thread' && !is_post()) {
+    $uid = user_id();
+    $conv = $uid ? q_one('SELECT * FROM conversations WHERE id = ? AND (buyer_id = ? OR seller_id = ?)', [(int) input('c'), $uid, $uid]) : null;
+    if (!$conv) {
+        http_response_code(404);
+        echo json_encode(['ok' => false]);
+        exit;
+    }
+    $after = (int) input('after');
+    $new = q_all('SELECT * FROM messages WHERE conversation_id = ? AND id > ? ORDER BY id', [$conv['id'], $after]);
+    if ($new) {
+        mark_conversation_read($conv, $uid);
+    }
+    $lastDay = input('day');
+    $html = '';
+    foreach ($new as $m) {
+        $html .= render_chat_message($m, $uid, $lastDay);
+    }
+    $seen = array_map('intval', array_column(q_all('SELECT id FROM messages WHERE conversation_id = ? AND sender_id = ? AND read_at IS NOT NULL ORDER BY id DESC LIMIT 50', [$conv['id'], $uid]), 'id'));
+    echo json_encode(['ok' => true, 'html' => $html, 'last' => $new ? (int) end($new)['id'] : $after, 'day' => $lastDay,
+        'seen' => $seen, 'unread' => unread_count(), 'offer_changed' => (bool) array_filter($new, fn($m) => (int) $m['offer_id'] > 0)]);
+    exit;
+}
+
 if (!is_post()) {
     http_response_code(405);
     echo json_encode(['ok' => false]);
@@ -61,8 +86,22 @@ if ($action === 'favorite') {
         echo json_encode(['ok' => true, 'saved' => false]);
     } else {
         db_insert('favorites', ['user_id' => user_id(), 'listing_id' => $lid, 'created_at' => now()]);
+        track_stat($lid, 'saves');
         echo json_encode(['ok' => true, 'saved' => true]);
     }
+    exit;
+}
+
+if ($action === 'phone') {
+    $lid = (int) input('id');
+    if (empty($_SESSION['phone_seen'][$lid])) {
+        $_SESSION['phone_seen'][$lid] = 1;
+        $owner = (int) q_val('SELECT user_id FROM listings WHERE id = ?', [$lid]);
+        if ($owner && $owner !== user_id()) {
+            track_stat($lid, 'phone_reveals');
+        }
+    }
+    echo json_encode(['ok' => true]);
     exit;
 }
 

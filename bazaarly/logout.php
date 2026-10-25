@@ -6,6 +6,6 @@ if (is_post()) {
     logout_user();
     start_session();
     session_regenerate_id(true);
-    flash('success', 'You have been signed out.');
+    flash('success', __('You have been signed out.'));
 }
 redirect('index.php');

@@ -4,12 +4,12 @@ require __DIR__ . '/includes/bootstrap.php';
 if (is_post()) {
     $email = strtolower(input('email'));
     if (too_many_attempts()) {
-        flash('error', 'Too many requests. Please try again later.');
+        flash('error', __('Too many requests. Please try again later.'));
         redirect('forgot.php');
     }
     record_attempt();
     if (!captcha_passed('forgot')) {
-        flash('error', 'Please complete the security check.');
+        flash('error', __('Please complete the security check.'));
         redirect('forgot.php');
     }
     $user = q_one("SELECT * FROM users WHERE email = ? AND status = 'active'", [$email]);
@@ -20,23 +20,23 @@ if (is_post()) {
         send_template('password_reset', $user['email'], ['name' => $user['name'], 'action_url' => full_url('reset.php?token=' . $token)]);
     }
     // Same message either way so the form can't be used to discover accounts.
-    flash('success', 'If an account exists for that email, we have sent a reset link. Check your inbox (and spam folder).');
+    flash('success', __('If an account exists for that email, we have sent a reset link. Check your inbox (and spam folder).'));
     redirect('forgot.php');
 }
 
-$pageTitle = 'Forgot password';
+$pageTitle = __('Forgot password');
 require __DIR__ . '/includes/header.php';
 ?>
 <section class="container section-sm">
   <form method="post" class="card auth-single">
     <?= csrf_field() ?>
     <span class="auth-icon"><?= icon('lock') ?></span>
-    <h1>Forgot your password?</h1>
-    <p class="muted">Enter your account email and we'll send you a link to choose a new one.</p>
-    <div class="field"><label for="email">Email</label><div class="input-icon"><?= icon('mail') ?><input id="email" type="email" name="email" required autofocus></div></div>
+    <h1><?= t('Forgot your password?') ?></h1>
+    <p class="muted"><?= t('Enter your account email and we\'ll send you a link to choose a new one.') ?></p>
+    <div class="field"><label for="email"><?= t('Email') ?></label><div class="input-icon"><?= icon('mail') ?><input id="email" type="email" name="email" required autofocus></div></div>
     <?= captcha_widget('forgot') ?>
-    <button class="btn btn-primary btn-block" type="submit">Send reset link</button>
-    <p class="center muted"><a href="<?= e(url('login.php')) ?>">Back to sign in</a></p>
+    <button class="btn btn-primary btn-block" type="submit"><?= t('Send reset link') ?></button>
+    <p class="center muted"><a href="<?= e(url('login.php')) ?>"><?= t('Back to sign in') ?></a></p>
   </form>
 </section>
 <?php require __DIR__ . '/includes/footer.php';

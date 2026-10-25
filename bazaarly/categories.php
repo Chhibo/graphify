@@ -3,20 +3,20 @@ require __DIR__ . '/includes/bootstrap.php';
 
 $tree = category_tree();
 $counts = category_counts();
-$pageTitle = 'All categories';
+$pageTitle = __('All categories');
 require __DIR__ . '/includes/header.php';
 ?>
 <section class="container section">
   <div class="page-head">
-    <nav class="breadcrumb"><a href="<?= e(url()) ?>">Home</a><?= icon('chevron-right') ?><span>Categories</span></nav>
-    <h1>All categories</h1>
+    <nav class="breadcrumb"><a href="<?= e(url()) ?>"><?= t('Home') ?></a><?= icon('chevron-right') ?><span><?= t('Categories') ?></span></nav>
+    <h1><?= t('All categories') ?></h1>
   </div>
   <div class="cat-directory">
     <?php foreach ($tree as $id => $c): ?>
       <div class="card cat-block">
         <a class="cat-block-head" href="<?= e(category_url((int) $id)) ?>">
           <span class="cat-icon"><?= icon($c['icon']) ?></span>
-          <span><strong><?= e($c['name']) ?></strong><small><?= ($n = $counts[$id] ?? 0) === 1 ? "1 ad" : number_format($n) . " ads" ?></small></span>
+          <span><strong><?= e($c['name']) ?></strong><small><?= e(n_('{n} ad', '{n} ads', $counts[$id] ?? 0)) ?></small></span>
         </a>
         <?php if ($c['children']): ?>
           <ul>

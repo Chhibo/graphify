@@ -14,6 +14,12 @@ if (is_post() && input('action') === 'delete') {
     flash('success', 'Ad deleted.');
     redirect('admin/listings.php');
 }
+if (is_post() && input('action') === 'not_duplicate') {
+    q("UPDATE listing_flags SET resolved = 1 WHERE listing_id = ? AND type = 'duplicate'", [$listing['id']]);
+    log_activity('listing.not_duplicate', $listing['title'], 'listing', (int) $listing['id']);
+    flash('success', 'Marked as not a duplicate.');
+    redirect('admin/listing-edit.php?id=' . $listing['id']);
+}
 $errors = [];
 $d = $listing;
 if (is_post()) {
@@ -35,5 +41,10 @@ require APP_ROOT . '/includes/admin-top.php';
   <a class="btn btn-ghost btn-sm" href="<?= e(listing_url($listing)) ?>" target="_blank"><?= icon('eye') ?>View</a>
   <form method="post" data-confirm="Delete this ad permanently?"><?= csrf_field() ?><input type="hidden" name="action" value="delete"><button class="btn btn-sm btn-danger" type="submit"><?= icon('trash') ?>Delete</button></form>
 </div>
+<?php foreach (listing_duplicate_flags((int) $listing['id']) as $i => $fl): ?>
+  <div class="alert alert-warning"><?= icon('copy') ?><span><strong>Possible duplicate</strong> (<?= e($fl['details']) ?>) of
+    <a href="<?= e(url('admin/listing-edit.php?id=' . $fl['related_id'])) ?>">#<?= (int) $fl['related_id'] ?> <?= e($fl['related_title'] ?? 'deleted ad') ?></a><?= $fl['related_owner'] ? ' by ' . e($fl['related_owner']) : '' ?> · <?= e(ucfirst((string) $fl['related_status'])) ?></span>
+    <?php if ($i === 0): ?><form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="not_duplicate"><button class="btn btn-ghost btn-sm" type="submit">Not a duplicate</button></form><?php endif; ?></div>
+<?php endforeach; ?>
 <?php render_listing_form($d, $images, $errors, true, url('admin/listings.php'), $fieldValues); ?>
 <?php require APP_ROOT . '/includes/admin-bottom.php';

@@ -62,6 +62,8 @@ if (in_array($status, ['active', 'pending', 'rejected', 'sold', 'expired'], true
     $params[] = $status;
 } elseif ($status === 'featured') {
     $where .= ' AND l.featured = 1';
+} elseif ($status === 'duplicates') {
+    $where .= " AND EXISTS (SELECT 1 FROM listing_flags fl WHERE fl.listing_id = l.id AND fl.type = 'duplicate' AND fl.resolved = 0)";
 }
 if ($search !== '') {
     $where .= ' AND (l.title LIKE ? OR u.name LIKE ? OR u.email LIKE ? OR l.id = ?)';
@@ -83,13 +85,18 @@ foreach (q_all('SELECT status, COUNT(*) AS n FROM listings GROUP BY status') as 
     $counts[$r['status']] = (int) $r['n'];
 }
 $counts['featured'] = (int) q_val('SELECT COUNT(*) FROM listings WHERE featured = 1');
+$counts['duplicates'] = (int) q_val("SELECT COUNT(DISTINCT listing_id) FROM listing_flags WHERE type = 'duplicate' AND resolved = 0");
+$flagged = [];
+foreach (q_all("SELECT listing_id, related_id FROM listing_flags WHERE type = 'duplicate' AND resolved = 0") as $f) {
+    $flagged[(int) $f['listing_id']] = (int) $f['related_id'];
+}
 
 $adminActive = 'listings';
 $pageTitle = 'Ads';
 require APP_ROOT . '/includes/admin-top.php';
 ?>
 <nav class="tabs">
-  <?php foreach (['' => 'All', 'pending' => 'Pending', 'active' => 'Active', 'featured' => 'Featured', 'sold' => 'Sold', 'expired' => 'Expired', 'rejected' => 'Rejected'] as $k => $lbl): ?>
+  <?php foreach (['' => 'All', 'pending' => 'Pending', 'active' => 'Active', 'featured' => 'Featured', 'duplicates' => 'Possible duplicates', 'sold' => 'Sold', 'expired' => 'Expired', 'rejected' => 'Rejected'] as $k => $lbl): ?>
     <a href="?status=<?= $k ?>" class="<?= $status === $k ? 'on' : '' ?>"><?= e($lbl) ?><span><?= $counts[$k] ?? 0 ?></span></a>
   <?php endforeach; ?>
 </nav>
@@ -127,7 +134,7 @@ require APP_ROOT . '/includes/admin-top.php';
           <td><div class="cell-ad">
             <span class="mini-thumb"><?php if ($l['cover']): ?><img src="<?= e(upload_url($l['cover'])) ?>" alt="" loading="lazy"><?php else: ?><?= icon($l['category_icon'] ?: 'image') ?><?php endif; ?></span>
             <div><a href="<?= e(url('admin/listing-edit.php?id=' . $l['id'])) ?>"><strong><?= e(excerpt($l['title'], 60)) ?></strong></a>
-              <small class="muted">#<?= (int) $l['id'] ?> · <?= e($l['category_name'] ?? 'Uncategorised') ?><?php if ($l['featured']): ?> · <span class="text-accent">★ Featured</span><?php endif; ?></small></div></div></td>
+              <small class="muted">#<?= (int) $l['id'] ?> · <?= e($l['category_name'] ?? 'Uncategorised') ?><?php if ($l['featured']): ?> · <span class="text-accent">★ Featured</span><?php endif; ?><?php if (isset($flagged[(int) $l['id']])): ?> · <span class="badge badge-warning" title="Looks like ad #<?= $flagged[(int) $l['id']] ?>"><?= icon('copy') ?>Possible duplicate</span><?php endif; ?></small></div></div></td>
           <td><a href="<?= e(url('admin/user-edit.php?id=' . $l['user_id'])) ?>"><?= e($l['seller_name']) ?></a></td>
           <td class="nowrap"><?= e(listing_price($l)) ?></td>
           <td><?= status_badge($l['status']) ?></td>

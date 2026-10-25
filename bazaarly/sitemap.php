@@ -12,6 +12,11 @@ foreach (categories_all() as $id => $c) {
 foreach (q_all('SELECT slug, updated_at FROM pages') as $p) {
     $urls[] = [abs_url(page_url($p['slug'])), date('c', strtotime($p['updated_at'])), '0.3'];
 }
+if (shops_enabled()) {
+    foreach (q_all("SELECT s.slug, s.updated_at FROM shops s JOIN users u ON u.id = s.user_id WHERE s.status = 'active' AND u.status = 'active'") as $sh) {
+        $urls[] = [abs_url(shop_url($sh)), date('c', strtotime($sh['updated_at'])), '0.6'];
+    }
+}
 foreach ($ads as $l) {
     $urls[] = [abs_url(listing_url($l)), date('c', strtotime($l['updated_at'])), '0.6'];
 }

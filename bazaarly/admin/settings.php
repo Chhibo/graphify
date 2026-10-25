@@ -42,10 +42,20 @@ $groups = [
         ['max_ads_per_day', 'Max new ads per member per day', 'number', 'Stops spam floods. 0 = unlimited. Admins are never limited.'],
         ['max_image_mb', 'Max photo size (MB)', 'number', 'Server limit: ' . ini_get('upload_max_filesize') . ' per file, ' . ini_get('post_max_size') . ' per request.'],
         ['safety_tips', 'Safety tips (one per line)', 'textarea'],
+        ['enable_offers', 'Let buyers make offers (“Make an offer” button)', 'toggle'],
+        ['quick_replies', 'Quick replies in chat (one per line)', 'textarea', 'Shown as one-tap buttons above the message box. Translate them in Admin → Languages.'],
+        ['expiry_reminder_days', 'Email sellers this many days before an ad expires', 'number', 'Includes a one-click “renew” link. 0 = no reminders.'],
+        ['price_drop_alerts', 'Email members when an ad they saved gets cheaper', 'toggle'],
+        ['duplicate_detection', 'Duplicate ads (same title or same photos as another live ad)', 'select', 'Flagged ads appear in Admin → Ads → Possible duplicates.', ['flag' => 'Flag them for me but keep them live', 'hold' => 'Flag them and hold for review (pending)', 'off' => 'Off']],
+        ['enable_shops', 'Business shop pages', 'toggle'],
+        ['shops_require_approval', 'New shops need admin approval', 'toggle'],
+        ['id_verification', 'Let members request a “Verified seller” badge with an ID document', 'toggle'],
+        ['delete_id_docs', 'Delete ID documents after they are reviewed (recommended for privacy)', 'toggle'],
     ]],
     'accounts' => ['Sign-up & login', 'user', [
         ['require_email_verification', 'Members must confirm their email before posting ads or sending messages', 'toggle'],
         ['_note_verify', '', 'info', 'Make sure emails are delivered first (Admin → Emails & SMTP → Send test). Existing members are already treated as confirmed.'],
+        ['require_admin_2fa', 'Admins must use two-factor sign-in (authenticator app)', 'toggle', 'Each admin sets it up in Admin → My security. Turn this on after you have set up your own.'],
         ['social_login', 'Enable social login buttons', 'toggle'],
         ['google_login', 'Sign in with Google', 'toggle'],
         ['google_client_id', 'Google Client ID', 'text'],
@@ -67,6 +77,15 @@ $groups = [
         ['captcha_on_login', 'Use captcha on sign-in', 'toggle'],
         ['banned_words', 'Banned words & phrases', 'textarea', 'One per line (or comma separated). Checked in ads, messages, reviews and names. Whole words only, not case-sensitive.'],
         ['banned_words_action', 'When an ad contains a banned word', 'select', '', ['review' => 'Send it to admin review (pending)', 'block' => 'Block it and ask the seller to edit']],
+    ]],
+    'photos' => ['Photos & video', 'camera', [
+        ['watermark_enabled', 'Add a watermark to new ad photos', 'toggle', 'Only photos uploaded after you switch this on get the watermark.'],
+        ['watermark_text', 'Watermark text', 'text', 'Leave empty to use your site name.'],
+        ['watermark_image', 'Or use a logo as watermark', 'image', 'A PNG with a transparent background works best. When set, it is used instead of the text.'],
+        ['watermark_position', 'Position', 'select', '', ['br' => 'Bottom right', 'bl' => 'Bottom left', 'tr' => 'Top right', 'tl' => 'Top left', 'center' => 'Center']],
+        ['watermark_opacity', 'Opacity (10–100 %)', 'number'],
+        ['enable_video', 'Allow a YouTube or Vimeo video on ads', 'toggle'],
+        ['chat_photos', 'Allow photos in chat messages', 'toggle'],
     ]],
     'seo' => ['SEO, URLs & app', 'globe', [
         ['clean_urls', 'Clean URLs (e.g. /ad/12-iphone-15 instead of listing.php?id=12)', 'toggle', 'Works on Apache and LiteSpeed (most hosts). When you switch it on we create the .htaccess file for you and test it first. On Nginx add the rule from README.'],
@@ -165,6 +184,11 @@ if (is_post()) {
     if (isset($values['max_images'])) $values['max_images'] = (string) max(1, min(30, (int) $values['max_images']));
     if (isset($values['max_image_mb'])) $values['max_image_mb'] = (string) max(1, (int) $values['max_image_mb']);
     if (isset($values['site_name']) && $values['site_name'] === '') $values['site_name'] = 'Bazaarly';
+    if (isset($values['watermark_opacity'])) $values['watermark_opacity'] = (string) max(10, min(100, (int) $values['watermark_opacity']));
+    if (($values['require_admin_2fa'] ?? '0') === '1' && empty(current_user()['totp_enabled'])) {
+        $values['require_admin_2fa'] = '0';
+        flash('warning', 'Set up two-factor sign-in for your own account first (Admin → My security), then switch on “Admins must use two-factor”.');
+    }
     if (setting('cron_key') === '') {
         $values['cron_key'] = bin2hex(random_bytes(12));
     }

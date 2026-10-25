@@ -37,6 +37,37 @@ No frameworks, no Composer, no Node — upload it and run the installer.
 - Settings: branding, colours, texts, currency, approval, expiry, photo limits, ads per day, reviews, maps, phone privacy,
   sign-up & email verification, Google/Facebook login, captcha, banned words, clean URLs, PWA, ad spaces, cron, maintenance mode
 
+## What's new in 1.2
+
+| Feature | Where to turn it on / find it |
+|---|---|
+| **Multi-language** — English and Bangla (বাংলা) included, add any language, right-to-left support (Arabic, Urdu…) | Admin → Languages (switch languages on/off, translate or customise every text, import/export JSON) |
+| **Shop pages for businesses** — logo, cover, opening hours, “Business” badge, shops directory | Admin → Settings → Ads & users (approval optional) · members: Dashboard → My shop |
+| **Seller statistics** — daily views, saves, chats, offers and phone reveals per ad (7/30/90 days) | Dashboard → Statistics |
+| **Make an offer** — buyers offer a price; sellers accept, decline or counter | Admin → Settings → Ads & users |
+| **Ad expiry reminders** with a one-click “renew” link | Admin → Settings → Ads & users (days before expiry; 0 = off) |
+| **Photo watermark** (text or logo, position, opacity) | Admin → Settings → Photos & video |
+| **Video in ads** (YouTube / Vimeo, loads only when played) | Admin → Settings → Photos & video |
+| **Price-drop alerts** to members who saved the ad | Admin → Settings → Ads & users |
+| **Better chat** — live updates, “seen” ticks, photos in chat, quick replies | Automatic (photos: Settings → Photos & video; quick replies: Settings → Ads & users) |
+| **Newsletter** with audiences, test email, progress bar and one-click unsubscribe | Admin → Newsletter |
+| **Two-factor sign-in for admins** (authenticator app + recovery codes) | Admin → My security (2FA) · force it for all admins in Settings → Sign-up & login |
+| **Duplicate ad detection** (same title or similar photos) — flag or hold for review | Admin → Settings → Ads & users · flagged ads: Admin → Ads → *Possible duplicates* |
+| **Seller ID verification** — private document upload, admin review, “Verified” badge | Admin → ID verification · members: Dashboard → Get verified |
+
+Notes
+- The admin panel always stays in English; the public site and member dashboard follow the visitor's language
+  (chosen from the 🌐 menu, saved to their account, or detected from the browser).
+- Arabic is included switched **off** as a right-to-left example with no translations yet — translate it in
+  Admin → Languages, or delete it.
+- Emails (templates in Admin → Emails & SMTP) are sent in the text you write there.
+- ID documents are stored in `data/private/`, which is never reachable from the web; by default they are deleted as soon as
+  you approve or reject the request.
+
+### Upgrading from 1.1 / 1.1.1
+Same as below: back up, upload the new files over the old ones (keep `config.php`, `data/` and `uploads/`), then open
+your site once — the database upgrades itself.
+
 ## What's new in 1.1
 
 | Feature | Where to turn it on |
@@ -104,7 +135,7 @@ enter the details of an email account (your hosting email, Gmail with an App Pas
 then click **Send test**. Only switch on *email verification* once the test email arrives.
 
 ### Scheduled jobs (cron)
-Expiring old ads and sending saved-search alerts happen automatically while people visit your site.
+Expiring old ads, saved-search alerts, expiry reminders, price-drop alerts and newsletters are sent automatically while people visit your site.
 For exact timing, add a cron job in your hosting panel (cPanel → Cron Jobs) to run every 15 minutes:
 
 ```
@@ -148,16 +179,18 @@ admin/       admin panel pages
 dashboard/   user dashboard pages
 install/     web installer (delete after installing)
 includes/    core code, layouts, database schema
+includes/lang/  translation files (bn.php = Bangla)
 assets/      css, js, images
 uploads/     user photos, logo (writable)
-data/        SQLite database, sessions & backups (writable, private)
+data/        SQLite database, sessions, backups & private ID documents (writable, private)
 router.php   clean-URL router · cron.php scheduled jobs · sw.js app service worker
 ```
 
 ## Security
 Passwords hashed with `password_hash`, prepared statements everywhere, CSRF protection on every form,
 output escaping, sign-in rate limiting, uploaded images validated and re-encoded, PHP execution disabled in `uploads/`,
-optional captcha, banned-words filter, ads-per-day limit, member blocking and an admin activity log.
+optional captcha, banned-words filter, ads-per-day limit, member blocking, duplicate-ad detection, two-factor sign-in for admins
+and an admin activity log.
 
 ### Local testing
 `php -S localhost:8000 router.php` from inside this folder (needs PHP 8.1+), then open http://localhost:8000/install/.

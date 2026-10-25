@@ -5,13 +5,15 @@
 declare(strict_types=1);
 
 define('APP_ROOT', dirname(__DIR__));
-define('APP_VERSION', '1.1.0');
+define('APP_VERSION', '1.2.0');
 
 require APP_ROOT . '/includes/functions.php';
 require APP_ROOT . '/includes/icons.php';
 require APP_ROOT . '/includes/mailer.php';
 require APP_ROOT . '/includes/features.php';
 require APP_ROOT . '/includes/htaccess.php';
+require APP_ROOT . '/includes/i18n.php';
+require APP_ROOT . '/includes/extras.php';
 
 $configFile = APP_ROOT . '/config.php';
 $GLOBALS['config'] = is_file($configFile) ? require $configFile : null;
@@ -44,6 +46,8 @@ $tz = setting('timezone', 'UTC');
 date_default_timezone_set(in_array($tz, timezone_identifiers_list(), true) ? $tz : 'UTC');
 
 start_session();
+// the admin panel is always in English; the rest of the site follows the visitor's language
+in_admin_area() ? current_lang('en') : current_lang();
 
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
@@ -52,7 +56,7 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 // Every POST request must carry a valid CSRF token.
 if (is_post()) {
     if (empty($_POST) && empty($_FILES) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
-        flash('error', 'The upload was too large for the server. Try fewer or smaller images.');
+        flash('error', __('The upload was too large for the server. Try fewer or smaller images.'));
         back();
     }
     if (!csrf_valid()) {
@@ -62,7 +66,7 @@ if (is_post()) {
             echo json_encode(['ok' => false, 'error' => 'Session expired. Please reload the page.']);
             exit;
         }
-        flash('error', 'Your session expired. Please try again.');
+        flash('error', __('Your session expired. Please try again.'));
         back();
     }
 }

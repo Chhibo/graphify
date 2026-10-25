@@ -14,7 +14,7 @@ function listing_form_defaults(array $user): array
     return [
         'title' => '', 'category_id' => 0, 'description' => '', 'price' => '', 'price_type' => 'fixed',
         'item_condition' => '', 'location' => $user['location'] ?? '', 'location_id' => 0, 'phone' => $user['phone'] ?? '', 'show_phone' => 1,
-        'tags' => '', 'status' => 'pending', 'featured' => 0, 'reject_reason' => '',
+        'tags' => '', 'status' => 'pending', 'featured' => 0, 'reject_reason' => '', 'video_url' => '',
     ];
 }
 
@@ -36,22 +36,29 @@ function listing_form_save(?array $listing, bool $asAdmin, string $successUrl): 
         'show_phone' => empty($_POST['show_phone']) ? 0 : 1,
         'tags' => mb_substr(implode(', ', array_unique(array_filter(array_map(fn($t) => mb_strtolower(trim($t)), explode(',', input('tags')))))), 0, 255),
     ];
+    $d['video_url'] = '';
+    if (setting('enable_video', '1') === '1') {
+        $d['video_url'] = normalize_video_url(input('video_url'));
+        if (input('video_url') !== '' && $d['video_url'] === '') {
+            $errors['video_url'] = __('Paste a YouTube or Vimeo link (e.g. https://youtu.be/…).');
+        }
+    }
     $rawPrice = str_replace([',', ' '], '', input('price'));
     $d['price'] = in_array($d['price_type'], ['fixed', 'negotiable'], true) ? (float) $rawPrice : 0;
 
-    if (mb_strlen($d['title']) < 5) $errors['title'] = 'Give your ad a clear title (at least 5 characters).';
-    if (!isset(categories_all()[$d['category_id']])) $errors['category_id'] = 'Please choose a category.';
-    if (mb_strlen($d['description']) < 15) $errors['description'] = 'Describe your item in a bit more detail (at least 15 characters).';
+    if (mb_strlen($d['title']) < 5) $errors['title'] = __('Give your ad a clear title (at least 5 characters).');
+    if (!isset(categories_all()[$d['category_id']])) $errors['category_id'] = __('Please choose a category.');
+    if (mb_strlen($d['description']) < 15) $errors['description'] = __('Describe your item in a bit more detail (at least 15 characters).');
     if (in_array($d['price_type'], ['fixed', 'negotiable'], true) && ($rawPrice === '' || !is_numeric($rawPrice) || $d['price'] < 0)) {
-        $errors['price'] = 'Enter a valid price.';
+        $errors['price'] = __('Enter a valid price.');
     }
-    if ($d['price'] > 999999999999) $errors['price'] = 'That price is too high.';
+    if ($d['price'] > 999999999999) $errors['price'] = __('That price is too high.');
 
     // location from the admin-managed list
     if (location_list_mode()) {
         $d['location_id'] = (int) input('location_id');
         if (!isset(locations_all()[$d['location_id']])) {
-            $errors['location_id'] = 'Please choose a location.';
+            $errors['location_id'] = __('Please choose a location.');
             $d['location_id'] = 0;
         }
         $d['location'] = location_label($d['location_id']);
@@ -68,16 +75,16 @@ function listing_form_save(?array $listing, bool $asAdmin, string $successUrl): 
         if (!$listing) {
             $limit = (int) setting('max_ads_per_day', '20');
             if ($limit > 0 && (int) q_val('SELECT COUNT(*) FROM listings WHERE user_id = ? AND created_at > ?', [$me['id'], date('Y-m-d H:i:s', time() - 86400)]) >= $limit) {
-                $errors['title'] = "You've reached the limit of $limit new ads per day. Please try again tomorrow.";
+                $errors['title'] = __('You\'ve reached the limit of {n} new ads per day. Please try again tomorrow.', ['n' => $limit]);
             }
             if (!captcha_passed('post')) {
-                $errors['captcha'] = 'Please complete the security check.';
+                $errors['captcha'] = __('Please complete the security check.');
             }
         }
         $bad = find_banned_word($d['title'], $d['description'], $d['tags'], implode(' ', $fieldValues));
         if ($bad !== null) {
             if (setting('banned_words_action') === 'block') {
-                $errors['title'] = 'Your ad contains a word or phrase that is not allowed (“' . $bad . '”). Please remove it.';
+                $errors['title'] = __('Your ad contains a word or phrase that is not allowed (“{word}”). Please remove it.', ['word' => $bad]);
             } else {
                 $forceReview = true;
             }
@@ -117,6 +124,7 @@ function listing_form_save(?array $listing, bool $asAdmin, string $successUrl): 
             $d['expires_at'] = new_expiry();
         }
         db_update('listings', $d, 'id = ?', [$id]);
+        handle_price_change($listing, (float) $d['price'], $d['price_type']);
         if ($asAdmin) {
             log_activity('listing.edit', $d['title'] . ' (status: ' . $d['status'] . ')', 'listing', $id);
             if ($d['status'] !== $listing['status']) {
@@ -152,17 +160,17 @@ function listing_form_save(?array $listing, bool $asAdmin, string $successUrl): 
     $files = normalize_files($_FILES['images'] ?? null);
     $uploadErrors = [];
     if (count($files) > $room) {
-        $uploadErrors[] = 'Only ' . $max . ' photos are allowed per ad; extra photos were skipped.';
+        $uploadErrors[] = __('Only {n} photos are allowed per ad; extra photos were skipped.', ['n' => $max]);
         $files = array_slice($files, 0, max(0, $room));
     }
     $order = count($existing) + 1;
     foreach ($files as $f) {
-        $res = store_image($f, 'listings');
+        $res = store_image($f, 'listings', 1600, 520, false, true);
         if (is_string($res)) {
             $uploadErrors[] = $res;
             continue;
         }
-        db_insert('listing_images', ['listing_id' => $id, 'path' => $res['path'], 'thumb' => $res['thumb'], 'sort_order' => $order++]);
+        db_insert('listing_images', ['listing_id' => $id, 'path' => $res['path'], 'thumb' => $res['thumb'], 'phash' => $res['phash'] ?? '', 'sort_order' => $order++]);
     }
     $cover = (int) input('cover');
     if ($cover) {
@@ -172,17 +180,22 @@ function listing_form_save(?array $listing, bool $asAdmin, string $successUrl): 
         }
     }
 
+    // duplicate ads (same title / same photos as another live ad)
+    if (!$asAdmin && $me['role'] !== 'admin' && check_duplicates($id)) {
+        q("UPDATE listings SET status = 'pending' WHERE id = ? AND status = 'active'", [$id]);
+        flash('info', __('This ad looks very similar to another ad, so our team will check it before it goes live.'));
+    }
     foreach ($uploadErrors as $ue) {
         flash('warning', $ue);
     }
     $status = q_val('SELECT status FROM listings WHERE id = ?', [$id]);
     if ($listing) {
-        flash('success', $status === 'pending' && !$asAdmin ? 'Ad updated and sent for review.' : 'Ad updated successfully.');
+        flash('success', $status === 'pending' && !$asAdmin ? __('Ad updated and sent for review.') : __('Ad updated successfully.'));
     } else {
-        flash('success', $status === 'pending' ? 'Your ad was submitted and will go live once approved.' : 'Your ad is live! 🎉');
+        flash('success', $status === 'pending' ? __('Your ad was submitted and will go live once approved.') : __('Your ad is live! 🎉'));
     }
     if ($forceReview && $status === 'pending') {
-        flash('info', 'Your ad will be checked by our team before it goes live.');
+        flash('info', __('Your ad will be checked by our team before it goes live.'));
     }
     redirect(str_replace('{id}', (string) $id, $successUrl));
 }
@@ -194,66 +207,66 @@ function render_listing_form(array $d, array $images, array $errors, bool $asAdm
     $max = (int) setting('max_images', '8');
     $isEdit = !empty($d['id']);
     ?>
-    <?php if ($errors): ?><div class="alert alert-error"><?= icon('alert') ?><span>Please fix the highlighted fields below.</span></div><?php endif; ?>
+    <?php if ($errors): ?><div class="alert alert-error"><?= icon('alert') ?><span><?= t('Please fix the highlighted fields below.') ?></span></div><?php endif; ?>
     <form method="post" enctype="multipart/form-data" class="listing-form" data-listing-form>
       <?= csrf_field() ?>
       <div class="form-main">
         <section class="card form-section">
-          <h2><span class="step-num">1</span>What are you selling?</h2>
+          <h2><span class="step-num">1</span><?= t('What are you selling?') ?></h2>
           <div class="field<?= $cls('title') ?>">
-            <label for="lf-title">Ad title</label>
-            <input id="lf-title" name="title" maxlength="150" value="<?= e($d['title']) ?>" placeholder="e.g. iPhone 14 Pro, 128GB, excellent condition" required data-count>
+            <label for="lf-title"><?= t('Ad title') ?></label>
+            <input id="lf-title" name="title" maxlength="150" value="<?= e($d['title']) ?>" placeholder="<?= t('e.g. iPhone 14 Pro, 128GB, excellent condition') ?>" required data-count>
             <?= $err('title') ?>
           </div>
           <div class="form-grid">
             <div class="field<?= $cls('category_id') ?>">
-              <label for="lf-cat">Category</label>
-              <select id="lf-cat" name="category_id" required><option value="">Choose a category</option><?= category_options((int) $d['category_id'], false) ?></select>
+              <label for="lf-cat"><?= t('Category') ?></label>
+              <select id="lf-cat" name="category_id" required><option value=""><?= t('Choose a category') ?></option><?= category_options((int) $d['category_id'], false) ?></select>
               <?= $err('category_id') ?>
             </div>
             <div class="field">
-              <label for="lf-cond">Condition</label>
+              <label for="lf-cond"><?= t('Condition') ?></label>
               <select id="lf-cond" name="item_condition">
-                <?php foreach (CONDITIONS as $k => $lbl): ?><option value="<?= e($k) ?>" <?= $d['item_condition'] === $k ? 'selected' : '' ?>><?= e($lbl) ?></option><?php endforeach; ?>
+                <?php foreach (CONDITIONS as $k => $lbl): ?><option value="<?= e($k) ?>" <?= $d['item_condition'] === $k ? 'selected' : '' ?>><?= t($lbl) ?></option><?php endforeach; ?>
               </select>
             </div>
           </div>
           <?php render_custom_field_inputs($fieldValues, $errors); ?>
           <div class="field<?= $cls('description') ?>">
-            <label for="lf-desc">Description</label>
-            <textarea id="lf-desc" name="description" rows="8" maxlength="20000" placeholder="Include details buyers care about: brand, model, age, size, defects, reason for selling…" required><?= e($d['description']) ?></textarea>
+            <label for="lf-desc"><?= t('Description') ?></label>
+            <textarea id="lf-desc" name="description" rows="8" maxlength="20000" placeholder="<?= t('Include details buyers care about: brand, model, age, size, defects, reason for selling…') ?>" required><?= e($d['description']) ?></textarea>
             <?= $err('description') ?>
           </div>
           <div class="field">
-            <label for="lf-tags">Tags <small class="muted">(comma separated, optional)</small></label>
-            <input id="lf-tags" name="tags" value="<?= e($d['tags']) ?>" placeholder="apple, smartphone, unlocked">
+            <label for="lf-tags"><?= t('Tags') ?> <small class="muted">(<?= t('comma separated, optional') ?>)</small></label>
+            <input id="lf-tags" name="tags" value="<?= e($d['tags']) ?>" placeholder="<?= t('apple, smartphone, unlocked') ?>">
           </div>
         </section>
 
         <section class="card form-section">
-          <h2><span class="step-num">2</span>Price</h2>
+          <h2><span class="step-num">2</span><?= t('Price') ?></h2>
           <div class="seg-radio">
             <?php foreach (PRICE_TYPES as $k => $lbl): ?>
-              <label><input type="radio" name="price_type" value="<?= $k ?>" <?= $d['price_type'] === $k ? 'checked' : '' ?> data-price-type><span><?= e($lbl) ?></span></label>
+              <label><input type="radio" name="price_type" value="<?= $k ?>" <?= $d['price_type'] === $k ? 'checked' : '' ?> data-price-type><span><?= t($lbl) ?></span></label>
             <?php endforeach; ?>
           </div>
           <div class="field price-field<?= $cls('price') ?>" data-price-field>
-            <label for="lf-price">Amount</label>
+            <label for="lf-price"><?= t('Amount') ?></label>
             <div class="input-prefix"><span><?= e(setting('currency_symbol')) ?></span><input id="lf-price" name="price" inputmode="decimal" value="<?= e($d['price'] === '' ? '' : (string) (float) $d['price']) ?>" placeholder="0"></div>
             <?= $err('price') ?>
           </div>
         </section>
 
         <section class="card form-section">
-          <h2><span class="step-num">3</span>Photos <small class="muted">up to <?= $max ?></small></h2>
+          <h2><span class="step-num">3</span><?= t('Photos') ?> <small class="muted"><?= t('up to {n}', ['n' => $max]) ?></small></h2>
           <?php if ($images): ?>
-            <p class="muted small">Pick a cover photo and tick any photo you want to remove.</p>
+            <p class="muted small"><?= t('Pick a cover photo and tick any photo you want to remove.') ?></p>
             <div class="image-manager">
               <?php foreach ($images as $i => $img): ?>
                 <div class="im-item">
                   <img src="<?= e(upload_url($img['thumb'])) ?>" alt="">
-                  <label class="im-cover" title="Use as cover"><input type="radio" name="cover" value="<?= (int) $img['id'] ?>" <?= $i === 0 ? 'checked' : '' ?>><span>Cover</span></label>
-                  <label class="im-remove" title="Remove photo"><input type="checkbox" name="remove_images[]" value="<?= (int) $img['id'] ?>"><?= icon('trash') ?></label>
+                  <label class="im-cover" title="<?= t('Use as cover') ?>"><input type="radio" name="cover" value="<?= (int) $img['id'] ?>" <?= $i === 0 ? 'checked' : '' ?>><span><?= t('Cover') ?></span></label>
+                  <label class="im-remove" title="<?= t('Remove photo') ?>"><input type="checkbox" name="remove_images[]" value="<?= (int) $img['id'] ?>"><?= icon('trash') ?></label>
                 </div>
               <?php endforeach; ?>
             </div>
@@ -261,62 +274,69 @@ function render_listing_form(array $d, array $images, array $errors, bool $asAdm
           <label class="dropzone" data-dropzone>
             <input type="file" name="images[]" accept="image/jpeg,image/png,image/webp,image/gif" multiple data-max="<?= max(0, $max - count($images)) ?>">
             <span class="dz-icon"><?= icon('upload') ?></span>
-            <strong>Click to add photos or drag them here</strong>
-            <small>JPG, PNG, WEBP or GIF · max <?= e(setting('max_image_mb', '5')) ?> MB each · the first one becomes the cover</small>
+            <strong><?= t('Click to add photos or drag them here') ?></strong>
+            <small><?= t('JPG, PNG, WEBP or GIF · max {mb} MB each · the first one becomes the cover', ['mb' => setting('max_image_mb', '5')]) ?></small>
           </label>
           <div class="upload-preview" data-preview></div>
+          <?php if (setting('enable_video', '1') === '1'): ?>
+          <div class="field<?= $cls('video_url') ?>">
+            <label for="lf-video"><?= icon('play') ?> <?= __('Video') ?> <small class="muted"><?= __('(YouTube or Vimeo link, optional)') ?></small></label>
+            <input id="lf-video" name="video_url" type="url" maxlength="255" value="<?= e($d['video_url'] ?? '') ?>" placeholder="https://www.youtube.com/watch?v=…">
+            <?= $err('video_url') ?>
+          </div>
+          <?php endif; ?>
         </section>
 
         <section class="card form-section">
-          <h2><span class="step-num">4</span>Location & contact</h2>
+          <h2><span class="step-num">4</span><?= t('Location & contact') ?></h2>
           <div class="form-grid">
             <?php if (location_list_mode()): ?>
             <div class="field<?= $cls('location_id') ?>">
-              <label for="lf-loc">Location</label>
-              <select id="lf-loc" name="location_id" required><option value="">Choose a location</option><?= location_options((int) ($d['location_id'] ?? 0)) ?></select>
+              <label for="lf-loc"><?= t('Location') ?></label>
+              <select id="lf-loc" name="location_id" required><option value=""><?= t('Choose a location') ?></option><?= location_options((int) ($d['location_id'] ?? 0)) ?></select>
               <?= $err('location_id') ?>
             </div>
             <?php else: ?>
             <div class="field">
-              <label for="lf-loc">Location</label>
-              <div class="input-icon"><?= icon('map-pin') ?><input id="lf-loc" name="location" maxlength="150" value="<?= e($d['location']) ?>" placeholder="City, area"></div>
+              <label for="lf-loc"><?= t('Location') ?></label>
+              <div class="input-icon"><?= icon('map-pin') ?><input id="lf-loc" name="location" maxlength="150" value="<?= e($d['location']) ?>" placeholder="<?= t('City, area') ?>"></div>
             </div>
             <?php endif; ?>
             <div class="field">
-              <label for="lf-phone">Phone</label>
-              <div class="input-icon"><?= icon('phone') ?><input id="lf-phone" name="phone" type="tel" maxlength="40" value="<?= e($d['phone']) ?>" placeholder="Optional"></div>
+              <label for="lf-phone"><?= t('Phone') ?></label>
+              <div class="input-icon"><?= icon('phone') ?><input id="lf-phone" name="phone" type="tel" maxlength="40" value="<?= e($d['phone']) ?>" placeholder="<?= t('Optional') ?>"></div>
             </div>
           </div>
-          <label class="switch"><input type="checkbox" name="show_phone" value="1" <?= $d['show_phone'] ? 'checked' : '' ?>><span class="switch-ui"></span><span>Show my phone number on this ad</span></label>
+          <label class="switch"><input type="checkbox" name="show_phone" value="1" <?= $d['show_phone'] ? 'checked' : '' ?>><span class="switch-ui"></span><span><?= t('Show my phone number on this ad') ?></span></label>
         </section>
       </div>
 
       <aside class="form-side">
         <?php if ($asAdmin): ?>
           <section class="card form-section">
-            <h2>Moderation</h2>
-            <div class="field"><label for="lf-status">Status</label>
+            <h2><?= t('Moderation') ?></h2>
+            <div class="field"><label for="lf-status"><?= t('Status') ?></label>
               <select id="lf-status" name="status">
                 <?php foreach (LISTING_STATUSES as $s): ?><option value="<?= $s ?>" <?= $d['status'] === $s ? 'selected' : '' ?>><?= ucfirst($s) ?></option><?php endforeach; ?>
               </select></div>
-            <div class="field"><label for="lf-reason">Rejection reason <small class="muted">(shown to the owner)</small></label><input id="lf-reason" name="reject_reason" value="<?= e($d['reject_reason']) ?>"></div>
-            <div class="field"><label for="lf-exp">Expires on</label><input id="lf-exp" type="date" name="expires_at" value="<?= !empty($d['expires_at']) ? e(date('Y-m-d', strtotime($d['expires_at']))) : '' ?>"></div>
-            <label class="switch"><input type="checkbox" name="featured" value="1" <?= $d['featured'] ? 'checked' : '' ?>><span class="switch-ui"></span><span>Featured ad</span></label>
+            <div class="field"><label for="lf-reason"><?= t('Rejection reason') ?> <small class="muted">(<?= t('shown to the owner') ?>)</small></label><input id="lf-reason" name="reject_reason" value="<?= e($d['reject_reason']) ?>"></div>
+            <div class="field"><label for="lf-exp"><?= t('Expires on') ?></label><input id="lf-exp" type="date" name="expires_at" value="<?= !empty($d['expires_at']) ? e(date('Y-m-d', strtotime($d['expires_at']))) : '' ?>"></div>
+            <label class="switch"><input type="checkbox" name="featured" value="1" <?= $d['featured'] ? 'checked' : '' ?>><span class="switch-ui"></span><span><?= t('Featured ad') ?></span></label>
           </section>
         <?php endif; ?>
         <section class="card form-section sticky">
-          <h2><?= $isEdit ? 'Save changes' : 'Ready to post?' ?></h2>
+          <h2><?= $isEdit ? t('Save changes') : t('Ready to post?') ?></h2>
           <?php if (!$asAdmin && setting('require_approval') === '1' && !is_admin()): ?>
-            <p class="muted small"><?= icon('info') ?> Ads are reviewed by our team before they go live.</p>
+            <p class="muted small"><?= icon('info') ?> <?= t('Ads are reviewed by our team before they go live.') ?></p>
           <?php endif; ?>
           <ul class="check-list small">
-            <li><?= icon('check') ?>Use a clear, specific title</li>
-            <li><?= icon('check') ?>Add bright photos from several angles</li>
-            <li><?= icon('check') ?>Set a fair, realistic price</li>
+            <li><?= icon('check') ?><?= t('Use a clear, specific title') ?></li>
+            <li><?= icon('check') ?><?= t('Add bright photos from several angles') ?></li>
+            <li><?= icon('check') ?><?= t('Set a fair, realistic price') ?></li>
           </ul>
           <?php if (!$isEdit && !$asAdmin && !is_admin()): ?><?= captcha_widget('post') ?><?= $err('captcha') ?><?php endif; ?>
-          <button class="btn btn-primary btn-block btn-lg" type="submit"><?= icon($isEdit ? 'check' : 'zap') ?><?= $isEdit ? 'Save ad' : 'Post my ad' ?></button>
-          <a class="btn btn-ghost btn-block" href="<?= e($cancelUrl) ?>">Cancel</a>
+          <button class="btn btn-primary btn-block btn-lg" type="submit"><?= icon($isEdit ? 'check' : 'zap') ?><?= $isEdit ? t('Save ad') : t('Post my ad') ?></button>
+          <a class="btn btn-ghost btn-block" href="<?= e($cancelUrl) ?>"><?= t('Cancel') ?></a>
         </section>
       </aside>
     </form>
@@ -341,16 +361,16 @@ function render_custom_field_inputs(array $values, array $errors): void
             $val = (string) ($values[$id] ?? '');
             $req = $f['required'] && $f['type'] !== 'checkbox' ? ' data-required' : '';
             $has = isset($errors['cf_' . $id]) ? ' has-error' : '';
-            $label = e($f['label']) . ($f['unit'] !== '' ? ' <small class="muted">(' . e($f['unit']) . ')</small>' : '') . ($f['required'] ? '' : ' <small class="muted">optional</small>');
+            $label = t($f['label']) . ($f['unit'] !== '' ? ' <small class="muted">(' . e($f['unit']) . ')</small>' : '') . ($f['required'] ? '' : ' <small class="muted">' . t('optional') . '</small>');
             if ($f['type'] === 'checkbox') {
-                echo '<div class="field cf-check"><label class="switch"><input type="checkbox" name="' . $name . '" value="1"' . ($val === '1' ? ' checked' : '') . '><span class="switch-ui"></span><span>' . e($f['label']) . '</span></label></div>';
+                echo '<div class="field cf-check"><label class="switch"><input type="checkbox" name="' . $name . '" value="1"' . ($val === '1' ? ' checked' : '') . '><span class="switch-ui"></span><span>' . t($f['label']) . '</span></label></div>';
                 continue;
             }
             echo '<div class="field' . $has . '"><label for="cf' . $id . '">' . $label . '</label>';
             if ($f['type'] === 'select') {
-                echo '<select id="cf' . $id . '" name="' . $name . '"' . $req . '><option value="">Choose…</option>';
+                echo '<select id="cf' . $id . '" name="' . $name . '"' . $req . '><option value="">' . t('Choose…') . '</option>';
                 foreach (field_options($f) as $o) {
-                    echo '<option' . ($o === $val ? ' selected' : '') . '>' . e($o) . '</option>';
+                    echo '<option value="' . e($o) . '"' . ($o === $val ? ' selected' : '') . '>' . t($o) . '</option>';
                 }
                 echo '</select>';
             } else {

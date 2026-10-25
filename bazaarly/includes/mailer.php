@@ -71,6 +71,69 @@ function email_templates(): array
             'subject' => 'New ads for "{search_name}" ({count})',
             'body' => "Hi {name},\n\nWe found {count} new ad(s) matching your saved search \"{search_name}\":\n\n{ads}\n\n{action_url}\n\nYou can turn these alerts off any time from your dashboard.",
         ],
+        'new_offer' => [
+            'name' => 'New offer',
+            'desc' => 'Sent to a seller when a buyer makes an offer.',
+            'vars' => ['name', 'buyer_name', 'ad_title', 'amount', 'asking_price', 'action_url'],
+            'button' => 'Respond to the offer',
+            'optional' => true,
+            'subject' => '{buyer_name} offered {amount} for "{ad_title}"',
+            'body' => "Hi {name},\n\n{buyer_name} made an offer of {amount} for your ad \"{ad_title}\" (your price: {asking_price}).\n\nYou can accept, decline or send a counter-offer:\n\n{action_url}",
+        ],
+        'offer_update' => [
+            'name' => 'Offer update',
+            'desc' => 'Sent when an offer is accepted, declined, countered or withdrawn.',
+            'vars' => ['name', 'other_name', 'ad_title', 'status', 'amount', 'action_url'],
+            'button' => 'Open the conversation',
+            'optional' => true,
+            'subject' => 'Your offer for "{ad_title}" was {status}',
+            'body' => "Hi {name},\n\n{other_name} {status} the offer of {amount} for \"{ad_title}\".\n\n{action_url}",
+        ],
+        'ad_expiring' => [
+            'name' => 'Ad expiring soon',
+            'desc' => 'Reminder sent a few days before an ad expires, with a one-click renew link.',
+            'vars' => ['name', 'ad_title', 'expires', 'action_url'],
+            'button' => 'Renew my ad',
+            'optional' => true,
+            'subject' => 'Your ad "{ad_title}" expires on {expires}',
+            'body' => "Hi {name},\n\nYour ad \"{ad_title}\" will expire on {expires}. Still selling? Renew it with one click to keep it online:\n\n{action_url}\n\nIf it's already sold, you don't need to do anything.",
+        ],
+        'price_drop' => [
+            'name' => 'Price drop alert',
+            'desc' => 'Sent to members who saved an ad when its price goes down.',
+            'vars' => ['name', 'ad_title', 'old_price', 'new_price', 'action_url'],
+            'button' => 'See the ad',
+            'optional' => true,
+            'subject' => 'Price drop: "{ad_title}" is now {new_price}',
+            'body' => "Hi {name},\n\nGood news — an ad you saved just got cheaper:\n\n\"{ad_title}\"\nWas {old_price}, now {new_price}.\n\n{action_url}",
+        ],
+        'verification_approved' => [
+            'name' => 'Seller verification approved',
+            'desc' => 'Sent when an admin approves a member\'s ID verification.',
+            'vars' => ['name', 'action_url'],
+            'button' => 'View my profile',
+            'optional' => true,
+            'subject' => 'You are now a verified seller on {site_name}',
+            'body' => "Hi {name},\n\nYour identity has been verified. A \"Verified\" badge now shows on your profile and your ads, so buyers know they can trust you.\n\n{action_url}",
+        ],
+        'verification_rejected' => [
+            'name' => 'Seller verification rejected',
+            'desc' => 'Sent when an admin rejects an ID verification request.',
+            'vars' => ['name', 'reason', 'action_url'],
+            'button' => 'Try again',
+            'optional' => true,
+            'subject' => 'We could not verify your identity',
+            'body' => "Hi {name},\n\nWe could not approve your verification request.\n\nReason: {reason}\n\nYou can send a new request at any time:\n\n{action_url}",
+        ],
+        'shop_status' => [
+            'name' => 'Shop approved / rejected',
+            'desc' => 'Sent when an admin approves or rejects a business shop page.',
+            'vars' => ['name', 'shop_name', 'status', 'reason', 'action_url'],
+            'button' => 'Open my shop',
+            'optional' => true,
+            'subject' => 'Your shop "{shop_name}" was {status}',
+            'body' => "Hi {name},\n\nYour shop \"{shop_name}\" was {status}.\n\n{reason}\n\n{action_url}",
+        ],
         'contact_form' => [
             'name' => 'Contact form (to admin)',
             'desc' => 'Sent to the site contact email when someone uses the Contact page.',
@@ -92,7 +155,74 @@ function email_template(string $key): array
     return $t;
 }
 
-/** Send a templated email. Returns true on success (false if disabled or failed). */
+/** Build a templated email: [subject, text, html], or null when the template is switched off. */
+function render_template(string $key, array $vars = []): ?array
+{
+    $t = email_template($key);
+    if (!$t['enabled']) {
+        return null;
+    }
+    $vars += ['site_name' => setting('site_name'), 'site_url' => full_url(), 'name' => '', 'action_url' => full_url()];
+    $map = [];
+    foreach ($vars as $k => $v) {
+        $map['{' . $k . '}'] = (string) $v;
+    }
+    $subject = strtr($t['subject'], $map);
+    $body = strtr($t['body'], $map);
+    return [$subject, $body, email_html($subject, $body, (string) $vars['action_url'], $t['button'])];
+}
+
+/** Put a templated email in the background queue (sent by cron within a minute or two). */
+function queue_template(string $key, string $to, array $vars = []): bool
+{
+    $m = render_template($key, $vars);
+    return $m ? queue_mail($to, $m[0], $m[1], $m[2]) : false;
+}
+
+function queue_mail(string $to, string $subject, string $text, ?string $html = null, int $newsletterId = 0): bool
+{
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        return false;
+    }
+    db_insert('mail_queue', ['to_email' => $to, 'subject' => mb_substr($subject, 0, 250), 'body_text' => $text,
+        'body_html' => $html ?? email_html($subject, $text), 'newsletter_id' => $newsletterId, 'attempts' => 0,
+        'last_error' => '', 'created_at' => now()]);
+    return true;
+}
+
+/** Send up to $limit queued emails. Returns the number sent. */
+function process_mail_queue(int $limit = 40, int $newsletterId = 0): int
+{
+    $sent = 0;
+    $where = 'sent_at IS NULL AND attempts < 3' . ($newsletterId ? ' AND newsletter_id = ' . (int) $newsletterId : '');
+    foreach (q_all("SELECT * FROM mail_queue WHERE $where ORDER BY id LIMIT " . (int) $limit) as $m) {
+        // claim the row first so two workers never send the same email
+        if (q('UPDATE mail_queue SET attempts = attempts + 1 WHERE id = ? AND attempts = ? AND sent_at IS NULL', [$m['id'], $m['attempts']])->rowCount() !== 1) {
+            continue;
+        }
+        if (send_mail($m['to_email'], $m['subject'], $m['body_text'], $m['body_html'])) {
+            q('UPDATE mail_queue SET sent_at = ? WHERE id = ?', [now(), $m['id']]);
+            $sent++;
+        } else {
+            q('UPDATE mail_queue SET last_error = ? WHERE id = ?', [mb_substr(mail_last_error(), 0, 250), $m['id']]);
+        }
+    }
+    if (mt_rand(1, 20) === 1) {
+        q('DELETE FROM mail_queue WHERE sent_at IS NOT NULL AND sent_at < ?', [date('Y-m-d H:i:s', time() - 30 * 86400)]);
+    }
+    return $sent;
+}
+
+function mail_queue_pending(): int
+{
+    try {
+        return (int) q_val('SELECT COUNT(*) FROM mail_queue WHERE sent_at IS NULL AND attempts < 3');
+    } catch (Throwable) {
+        return 0;
+    }
+}
+
+/** Send a templated email now. Returns true on success (false if disabled or failed). */
 function send_template(string $key, string $to, array $vars = []): bool
 {
     $t = email_template($key);
@@ -110,7 +240,7 @@ function send_template(string $key, string $to, array $vars = []): bool
 }
 
 /** Wrap a plain-text body in a simple, mobile friendly HTML layout. */
-function email_html(string $subject, string $text, string $actionUrl = '', string $buttonLabel = 'Open'): string
+function email_html(string $subject, string $text, string $actionUrl = '', string $buttonLabel = 'Open', string $footerHtml = ''): string
 {
     $brand = valid_color(setting('primary_color'), '#0d9488');
     $site = e(setting('site_name'));
@@ -131,6 +261,7 @@ function email_html(string $subject, string $text, string $actionUrl = '', strin
         . '<div style="max-width:560px;margin:0 auto;padding:24px 16px">'
         . '<div style="font-weight:800;font-size:20px;color:' . $brand . ';padding:8px 4px 16px">' . $site . '</div>'
         . '<div style="background:#fff;border-radius:16px;padding:28px;border:1px solid #e2e8f0">' . $html . '</div>'
+        . ($footerHtml !== '' ? '<p style="font-size:12px;color:#94a3b8;text-align:center;margin-top:18px">' . $footerHtml . '</p>' : '')
         . '<p style="font-size:12px;color:#94a3b8;text-align:center;margin-top:18px">' . e(copyright_text()) . '<br><a href="' . e(full_url()) . '" style="color:#94a3b8">' . e(full_url()) . '</a></p>'
         . '</div></body></html>';
 }

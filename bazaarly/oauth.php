@@ -9,7 +9,7 @@ require __DIR__ . '/includes/bootstrap.php';
 $provider = input('provider');
 $providers = social_providers();
 if (!isset($providers[$provider])) {
-    flash('error', 'This sign-in method is not available.');
+    flash('error', __('This sign-in method is not available.'));
     redirect('login.php');
 }
 
@@ -112,7 +112,7 @@ if (!$user) {
         ]);
         $user = q_one('SELECT * FROM users WHERE id = ?', [$id]);
         send_template('welcome', $user['email'], ['name' => $user['name'], 'action_url' => full_url('dashboard/edit.php')]);
-        flash('success', 'Welcome to ' . setting('site_name') . '! Your account is ready.');
+        flash('success', __('Welcome to {site}! Your account is ready.', ['site' => setting('site_name')]));
     }
     db_insert('user_social', ['user_id' => $user['id'], 'provider' => $provider, 'provider_uid' => $profile['uid'], 'created_at' => now()]);
 }
@@ -123,10 +123,4 @@ if ($user['status'] === 'banned') {
 if (empty($user['email_verified_at'])) {
     q('UPDATE users SET email_verified_at = ? WHERE id = ?', [now(), $user['id']]);
 }
-login_user($user, true);
-$_SESSION['social_login'] = true;
-if ($user['role'] === 'admin') {
-    log_activity('admin.login', 'Signed in with ' . $providers[$provider], 'user', (int) $user['id']);
-}
-header('Location: ' . intended_url('dashboard/'));
-exit;
+complete_login($user, true, 'dashboard/', true);

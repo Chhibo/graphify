@@ -248,6 +248,25 @@ function default_settings(): array
         'smtp_username' => '',
         'smtp_password' => '',
         'site_url' => '',
+        'enable_video' => '1',
+        'chat_photos' => '1',
+        'watermark_enabled' => '0',
+        'watermark_text' => '',
+        'watermark_position' => 'br',
+        'watermark_opacity' => '60',
+        'watermark_image' => '',
+        'expiry_reminder_days' => '3',
+        'price_drop_alerts' => '1',
+        'duplicate_detection' => 'flag',
+        'enable_offers' => '1',
+        'quick_replies' => "Is this still available?\nWhat is your best price?\nCan I see it today?\nYes, it is still available.\nSorry, it has been sold.",
+        'enable_shops' => '1',
+        'shops_require_approval' => '1',
+        'require_admin_2fa' => '0',
+        'default_language' => 'en',
+        'detect_browser_language' => '1',
+        'id_verification' => '1',
+        'delete_id_docs' => '1',
         'maintenance_mode' => '0',
         'maintenance_message' => 'We are doing some quick maintenance. Please check back soon.',
     ];
@@ -324,7 +343,7 @@ function render_flashes(): string
     foreach ($_SESSION['flash'] ?? [] as $f) {
         $icon = $f['type'] === 'success' ? 'check-circle' : ($f['type'] === 'error' ? 'alert' : 'info');
         $out .= '<div class="alert alert-' . e($f['type']) . '" role="status">' . icon($icon) . '<span>' . e($f['msg']) . '</span>'
-            . '<button type="button" class="alert-close" aria-label="Dismiss">' . icon('x') . '</button></div>';
+            . '<button type="button" class="alert-close" aria-label="' . t('Dismiss') . '">' . icon('x') . '</button></div>';
     }
     unset($_SESSION['flash']);
     return $out === '' ? '' : '<div class="flash-stack">' . $out . '</div>';
@@ -448,7 +467,7 @@ function require_login(): array
 {
     $u = current_user();
     if (!$u) {
-        flash('info', 'Please sign in to continue.');
+        flash('info', __('Please sign in to continue.'));
         $_SESSION['intended'] = $_SERVER['REQUEST_URI'] ?? '';
         redirect('login.php');
     }
@@ -462,6 +481,10 @@ function require_admin(): array
         http_response_code(403);
         flash('error', 'You do not have access to the admin panel.');
         redirect('dashboard/');
+    }
+    if (setting('require_admin_2fa') === '1' && empty($u['totp_enabled']) && basename((string) ($_SERVER['SCRIPT_NAME'] ?? '')) !== 'security.php') {
+        flash('warning', __('Two-factor sign-in is required for administrators. Please set it up first.'));
+        redirect('admin/security.php');
     }
     return $u;
 }
@@ -488,8 +511,8 @@ function money(float|string|null $amount): string
 function listing_price(array $l): string
 {
     return match ($l['price_type'] ?? 'fixed') {
-        'free' => 'Free',
-        'contact' => 'Ask for price',
+        'free' => __('Free'),
+        'contact' => __('Ask for price'),
         default => money($l['price']),
     };
 }
@@ -499,7 +522,34 @@ function format_date(?string $dt): string
     if (!$dt) {
         return '';
     }
-    return date(setting('date_format', 'M j, Y') ?: 'M j, Y', strtotime($dt));
+    return localize_date(date(setting('date_format', 'M j, Y') ?: 'M j, Y', strtotime($dt)));
+}
+
+/** Month + year, e.g. "March 2025", with the month name translated. */
+function format_month(?string $dt): string
+{
+    return $dt ? localize_date(date('F Y', strtotime($dt))) : '';
+}
+
+/** Translates English month and day names inside an already formatted date. */
+function localize_date(string $s): string
+{
+    static $map = null;
+    if (current_lang() === 'en' && !translations_for('en')) {
+        return $s;
+    }
+    if ($map === null) {
+        $map = [];
+        $names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December',
+            'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        foreach ($names as $n) {
+            $map[$n] = __($n);
+        }
+        foreach (['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $n) {
+            $map[$n] = __($n);
+        }
+    }
+    return preg_replace_callback('/\b[A-Z][a-z]+\b/', fn($m) => $map[$m[0]] ?? $m[0], $s);
 }
 
 function time_ago(?string $dt): string
@@ -509,16 +559,19 @@ function time_ago(?string $dt): string
     }
     $diff = time() - strtotime($dt);
     if ($diff < 60) {
-        return 'just now';
+        return __('just now');
     }
-    $units = [31536000 => 'year', 2592000 => 'month', 604800 => 'week', 86400 => 'day', 3600 => 'hour', 60 => 'minute'];
-    foreach ($units as $secs => $name) {
+    $units = [
+        31536000 => ['{n} year ago', '{n} years ago'], 2592000 => ['{n} month ago', '{n} months ago'],
+        604800 => ['{n} week ago', '{n} weeks ago'], 86400 => ['{n} day ago', '{n} days ago'],
+        3600 => ['{n} hour ago', '{n} hours ago'], 60 => ['{n} minute ago', '{n} minutes ago'],
+    ];
+    foreach ($units as $secs => [$one, $many]) {
         if ($diff >= $secs) {
-            $n = intdiv($diff, $secs);
-            return $n . ' ' . $name . ($n > 1 ? 's' : '') . ' ago';
+            return n_($one, $many, intdiv($diff, $secs));
         }
     }
-    return 'just now';
+    return __('just now');
 }
 
 function slugify(string $text): string
@@ -564,7 +617,7 @@ function status_badge(string $status): string
         'active' => 'success', 'pending' => 'warning', 'rejected' => 'danger', 'sold' => 'info',
         'expired' => 'muted', 'banned' => 'danger', 'open' => 'warning', 'resolved' => 'success',
     ];
-    return '<span class="badge badge-' . ($map[$status] ?? 'muted') . '">' . e(ucfirst($status)) . '</span>';
+    return '<span class="badge badge-' . ($map[$status] ?? 'muted') . '">' . e(__(ucfirst($status))) . '</span>';
 }
 
 function stars(float $rating, string $cls = ''): string
@@ -578,7 +631,8 @@ function stars(float $rating, string $cls = ''): string
 
 function condition_label(string $c): string
 {
-    return ['new' => 'New', 'like_new' => 'Like new', 'used' => 'Used', 'refurbished' => 'Refurbished'][$c] ?? '';
+    $label = ['new' => 'New', 'like_new' => 'Like new', 'used' => 'Used', 'refurbished' => 'Refurbished'][$c] ?? '';
+    return $label === '' ? '' : __($label);
 }
 
 function ad_slot(string $name): string
@@ -611,9 +665,9 @@ function pagination_links(int $page, int $pages): string
         $qs['page'] = $p;
         return '?' . http_build_query($qs);
     };
-    $out = '<nav class="pagination" aria-label="Pagination">';
+    $out = '<nav class="pagination" aria-label="' . t('Pagination') . '">';
     if ($page > 1) {
-        $out .= '<a href="' . e($link($page - 1)) . '" aria-label="Previous">' . icon('chevron-left') . '</a>';
+        $out .= '<a href="' . e($link($page - 1)) . '" aria-label="' . t('Previous') . '">' . icon('chevron-left') . '</a>';
     }
     $window = [];
     for ($i = 1; $i <= $pages; $i++) {
@@ -632,19 +686,34 @@ function pagination_links(int $page, int $pages): string
         $prev = $i;
     }
     if ($page < $pages) {
-        $out .= '<a href="' . e($link($page + 1)) . '" aria-label="Next">' . icon('chevron-right') . '</a>';
+        $out .= '<a href="' . e($link($page + 1)) . '" aria-label="' . t('Next') . '">' . icon('chevron-right') . '</a>';
     }
     return $out . '</nav>';
 }
 
 /* -------------------------------------------------------------- categories */
 
+/** Admin pages show and edit the original (untranslated) texts. */
+function in_admin_area(): bool
+{
+    static $in = null;
+    if ($in === null) {
+        $script = str_replace('\\', '/', (string) realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')));
+        $in = $script !== '' && str_starts_with($script, str_replace('\\', '/', APP_ROOT) . '/admin/');
+    }
+    return $in;
+}
+
 function categories_all(): array
 {
     static $cats = null;
     if ($cats === null) {
         $cats = [];
+        $translate = !in_admin_area();
         foreach (q_all('SELECT * FROM categories ORDER BY sort_order, name') as $c) {
+            if ($translate) {
+                $c['name'] = __($c['name']);
+            }
             $cats[(int) $c['id']] = $c;
         }
     }
@@ -735,11 +804,13 @@ function visible_listing_where(string $alias = 'l'): array
 
 function listing_select(): string
 {
-    return 'SELECT l.*, c.name AS category_name, c.icon AS category_icon, u.name AS seller_name, u.username AS seller_username, u.verified AS seller_verified,
+    return 'SELECT l.*, c.name AS category_name, c.icon AS category_icon, u.name AS seller_name, u.username AS seller_username, u.verified AS seller_verified,'
+        . (shops_enabled() ? ' sh.name AS shop_name, sh.slug AS shop_slug, sh.logo AS shop_logo,' : " '' AS shop_name, '' AS shop_slug, '' AS shop_logo,") . '
         (SELECT thumb FROM listing_images i WHERE i.listing_id = l.id ORDER BY i.sort_order, i.id LIMIT 1) AS cover
         FROM listings l
         JOIN users u ON u.id = l.user_id
-        LEFT JOIN categories c ON c.id = l.category_id';
+        LEFT JOIN categories c ON c.id = l.category_id' . (shops_enabled() ? "
+        LEFT JOIN shops sh ON sh.user_id = l.user_id AND sh.status = 'active'" : '');
 }
 
 function clean_urls(): bool
@@ -800,12 +871,19 @@ function delete_listing(int $id): void
     }
     q('DELETE FROM listing_images WHERE listing_id = ?', [$id]);
     q('DELETE FROM listing_field_values WHERE listing_id = ?', [$id]);
+    q('DELETE FROM listing_stats WHERE listing_id = ?', [$id]);
+    q('DELETE FROM listing_flags WHERE listing_id = ? OR related_id = ?', [$id, $id]);
+    q('DELETE FROM offers WHERE listing_id = ?', [$id]);
     foreach (glob(APP_ROOT . '/uploads/cards/' . $id . '-*.jpg') ?: [] as $card) {
         @unlink($card);
     }
     q('DELETE FROM favorites WHERE listing_id = ?', [$id]);
     q('DELETE FROM reports WHERE listing_id = ?', [$id]);
     foreach (q_all('SELECT id FROM conversations WHERE listing_id = ?', [$id]) as $c) {
+        foreach (q_all("SELECT image, thumb FROM messages WHERE conversation_id = ? AND image <> ''", [$c['id']]) as $m) {
+            delete_upload($m['image']);
+            delete_upload($m['thumb']);
+        }
         q('DELETE FROM messages WHERE conversation_id = ?', [$c['id']]);
     }
     q('DELETE FROM conversations WHERE listing_id = ?', [$id]);
@@ -833,6 +911,18 @@ function delete_user_account(int $id): void
     q('DELETE FROM user_social WHERE user_id = ?', [$id]);
     q('DELETE FROM user_blocks WHERE user_id = ? OR blocked_id = ?', [$id, $id]);
     q('DELETE FROM saved_searches WHERE user_id = ?', [$id]);
+    foreach (q_all('SELECT logo, banner FROM shops WHERE user_id = ?', [$id]) as $sh) {
+        delete_upload($sh['logo']);
+        delete_upload($sh['banner']);
+    }
+    q('DELETE FROM shops WHERE user_id = ?', [$id]);
+    foreach (q_all('SELECT doc_front, doc_back, selfie FROM verification_requests WHERE user_id = ?', [$id]) as $v) {
+        delete_upload($v['doc_front']);
+        delete_upload($v['doc_back']);
+        delete_upload($v['selfie']);
+    }
+    q('DELETE FROM verification_requests WHERE user_id = ?', [$id]);
+    q('DELETE FROM offers WHERE buyer_id = ? OR seller_id = ?', [$id, $id]);
     q('DELETE FROM users WHERE id = ?', [$id]);
 }
 
@@ -896,30 +986,31 @@ function normalize_files(?array $files): array
  * Validate, resize and store an uploaded image.
  * Returns ['path' => ..., 'thumb' => ...] on success or an error string.
  */
-function store_image(array $file, string $folder, int $maxW = 1600, int $thumbW = 520, bool $trusted = false): array|string
+function store_image(array $file, string $folder, int $maxW = 1600, int $thumbW = 520, bool $trusted = false, bool $watermark = false): array|string
 {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
         return match ($file['error'] ?? 0) {
-            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'The image "' . ($file['name'] ?? '') . '" is too large.',
-            default => 'Upload failed for "' . ($file['name'] ?? '') . '".',
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => __('The image “{file}” is too large.', ['file' => $file['name'] ?? '']),
+            default => __('Upload failed for “{file}”.', ['file' => $file['name'] ?? '']),
         };
     }
     $maxBytes = max(1, (int) setting('max_image_mb', '5')) * 1024 * 1024;
     if ($file['size'] > $maxBytes) {
-        return 'The image "' . $file['name'] . '" is larger than ' . setting('max_image_mb', '5') . ' MB.';
+        return __('The image “{file}” is larger than {mb} MB.', ['file' => $file['name'], 'mb' => setting('max_image_mb', '5')]);
     }
     if (!$trusted && !is_uploaded_file($file['tmp_name']) && !defined('BZR_TESTING')) {
-        return 'Invalid upload.';
+        return __('Invalid upload.');
     }
     $info = @getimagesize($file['tmp_name']);
     $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
     if (!$info || !isset($allowed[$info['mime']])) {
-        return '"' . $file['name'] . '" is not a supported image (JPG, PNG, WEBP or GIF).';
+        return __('“{file}” is not a supported image (JPG, PNG, WEBP or GIF).', ['file' => $file['name']]);
     }
-    $sub = 'uploads/' . trim($folder, '/') . '/' . date('Y/m');
+    // folders under data/ are private (not reachable from the web), e.g. ID documents
+    $sub = (str_starts_with($folder, 'data/') ? trim($folder, '/') : 'uploads/' . trim($folder, '/')) . '/' . date('Y/m');
     $dir = APP_ROOT . '/' . $sub;
     if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {
-        return 'The uploads folder is not writable.';
+        return __('The uploads folder is not writable.');
     }
     $base = bin2hex(random_bytes(10));
     $mime = $info['mime'];
@@ -936,9 +1027,9 @@ function store_image(array $file, string $folder, int $maxW = 1600, int $thumbW 
         $ext = $allowed[$mime];
         $rel = "$sub/$base.$ext";
         if (!move_or_copy($file['tmp_name'], APP_ROOT . '/' . $rel)) {
-            return 'Could not save the uploaded image.';
+            return __('Could not save the uploaded image.');
         }
-        return ['path' => $rel, 'thumb' => $rel];
+        return ['path' => $rel, 'thumb' => $rel, 'phash' => image_phash(APP_ROOT . '/' . $rel)];
     }
 
     $src = match ($mime) {
@@ -964,10 +1055,10 @@ function store_image(array $file, string $folder, int $maxW = 1600, int $thumbW 
     $ext = $useWebp ? 'webp' : 'jpg';
     $rel = "$sub/$base.$ext";
     $relThumb = "$sub/{$base}_t.$ext";
-    $ok = save_resized($src, APP_ROOT . '/' . $rel, $maxW, $useWebp)
+    $ok = save_resized($src, APP_ROOT . '/' . $rel, $maxW, $useWebp, $watermark && watermark_enabled())
         && save_resized($src, APP_ROOT . '/' . $relThumb, $thumbW, $useWebp);
     imagedestroy($src);
-    return $ok ? ['path' => $rel, 'thumb' => $relThumb] : 'Could not save the uploaded image.';
+    return $ok ? ['path' => $rel, 'thumb' => $relThumb, 'phash' => image_phash(APP_ROOT . '/' . $relThumb)] : 'Could not save the uploaded image.';
 }
 
 function move_or_copy(string $from, string $to): bool
@@ -975,7 +1066,7 @@ function move_or_copy(string $from, string $to): bool
     return is_uploaded_file($from) ? move_uploaded_file($from, $to) : copy($from, $to);
 }
 
-function save_resized(GdImage $src, string $dest, int $maxW, bool $webp): bool
+function save_resized(GdImage $src, string $dest, int $maxW, bool $webp, bool $watermark = false): bool
 {
     $w = imagesx($src);
     $h = imagesy($src);
@@ -991,6 +1082,9 @@ function save_resized(GdImage $src, string $dest, int $maxW, bool $webp): bool
         imagefill($dst, 0, 0, imagecolorallocate($dst, 255, 255, 255));
     }
     imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+    if ($watermark) {
+        apply_watermark($dst);
+    }
     $ok = $webp ? imagewebp($dst, $dest, 82) : imagejpeg($dst, $dest, 84);
     imagedestroy($dst);
     return (bool) $ok;
@@ -998,7 +1092,7 @@ function save_resized(GdImage $src, string $dest, int $maxW, bool $webp): bool
 
 function delete_upload(?string $rel): void
 {
-    if (!$rel || !str_starts_with($rel, 'uploads/') || str_contains($rel, '..')) {
+    if (!$rel || !(str_starts_with($rel, 'uploads/') || str_starts_with($rel, 'data/private/')) || str_contains($rel, '..')) {
         return;
     }
     $path = APP_ROOT . '/' . $rel;
@@ -1013,21 +1107,22 @@ function render_maintenance(): never
 {
     http_response_code(503);
     $name = e(setting('site_name'));
-    $msg = nl2br(e(setting('maintenance_message')));
+    $msg = nl2br(t(setting('maintenance_message')));
     $login = e(url('login.php'));
-    echo "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>$name – Maintenance</title>"
+    echo "<!doctype html><html lang=\"" . current_lang() . "\" dir=\"" . lang_dir() . "\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>$name – " . t('Maintenance') . "</title>"
         . '<link rel="stylesheet" href="' . e(asset('css/app.css')) . '"></head><body class="center-page"><div class="card narrow center">'
-        . "<h1>We'll be right back</h1><p class=\"muted\">$msg</p><p><a class=\"btn btn-ghost btn-sm\" href=\"$login\">Admin sign in</a></p></div></body></html>";
+        . '<h1>' . t('We\'ll be right back') . "</h1><p class=\"muted\">$msg</p><p><a class=\"btn btn-ghost btn-sm\" href=\"$login\">" . t('Admin sign in') . '</a></p></div></body></html>';
     exit;
 }
 
-function not_found(string $message = 'The page you are looking for could not be found.'): never
+function not_found(string $message = ''): never
 {
     http_response_code(404);
-    $pageTitle = 'Not found';
+    $message = $message ?: __('The page you are looking for could not be found.');
+    $pageTitle = __('Not found');
     require APP_ROOT . '/includes/header.php';
     echo '<section class="container section"><div class="empty-state big">' . icon('search')
-        . '<h1>Nothing here</h1><p>' . e($message) . '</p><a class="btn btn-primary" href="' . e(url('listings.php')) . '">Browse ads</a></div></section>';
+        . '<h1>' . t('Nothing here') . '</h1><p>' . e($message) . '</p><a class="btn btn-primary" href="' . e(url('listings.php')) . '">' . t('Browse ads') . '</a></div></section>';
     require APP_ROOT . '/includes/footer.php';
     exit;
 }

@@ -5,7 +5,7 @@
  */
 declare(strict_types=1);
 
-const DB_VERSION = '2';
+const DB_VERSION = '3';
 
 /* --------------------------------------------------------------- upgrades */
 
@@ -64,6 +64,11 @@ function run_migrations(): void
             $extra['email_tpl_new_message_enabled'] = '0';
         }
         save_settings($extra);
+    }
+    if ($from < 3) {
+        // existing messages count as read; seed the language table
+        q('UPDATE messages SET read_at = created_at WHERE read_at IS NULL');
+        seed_languages();
     }
     save_settings(['db_version' => DB_VERSION]);
 }
@@ -236,7 +241,7 @@ function send_verification_email(array $u): bool
 function require_verified_email(string $back = 'dashboard/'): void
 {
     if (needs_email_verification()) {
-        flash('warning', 'Please verify your email address first. Check your inbox for the link, or resend it from your dashboard.');
+        flash('warning', __('Please verify your email address first. Check your inbox for the link, or resend it from your dashboard.'));
         redirect($back);
     }
 }
@@ -297,7 +302,7 @@ function clean_field_input(int $catId, array $input): array
             case 'number':
                 $v = str_replace([',', ' '], '', $v);
                 if ($v !== '' && !is_numeric($v)) {
-                    $errors['cf_' . $id] = $f['label'] . ' must be a number.';
+                    $errors['cf_' . $id] = __('{field} must be a number.', ['field' => __($f['label'])]);
                     continue 2;
                 }
                 break;
@@ -313,7 +318,7 @@ function clean_field_input(int $catId, array $input): array
                 $v = mb_substr($v, 0, 190);
         }
         if ($v === '' && $f['required'] && $f['type'] !== 'checkbox') {
-            $errors['cf_' . $id] = $f['label'] . ' is required.';
+            $errors['cf_' . $id] = __('{field} is required.', ['field' => __($f['label'])]);
             continue;
         }
         if ($v !== '') {
@@ -334,11 +339,14 @@ function save_listing_fields(int $listingId, array $values): void
 function format_field_value(array $f, string $v): string
 {
     if ($f['type'] === 'checkbox') {
-        return $v === '1' ? 'Yes' : 'No';
+        return $v === '1' ? __('Yes') : __('No');
     }
     if ($f['type'] === 'number' && is_numeric($v)) {
         // thousands separators for big numbers only (keeps years like 2019 readable)
         $v = rtrim(rtrim(number_format((float) $v, 2, '.', abs((float) $v) >= 10000 ? ',' : ''), '0'), '.');
+    }
+    if ($f['type'] === 'select') {
+        $v = __($v);
     }
     return $v . ($f['unit'] !== '' ? ' ' . $f['unit'] : '');
 }
@@ -555,21 +563,21 @@ function search_summary(array $v): string
     if ($v['loc']) $parts[] = location_label($v['loc']);
     if ($v['location'] !== '') $parts[] = $v['location'];
     if ($v['min'] !== '' && $v['max'] !== '') $parts[] = money($v['min']) . ' – ' . money($v['max']);
-    elseif ($v['min'] !== '') $parts[] = 'from ' . money($v['min']);
-    elseif ($v['max'] !== '') $parts[] = 'under ' . money($v['max']);
+    elseif ($v['min'] !== '') $parts[] = __('from {price}', ['price' => money($v['min'])]);
+    elseif ($v['max'] !== '') $parts[] = __('under {price}', ['price' => money($v['max'])]);
     if ($v['condition'] !== '') $parts[] = condition_label($v['condition']);
     $all = fields_all();
     foreach ($v['f'] as $fid => $val) {
-        if (isset($all[$fid])) $parts[] = $all[$fid]['label'] . ': ' . ($all[$fid]['type'] === 'checkbox' ? 'Yes' : $val);
+        if (isset($all[$fid])) $parts[] = __($all[$fid]['label']) . ': ' . ($all[$fid]['type'] === 'checkbox' ? __('Yes') : __($val));
     }
     foreach ($v['fmin'] as $fid => $n) {
-        if (isset($all[$fid])) $parts[] = $all[$fid]['label'] . ' ≥ ' . $n;
+        if (isset($all[$fid])) $parts[] = __($all[$fid]['label']) . ' ≥ ' . $n;
     }
     foreach ($v['fmax'] as $fid => $n) {
-        if (isset($all[$fid])) $parts[] = $all[$fid]['label'] . ' ≤ ' . $n;
+        if (isset($all[$fid])) $parts[] = __($all[$fid]['label']) . ' ≤ ' . $n;
     }
-    if ($v['featured']) $parts[] = 'featured only';
-    return $parts ? implode(' · ', array_filter($parts)) : 'All ads';
+    if ($v['featured']) $parts[] = __('featured only');
+    return $parts ? implode(' · ', array_filter($parts)) : __('All ads');
 }
 
 /* -------------------------------------------------------- saved searches */
@@ -613,6 +621,11 @@ function run_cron(): array
     expire_listings();
     $log[] = 'Expired old ads.';
     $log[] = 'Saved-search alerts sent: ' . run_saved_search_alerts();
+    $log[] = 'Expiry reminders sent: ' . run_expiry_reminders();
+    $log[] = 'Queued emails sent: ' . process_mail_queue(200);
+    if (setting('duplicate_detection', 'flag') !== 'off') {
+        $log[] = 'Photo fingerprints added: ' . backfill_phashes();
+    }
     q('DELETE FROM login_attempts WHERE created_at < ?', [date('Y-m-d H:i:s', time() - 86400)]);
     q('DELETE FROM user_tokens WHERE expires_at < ?', [now()]);
     q('DELETE FROM password_resets WHERE expires_at < ?', [now()]);
@@ -627,7 +640,24 @@ function run_cron(): array
 /** Runs scheduled jobs after the page is sent, at most every 15 minutes, when no real cron job is set up. */
 function maybe_pseudo_cron(): void
 {
-    if (setting('pseudo_cron', '1') !== '1' || is_post() || time() - (int) setting('last_cron_run', '0') < 900) {
+    if (setting('pseudo_cron', '1') !== '1' || is_post()) {
+        return;
+    }
+    if (time() - (int) setting('last_cron_run', '0') < 900) {
+        // between full runs, keep the email queue moving (newsletters, price-drop alerts…)
+        if (time() - (int) setting('last_queue_run', '0') >= 60 && mail_queue_pending() > 0) {
+            save_settings(['last_queue_run' => (string) time()]);
+            register_shutdown_function(function () {
+                if (function_exists('fastcgi_finish_request')) {
+                    fastcgi_finish_request();
+                }
+                try {
+                    process_mail_queue(30);
+                } catch (Throwable $e) {
+                    error_log('Bazaarly mail queue: ' . $e->getMessage());
+                }
+            });
+        }
         return;
     }
     save_settings(['last_cron_run' => (string) time()]);
@@ -729,15 +759,15 @@ function notify_listing_status(int $listingId, string $newStatus, string $reason
  * Sends a chat message about a listing. Creates the conversation when needed.
  * Returns the conversation id, or an error message string.
  */
-function post_message(int $listingId, array $sender, string $body, ?array $conv = null): int|string
+function post_message(int $listingId, array $sender, string $body, ?array $conv = null, ?array $image = null): int|string
 {
     $body = trim($body);
-    if (mb_strlen($body) < 2) {
-        return 'Please write a message.';
+    if (mb_strlen($body) < 2 && !$image) {
+        return __('Please write a message.');
     }
     $listing = q_one('SELECT id, title, user_id FROM listings WHERE id = ?', [$listingId]);
     if (!$listing) {
-        return 'This ad no longer exists.';
+        return __('This ad no longer exists.');
     }
     $senderId = (int) $sender['id'];
     if (!$conv) {
@@ -747,30 +777,31 @@ function post_message(int $listingId, array $sender, string $body, ?array $conv 
         ? ((int) $conv['buyer_id'] === $senderId ? (int) $conv['seller_id'] : (int) $conv['buyer_id'])
         : (int) $listing['user_id'];
     if ($recipientId === $senderId) {
-        return 'You cannot message yourself.';
+        return __('You cannot message yourself.');
     }
     if (is_blocked($senderId, $recipientId)) {
-        return 'You have blocked this member. Unblock them to send messages.';
+        return __('You have blocked this member. Unblock them to send messages.');
     }
     if (is_blocked($recipientId, $senderId)) {
-        return 'This member is not accepting messages from you.';
+        return __('This member is not accepting messages from you.');
     }
     if ($sender['role'] !== 'admin' && ($bad = find_banned_word($body)) !== null) {
-        return 'Your message contains a word or phrase that is not allowed (“' . $bad . '”).';
+        return __('Your message contains a word or phrase that is not allowed (“{word}”).', ['word' => $bad]);
     }
     $convId = $conv ? (int) $conv['id'] : db_insert('conversations', [
         'listing_id' => $listingId, 'buyer_id' => $senderId, 'seller_id' => $recipientId,
         'buyer_unread' => 0, 'seller_unread' => 0, 'last_message_at' => now(), 'created_at' => now(),
     ]);
     $isBuyer = !$conv || (int) $conv['buyer_id'] === $senderId;
-    db_insert('messages', ['conversation_id' => $convId, 'sender_id' => $senderId, 'body' => mb_substr($body, 0, 4000), 'created_at' => now()]);
+    db_insert('messages', ['conversation_id' => $convId, 'sender_id' => $senderId, 'body' => mb_substr($body, 0, 4000),
+        'image' => $image['path'] ?? '', 'thumb' => $image['thumb'] ?? '', 'offer_id' => 0, 'created_at' => now()]);
     $col = $isBuyer ? 'seller_unread' : 'buyer_unread';
     q("UPDATE conversations SET $col = $col + 1, last_message_at = ? WHERE id = ?", [now(), $convId]);
     $recipient = q_one('SELECT name, email FROM users WHERE id = ?', [$recipientId]);
     if ($recipient) {
         send_template('new_message', $recipient['email'], [
             'name' => $recipient['name'], 'sender_name' => $sender['name'], 'ad_title' => $listing['title'],
-            'message' => mb_substr($body, 0, 500), 'action_url' => full_url('dashboard/messages.php?c=' . $convId),
+            'message' => $body !== '' ? mb_substr($body, 0, 500) : '[' . __('photo') . ']', 'action_url' => full_url('dashboard/messages.php?c=' . $convId),
         ]);
     }
     return $convId;

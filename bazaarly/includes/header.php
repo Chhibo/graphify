@@ -1,8 +1,8 @@
 <?php
 /** @var string|null $pageTitle @var string|null $metaDesc @var string|null $ogImage @var string|null $bodyClass */
 $siteName = setting('site_name');
-$title = isset($pageTitle) && $pageTitle !== '' ? $pageTitle . ' · ' . $siteName : $siteName . ' – ' . setting('site_tagline');
-$desc = $metaDesc ?? setting('site_description');
+$title = isset($pageTitle) && $pageTitle !== '' ? $pageTitle . ' · ' . $siteName : $siteName . ' – ' . __(setting('site_tagline'));
+$desc = $metaDesc ?? __(setting('site_description'));
 $me = current_user();
 $unread = $me ? unread_count() : 0;
 $brand = valid_color(setting('primary_color'), '#0d9488');
@@ -10,7 +10,7 @@ $accent = valid_color(setting('accent_color'), '#f97316');
 $headerPages = q_all('SELECT title, slug FROM pages WHERE in_header = 1 ORDER BY id');
 $current = basename($_SERVER['SCRIPT_NAME'] ?? '');
 ?><!doctype html>
-<html lang="en" data-default-theme="<?= e(setting('default_theme', 'auto')) ?>">
+<html lang="<?= e(current_lang()) ?>" dir="<?= lang_dir() ?>" data-default-theme="<?= e(setting('default_theme', 'auto')) ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -39,7 +39,7 @@ $current = basename($_SERVER['SCRIPT_NAME'] ?? '');
 </head>
 <body class="<?= e($bodyClass ?? '') ?>">
 <?= icon_sprite() ?>
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#main"><?= t('Skip to content') ?></a>
 <header class="site-header">
   <div class="container header-row">
     <a class="logo" href="<?= e(url()) ?>">
@@ -50,52 +50,55 @@ $current = basename($_SERVER['SCRIPT_NAME'] ?? '');
       <?php endif; ?>
     </a>
 
-    <nav class="main-nav" id="mainNav" aria-label="Main">
-      <a href="<?= e(url()) ?>" class="<?= $current === 'index.php' ? 'active' : '' ?>">Home</a>
-      <a href="<?= e(search_url([])) ?>" class="<?= $current === 'listings.php' ? 'active' : '' ?>">Browse ads</a>
-      <a href="<?= e(url('categories.php')) ?>" class="<?= $current === 'categories.php' ? 'active' : '' ?>">Categories</a>
+    <nav class="main-nav" id="mainNav" aria-label="<?= t('Main') ?>">
+      <a href="<?= e(url()) ?>" class="<?= $current === 'index.php' ? 'active' : '' ?>"><?= t('Home') ?></a>
+      <a href="<?= e(search_url([])) ?>" class="<?= $current === 'listings.php' ? 'active' : '' ?>"><?= t('Browse ads') ?></a>
+      <a href="<?= e(url('categories.php')) ?>" class="<?= $current === 'categories.php' ? 'active' : '' ?>"><?= t('Categories') ?></a>
+      <?php if (shops_enabled()): ?><a href="<?= e(clean_urls() ? url('shops') : url('shops.php')) ?>" class="<?= in_array($current, ['shops.php', 'shop.php'], true) ? 'active' : '' ?>"><?= t('Shops') ?></a><?php endif; ?>
       <?php foreach ($headerPages as $hp): ?>
-        <a href="<?= e(page_url($hp['slug'])) ?>"><?= e($hp['title']) ?></a>
+        <a href="<?= e(page_url($hp['slug'])) ?>"><?= t($hp['title']) ?></a>
       <?php endforeach; ?>
-      <a href="<?= e(url('contact.php')) ?>" class="<?= $current === 'contact.php' ? 'active' : '' ?>">Contact</a>
+      <a href="<?= e(url('contact.php')) ?>" class="<?= $current === 'contact.php' ? 'active' : '' ?>"><?= t('Contact') ?></a>
       <div class="mobile-only nav-mobile-extra">
         <?php if (!$me): ?>
-          <a href="<?= e(url('login.php')) ?>">Sign in</a>
-          <?php if (setting('allow_registration') === '1'): ?><a href="<?= e(url('register.php')) ?>">Create account</a><?php endif; ?>
+          <a href="<?= e(url('login.php')) ?>"><?= t('Sign in') ?></a>
+          <?php if (setting('allow_registration') === '1'): ?><a href="<?= e(url('register.php')) ?>"><?= t('Create account') ?></a><?php endif; ?>
         <?php endif; ?>
       </div>
     </nav>
 
     <div class="header-actions">
-      <button class="icon-btn" type="button" data-theme-toggle aria-label="Toggle dark mode"><?= icon('moon', 'show-light') ?><?= icon('sun', 'show-dark') ?></button>
+      <?= language_switcher() ?>
+      <button class="icon-btn" type="button" data-theme-toggle aria-label="<?= t('Toggle dark mode') ?>"><?= icon('moon', 'show-light') ?><?= icon('sun', 'show-dark') ?></button>
       <?php if ($me): ?>
-        <a class="icon-btn" href="<?= e(url('dashboard/messages.php')) ?>" aria-label="Messages"><?= icon('message') ?><?php if ($unread): ?><span class="dot-badge"><?= $unread > 9 ? '9+' : $unread ?></span><?php endif; ?></a>
+        <a class="icon-btn" href="<?= e(url('dashboard/messages.php')) ?>" aria-label="<?= t('Messages') ?>"><?= icon('message') ?><?php if ($unread): ?><span class="dot-badge"><?= $unread > 9 ? '9+' : $unread ?></span><?php endif; ?></a>
         <details class="dropdown user-menu">
-          <summary aria-label="Account menu"><?= avatar_html($me, 'sm') ?><?= icon('chevron-down', 'hide-mobile') ?></summary>
+          <summary aria-label="<?= t('Account menu') ?>"><?= avatar_html($me, 'sm') ?><?= icon('chevron-down', 'hide-mobile') ?></summary>
           <div class="dropdown-panel">
             <div class="dropdown-head"><strong><?= e($me['name']) ?></strong><small>@<?= e($me['username']) ?></small></div>
-            <a href="<?= e(url('dashboard/')) ?>"><?= icon('layout') ?>Dashboard</a>
-            <a href="<?= e(url('dashboard/listings.php')) ?>"><?= icon('package') ?>My ads</a>
-            <a href="<?= e(url('dashboard/favorites.php')) ?>"><?= icon('heart') ?>Saved ads</a>
-            <?php if (setting('enable_saved_searches', '1') === '1'): ?><a href="<?= e(url('dashboard/searches.php')) ?>"><?= icon('bell') ?>Saved searches</a><?php endif; ?>
-            <a href="<?= e(url('dashboard/messages.php')) ?>"><?= icon('message') ?>Messages<?php if ($unread): ?><span class="badge badge-brand"><?= $unread ?></span><?php endif; ?></a>
-            <a href="<?= e(url('dashboard/settings.php')) ?>"><?= icon('settings') ?>Account settings</a>
-            <?php if ($me['role'] === 'admin'): ?><a href="<?= e(url('admin/')) ?>"><?= icon('shield') ?>Admin panel</a><?php endif; ?>
-            <form method="post" action="<?= e(url('logout.php')) ?>"><?= csrf_field() ?><button type="submit"><?= icon('log-out') ?>Sign out</button></form>
+            <a href="<?= e(url('dashboard/')) ?>"><?= icon('layout') ?><?= t('Dashboard') ?></a>
+            <a href="<?= e(url('dashboard/listings.php')) ?>"><?= icon('package') ?><?= t('My ads') ?></a>
+            <a href="<?= e(url('dashboard/stats.php')) ?>"><?= icon('chart') ?><?= t('Statistics') ?></a>
+            <a href="<?= e(url('dashboard/favorites.php')) ?>"><?= icon('heart') ?><?= t('Saved ads') ?></a>
+            <?php if (setting('enable_saved_searches', '1') === '1'): ?><a href="<?= e(url('dashboard/searches.php')) ?>"><?= icon('bell') ?><?= t('Saved searches') ?></a><?php endif; ?>
+            <a href="<?= e(url('dashboard/messages.php')) ?>"><?= icon('message') ?><?= t('Messages') ?><?php if ($unread): ?><span class="badge badge-brand"><?= $unread ?></span><?php endif; ?></a>
+            <a href="<?= e(url('dashboard/settings.php')) ?>"><?= icon('settings') ?><?= t('Account settings') ?></a>
+            <?php if ($me['role'] === 'admin'): ?><a href="<?= e(url('admin/')) ?>"><?= icon('shield') ?><?= t('Admin panel') ?></a><?php endif; ?>
+            <form method="post" action="<?= e(url('logout.php')) ?>"><?= csrf_field() ?><button type="submit"><?= icon('log-out') ?><?= t('Sign out') ?></button></form>
           </div>
         </details>
       <?php else: ?>
-        <a class="btn btn-ghost hide-mobile" href="<?= e(url('login.php')) ?>">Sign in</a>
+        <a class="btn btn-ghost hide-mobile" href="<?= e(url('login.php')) ?>"><?= t('Sign in') ?></a>
       <?php endif; ?>
-      <a class="btn btn-primary" href="<?= e(url('dashboard/edit.php')) ?>"><?= icon('plus') ?><span class="hide-xs">Post ad</span></a>
-      <button class="icon-btn nav-toggle" type="button" aria-controls="mainNav" aria-expanded="false" aria-label="Menu"><?= icon('menu') ?></button>
+      <a class="btn btn-primary" href="<?= e(url('dashboard/edit.php')) ?>"><?= icon('plus') ?><span class="hide-xs"><?= t('Post ad') ?></span></a>
+      <button class="icon-btn nav-toggle" type="button" aria-controls="mainNav" aria-expanded="false" aria-label="<?= t('Menu') ?>"><?= icon('menu') ?></button>
     </div>
   </div>
 </header>
 <?php if ($me && needs_email_verification($me)): ?>
 <div class="verify-bar"><div class="container">
-  <?= icon('mail') ?><span>Please confirm your email address (<strong><?= e($me['email']) ?></strong>) to post ads and send messages.</span>
-  <form method="post" action="<?= e(url('verify.php')) ?>"><?= csrf_field() ?><input type="hidden" name="action" value="resend"><button class="btn btn-sm btn-light" type="submit">Resend email</button></form>
+  <?= icon('mail') ?><span><?= t('Please confirm your email address ({email}) to post ads and send messages.', ['email' => $me['email']]) ?></span>
+  <form method="post" action="<?= e(url('verify.php')) ?>"><?= csrf_field() ?><input type="hidden" name="action" value="resend"><button class="btn btn-sm btn-light" type="submit"><?= t('Resend email') ?></button></form>
 </div></div>
 <?php endif; ?>
 <main id="main">

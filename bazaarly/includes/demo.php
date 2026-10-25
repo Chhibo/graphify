@@ -157,6 +157,26 @@ function install_demo_content(PDO $pdo, array $cat, array $loc = [], array $fiel
         }
     }
 
+    // v1.2 examples: a business shop page, a recent price drop and a few weeks of statistics
+    $hours = [];
+    foreach (['mon', 'tue', 'wed', 'thu', 'fri'] as $d) {
+        $hours[$d] = ['open' => '09:00', 'close' => '18:00', 'closed' => false];
+    }
+    $hours['sat'] = ['open' => '10:00', 'close' => '16:00', 'closed' => false];
+    $hours['sun'] = ['open' => '', 'close' => '', 'closed' => true];
+    $pdo->prepare('INSERT INTO shops (user_id, name, slug, tagline, description, phone, email, website, address, hours, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        ->execute([$uids[1], 'Okafor Auto & Tech', 'okafor-auto-tech', 'Inspected used cars and refurbished laptops',
+            "Family business since 2012. Every car is inspected before sale and every laptop comes with a 3-month warranty.\nTest drives and pick-ups by appointment.",
+            '+1 555 0101', 'danielo@example.com', '', 'Austin, TX', json_encode($hours), 'active', now(), now()]);
+    $pdo->prepare('UPDATE listings SET previous_price = ?, price_changed_at = ? WHERE id = ?')->execute([15500, now(), $listingIds[0]]);
+    $st = $pdo->prepare('INSERT INTO listing_stats (listing_id, day, views, saves, messages, offers, phone_reveals) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    foreach ($listingIds as $i => $lid) {
+        for ($d = 20; $d >= 0; $d--) {
+            $v = max(0, (int) round(mt_rand(2, 18) * (1 + ($i % 3) * .4) * ($d < 7 ? 1.3 : 1)));
+            $st->execute([$lid, date('Y-m-d', strtotime("-$d days")), $v, mt_rand(0, 9) > 7 ? 1 : 0, mt_rand(0, 9) > 8 ? 1 : 0, mt_rand(0, 19) > 18 ? 1 : 0, mt_rand(0, 9) > 7 ? 1 : 0]);
+        }
+    }
+
     $rev = $pdo->prepare('INSERT INTO reviews (seller_id, reviewer_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?)');
     $rev->execute([$uids[0], $uids[1], 5, 'Item exactly as described and very friendly. Would buy again!', now()]);
     $rev->execute([$uids[1], $uids[2], 4, 'Quick replies and an easy pick-up.', now()]);

@@ -46,6 +46,8 @@ if (preg_match('~^ad/(\d+)(?:-[^/]*)?/?$~', $path, $m)) $route('listing.php', ['
 if (preg_match('~^category/([^/]+)/?$~', $path, $m)) $route('listings.php', ['category_slug' => $m[1]]);
 if (preg_match('~^user/([^/]+)/?$~', $path, $m)) $route('profile.php', ['username' => $m[1]]);
 if (preg_match('~^page/([^/]+)/?$~', $path, $m)) $route('page.php', ['slug' => $m[1]]);
+if (preg_match('~^shop/([^/]+)/?$~', $path, $m)) $route('shop.php', ['slug' => $m[1]]);
+if ($path === 'shops') $route('shops.php');
 if ($path === 'ads' || $path === 'search') $route('listings.php');
 if ($path === 'categories') $route('categories.php');
 if ($path === 'contact') $route('contact.php');

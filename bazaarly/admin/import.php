@@ -170,13 +170,13 @@ if (is_post()) {
                 }
                 $tmp = tempnam(sys_get_temp_dir(), 'bzimg');
                 file_put_contents($tmp, $res['body']);
-                $stored = store_image(['name' => basename(parse_url($imgUrl, PHP_URL_PATH) ?: 'photo'), 'tmp_name' => $tmp, 'error' => UPLOAD_ERR_OK, 'size' => strlen($res['body'])], 'listings', 1600, 520, true);
+                $stored = store_image(['name' => basename(parse_url($imgUrl, PHP_URL_PATH) ?: 'photo'), 'tmp_name' => $tmp, 'error' => UPLOAD_ERR_OK, 'size' => strlen($res['body'])], 'listings', 1600, 520, true, true);
                 @unlink($tmp);
                 if (is_string($stored)) {
                     $report['image_errors']++;
                     continue;
                 }
-                db_insert('listing_images', ['listing_id' => $id, 'path' => $stored['path'], 'thumb' => $stored['thumb'], 'sort_order' => $order++]);
+                db_insert('listing_images', ['listing_id' => $id, 'path' => $stored['path'], 'thumb' => $stored['thumb'], 'phash' => $stored['phash'] ?? '', 'sort_order' => $order++]);
                 $report['images']++;
             }
         }
